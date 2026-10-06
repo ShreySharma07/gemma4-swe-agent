@@ -1,0 +1,1 @@
+Append a decision to the decision log in `docs/HQ.md`: date, decision, why. Keep it to one table row. If it changes the roadmap, also update `docs/plan.md` and the "Verified findings" section of `CLAUDE.md` when a finding is confirmed or refuted.

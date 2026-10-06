@@ -1,0 +1,1 @@
+Small, versioned artefacts per run (`task_results.jsonl`, analyzer `summary.json` / `report.md` / `per_task.jsonl`). Raw tgz files with traces live in `data/` (gitignored). See `docs/experiments.md` for the run index.
