@@ -179,6 +179,10 @@ Caveats: gold = code edited (including features). Issue-symbol extraction is reg
 ## Decision log
 | Date | Decision | Why |
 |---|---|---|
+| Oct 6 | **Reset to notebook-style roadmap; scaffold frozen at v2; post-training first; work moves to a git repo + Claude Code** (`gemma4-swe-agent`: CLAUDE.md, docs/plan.md, docs/experiments.md, submissions v1–v6, Kaggle scripts, analysis tools). Training on Kaggle L4×4 only. Not public yet | scaffold changes plateaued (v2 = v5 = 0.08, v6 = 0.00); Shrey wants the traditional EDA → techniques → data → post-training flow |
+| Oct 6 | **LB v6_trace = 0.00, ~10 h scorer runtime.** The skill-only localizer most likely fails in the scorer's Docker sandbox (every task ran to its timeout). v6 line dropped; skills are treated as unverified on the scorer | v5 (skill optional) = v2 on LB fits the same story |
+| Oct 5 | Local v5_graph 33/129 (+12/−5 vs v2, p=0.14), LB 0.08. Localizer overran (48 calls), 61% of edits malformed. Runner compaction bug fixed (scorer = interval 15 / threshold 32768). Local set no longer predicts the LB → renamed dev set (`build_devset.py`) | `docs/findings.md` |
+| Oct 4 | Graph diagnosis: `search_similar_code` = exact-name lookup (phrases/bare names 0/461 calls); built v5 with an ast `code-map` skill | `docs/findings.md` |
 | Sep 25 | Enter both tracks | Prize + research credibility |
 | Sep 25 | $50 hard cap | Budget |
 | Sep 26 | Safe core + ambitious add-on | Guaranteed deliverables with upside |
