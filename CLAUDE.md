@@ -31,11 +31,14 @@ Read `docs/plan.md` (the roadmap) and `docs/experiments.md` (every run so far) b
 | v5_graph | 33/129 | 0.08 |
 | v6_trace | not run locally | 0.00 (~10 h) |
 
-**Local gains have stopped transferring to the LB.** The likely cause is that the public repos are memorised by Gemma. The renamed dev set (`kaggle/devset/build_devset.py`) is meant to test this. It has not been run yet.
+**Local gains have stopped transferring to the LB.** The likely cause is that the public repos are memorised by Gemma. The renamed dev set was dropped (Oct 7): renaming keeps structure, so it can't isolate memorisation. Generalisation needs genuinely unseen repos.
+- **Local env ≠ scorer env (Oct 7):** in subprocess mode swegemma skips dependency setup, so all local runs so far tested against the Kaggle image's packages. `use_scorer_env()` in `kaggle/devset/build_devset.py` rebuilds the scorer's env; port it to the L4 runner. Kaggle images are now Python 3.13 (see `docs/HQ.md`).
 
 ### What helped
 - Removing `read_file`. Gemma garbles its arguments (`start_line"` keys, 47% of reads), which caused read loops.
 - grep/sed reads instead.
+
+- **LoRA serving works on the scorer path (Phase 0, Oct 7):** PEFT adapters with real Gemma-4 shapes load on the W4A16 base in vLLM 0.19.1; `adapter:` routes via `resolve_swegemma_adapter`. Rank 8 = 122.6 MB (410 modules), so rank 64 ≈ 1 GB. L4×4 kernels must have the competition attached (`competition_sources`), run offline, and restore `scorer_env.tgz` from kernel `gemma4-scorer-env`.
 
 ### Known failure mechanisms
 1. **Garbled tool calls.** Code containing quotes leaks into the argument keys. v5: 61% of `edit_file` calls, concentrated in ~14 tasks. This is a natural first LoRA target: tool-call format reliability.
