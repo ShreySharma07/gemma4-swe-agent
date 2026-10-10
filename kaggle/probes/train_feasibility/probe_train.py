@@ -38,7 +38,7 @@ LOG = open(W / "run.log", "a", buffering=1)
 REPORT = {"probe_version": 3}
 T0 = float(os.environ.get("PROBE_T0", time.time()))  # survives the re-exec into the venv
 os.environ["PROBE_T0"] = str(T0)
-BUDGET_MIN = float(os.environ.get("PROBE_BUDGET_MIN", "75"))
+BUDGET_MIN = float(os.environ.get("PROBE_BUDGET_MIN", "95"))
 
 
 def log(*a):
@@ -132,7 +132,7 @@ SMOKE = os.environ.get("PROBE_SMOKE") == "1"
 MODEL, OUT, SEQS, OFFLOAD_FROM = sys.argv[1], sys.argv[2], [int(x) for x in sys.argv[3].split(",")], int(sys.argv[4])
 TARGETS = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj")
 LORA_RE = r".*language_model.*\.(" + "|".join(TARGETS) + r")$"
-dist.init_process_group("gloo" if SMOKE else "nccl", timeout=datetime.timedelta(minutes=40))
+dist.init_process_group("gloo" if SMOKE else "nccl", timeout=datetime.timedelta(minutes=8))  # a rank that OOMs must not hang the rest
 rank, world = dist.get_rank(), dist.get_world_size()
 if SMOKE:
     dev, dt = torch.device("cpu"), torch.float32
@@ -187,6 +187,9 @@ if nf4_dir and rank == 0 and not SMOKE:
 dist.barrier()
 
 
+CH = 64 if SMOKE else 256  # loss chunk: 256 x 262k fp32 logits = 0.27 GB
+
+
 class ChunkedCE(torch.autograd.Function):
     """Next-token CE with Gemma's final-logit softcap, 1k tokens at a time: T x vocab logits never exist at once.
     The head is frozen, so only dL/dh is needed; it is computed chunk by chunk in forward and kept (T x hidden)."""
@@ -196,15 +199,15 @@ class ChunkedCE(torch.autograd.Function):
         n = y.numel()
         gh = torch.empty_like(h)
         tot = torch.zeros((), device=h.device, dtype=torch.float32)
-        for i in range(0, n, 1024):
-            hc = h[i:i + 1024].detach().requires_grad_(True)
+        for i in range(0, n, CH):
+            hc = h[i:i + CH].detach().requires_grad_(True)
             with torch.enable_grad():
                 z = (hc @ w.T).float()
                 if CAP:
                     z = torch.tanh(z / CAP) * CAP
-                l = F.cross_entropy(z, y[i:i + 1024], reduction="sum")
+                l = F.cross_entropy(z, y[i:i + CH], reduction="sum")
                 g, = torch.autograd.grad(l, hc)
-            gh[i:i + 1024] = g
+            gh[i:i + CH] = g
             tot += l.detach()
         ctx.save_for_backward(gh)
         ctx.n = n
@@ -224,8 +227,9 @@ class Wrap(nn.Module):
         self.m = m
 
     def forward(self, ids, mode="loss"):
-        h = self.m(input_ids=ids, use_cache=False, logits_to_keep=1, output_hidden_states=True).hidden_states[-1][0]
-        w = self.m.get_output_embeddings().weight
+        base = self.m.base_model.model  # PeftModel -> LoraModel -> Gemma4ForConditionalGeneration
+        h = base.model.language_model(input_ids=ids, use_cache=False).last_hidden_state[0]  # no logits, no hidden-state tuple
+        w = base.get_output_embeddings().weight
         if mode == "logits":  # NF4 reference predictions (no grad)
             z = (h @ w.T).float()
             if CAP:
@@ -246,7 +250,9 @@ for n_, p in m.named_parameters():
 lm = next(mm for n_, mm in m.named_modules() if n_.endswith("language_model") and "vision" not in n_)
 res["lora_modules"] = sum(1 for n_, _ in m.named_parameters() if ".lora_A." in n_)
 layer_cls = type(lm.layers[0])
-wrap = partial(lambda_auto_wrap_policy, lambda_fn=lambda mod: isinstance(mod, layer_cls))
+vision = [mm for n_, mm in m.named_modules() if n_.endswith("vision_tower") or n_.endswith("embed_vision")]
+wrap_types = tuple({layer_cls} | {type(v) for v in vision})  # vision gets its own (never-gathered) unit
+wrap = partial(lambda_auto_wrap_policy, lambda_fn=lambda mod: isinstance(mod, wrap_types))
 fm = FSDP(Wrap(m), auto_wrap_policy=wrap, sharding_strategy=ShardingStrategy.FULL_SHARD, use_orig_params=True,
           device_id=torch.device("cpu") if SMOKE else torch.cuda.current_device(), limit_all_gathers=True, sync_module_states=False)
 if not SMOKE:
@@ -370,7 +376,7 @@ m = AutoModelForImageTextToText.from_config(AutoConfig.for_model(**{{k: v for k,
 m.save_pretrained({MODEL_PATH!r})
 EOF""", check=True)
 
-SEQS, OFFLOAD_FROM = ("64,128,256", 256) if SMOKE else ("8192,16384,24576,32768", 24576)
+SEQS, OFFLOAD_FROM = ("64,128,256", 128) if SMOKE else ("4096,8192,16384,24576,32768", 8192)
 NPROC = 2 if SMOKE else 4
 if left_min() < 30:
     REPORT["fsdp"] = {"skipped": f"time budget ({left_min():.0f} min left)"}
@@ -401,54 +407,101 @@ else:
 log("fsdp", json.dumps(REPORT["fsdp"], default=str)[:2000])
 save()
 
-# ------------------------------------------------------------------ B. NF4 (training base) vs W4A16 (served base)
-MISMATCH = r'''
-import json, sys
+# ------------------------------------------------------------------ B. which training base matches the served W4A16?
+# B1: HF references on the same token ids: bf16 QAT weights (unquantised) and HF-dequantised W4A16 (compressed-tensors,
+#     decompressed to bf16). B2: vLLM (the scorer's engine) on W4A16, compared against every reference.
+#     HF-W4A16 vs vLLM = implementation noise floor; NF4 / bf16 vs vLLM = what a training base would cost.
+HF_REF = r"""
+import json, sys, torch
+from transformers import AutoModelForImageTextToText
+path, kind, ref_in, out = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+ref = torch.load(ref_in)
+kw = dict(dtype=torch.bfloat16, device_map="balanced", attn_implementation="sdpa")
+if kind == "w4a16_dq":
+    from transformers import CompressedTensorsConfig
+    kw["quantization_config"] = CompressedTensorsConfig(run_compressed=False)
+m = AutoModelForImageTextToText.from_pretrained(path, **kw).eval()
+cap = m.config.get_text_config().final_logit_softcapping
+head = m.get_output_embeddings()
+am, tl = [], []
+with torch.no_grad():
+    for ids in ref["ids"]:
+        x = torch.tensor([ids], device=m.device)
+        h = m.model.language_model(input_ids=x, use_cache=False).last_hidden_state[0].to(head.weight.device)
+        z = (h @ head.weight.T).float()
+        z = torch.tanh(z / cap) * cap if cap else z
+        lp = torch.log_softmax(z, -1)
+        am.append(lp.argmax(-1)[:-1].tolist())
+        tl.append(lp[torch.arange(len(ids) - 1, device=lp.device), torch.tensor(ids[1:], device=lp.device)].tolist())
+torch.save({"ids": ref["ids"], "argmax": am, "true_lp": tl}, out)
+print(json.dumps({"ok": True, "kind": kind}))
+"""
+MISMATCH = r"""
+import glob, json, os, sys
 
 
 def main():
     import torch
     from vllm import LLM, SamplingParams
     from vllm.inputs import TokensPrompt
-    ref = torch.load(sys.argv[2])
+    nf4 = torch.load(sys.argv[2])
+    refs = {"nf4": (nf4["nf4_argmax"], nf4["nf4_true_lp"])}
+    for f in glob.glob(os.path.join(os.path.dirname(sys.argv[2]), "hfref_*.pt")):
+        r = torch.load(f)
+        refs[os.path.basename(f)[6:-3]] = (r["argmax"], r["true_lp"])
     llm = LLM(model=sys.argv[1], tensor_parallel_size=4, max_model_len=2048, gpu_memory_utilization=0.85,
               enforce_eager=True, limit_mm_per_prompt={"image": 0, "audio": 0})
-    outs = llm.generate([TokensPrompt(prompt_token_ids=ids) for ids in ref["ids"]],
+    outs = llm.generate([TokensPrompt(prompt_token_ids=ids) for ids in nf4["ids"]],
                         SamplingParams(max_tokens=1, prompt_logprobs=1, temperature=0))
-    agree = n = 0
-    dlp = []
-    for o, ids, am, tlp in zip(outs, ref["ids"], ref["nf4_argmax"], ref["nf4_true_lp"]):
-        pl = o.prompt_logprobs  # position j: {token: Logprob} for token j given tokens < j (incl. the true token)
-        for j in range(1, len(ids)):
-            d = pl[j]
-            top = max(d.items(), key=lambda kv: kv[1].logprob)[0]
-            agree += int(top == am[j - 1])
-            n += 1
-            dlp.append(abs(d[ids[j]].logprob - tlp[j - 1]))
-    dlp.sort()
-    print(json.dumps({"positions": n, "top1_agreement": round(agree / n, 4),
-                      "median_abs_dlogp_true": round(dlp[len(dlp) // 2], 4),
-                      "p99_abs_dlogp_true": round(dlp[int(0.99 * len(dlp))], 4)}), flush=True)
+    res = {}
+    for name, (AM, TL) in refs.items():
+        agree = n = 0
+        dlp = []
+        for o, ids, am, tlp in zip(outs, nf4["ids"], AM, TL):
+            pl = o.prompt_logprobs  # position j: {token: Logprob} for token j given tokens < j
+            for j in range(1, len(ids)):
+                d = pl[j]
+                top = max(d.items(), key=lambda kv: kv[1].logprob)[0]
+                agree += int(top == am[j - 1])
+                n += 1
+                dlp.append(abs(d[ids[j]].logprob - tlp[j - 1]))
+        dlp.sort()
+        res[name] = {"positions": n, "top1_agreement_vs_vllm": round(agree / n, 4),
+                     "median_abs_dlogp_true": round(dlp[len(dlp) // 2], 4), "p99_abs_dlogp_true": round(dlp[int(0.99 * len(dlp))], 4)}
+    print(json.dumps(res), flush=True)
 
 
 if __name__ == "__main__":  # vLLM spawns workers that re-import this file
     main()
-'''
+"""
 W4 = None if SMOKE else model_dir("31b", "w4a16")
+REPORT["mismatch"] = {}
 if SMOKE or not W4 or not (W / "nf4_ref.pt").exists():
     REPORT["mismatch"] = {"skipped": "smoke" if SMOKE else ("no W4A16 model" if not W4 else "no nf4_ref.pt from stage A")}
-elif left_min() < 13:
-    REPORT["mismatch"] = {"skipped": f"time budget ({left_min():.0f} min left)"}
 else:
-    mf = W / "mismatch.py"
-    mf.write_text(MISMATCH)
-    try:
-        r = sh(f"VLLM_WORKER_MULTIPROC_METHOD=spawn {sys.executable} {mf} {W4} {W / 'nf4_ref.pt'}",
-               timeout=int((left_min() - 1) * 60))
-        line = [l for l in (r.stdout or "").splitlines() if l.startswith("{")]
-        REPORT["mismatch"] = json.loads(line[-1]) if line else {"error": (r.stdout or "")[-1500:] + (r.stderr or "")[-1500:]}
-    except subprocess.TimeoutExpired:
-        REPORT["mismatch"] = {"error": "timeout"}
+    hf = W / "hf_ref.py"
+    hf.write_text(HF_REF)
+    for kind, path in (("bf16_qat", MODEL_PATH), ("w4a16_dq", W4)):
+        if left_min() < 20:
+            REPORT["mismatch"][f"hf_{kind}"] = {"skipped": "time budget"}
+            continue
+        try:
+            r = sh(f"{sys.executable} {hf} {path} {kind} {W / 'nf4_ref.pt'} {W / f'hfref_{kind}.pt'}",
+                   timeout=int(min(25, left_min() - 15) * 60))
+            REPORT["mismatch"][f"hf_{kind}"] = {"rc": r.returncode, "tail": ((r.stdout or "") + (r.stderr or ""))[-600:]}
+        except subprocess.TimeoutExpired:
+            REPORT["mismatch"][f"hf_{kind}"] = {"error": "timeout"}
+        save()
+    if left_min() >= 12:
+        mf = W / "mismatch.py"
+        mf.write_text(MISMATCH)
+        try:
+            r = sh(f"VLLM_WORKER_MULTIPROC_METHOD=spawn {sys.executable} {mf} {W4} {W / 'nf4_ref.pt'}",
+                   timeout=int((left_min() - 1) * 60))
+            line = [l for l in (r.stdout or "").splitlines() if l.startswith("{")]
+            REPORT["mismatch"]["vs_vllm"] = json.loads(line[-1]) if line else {"error": (r.stdout or "")[-1500:] + (r.stderr or "")[-1500:]}
+        except subprocess.TimeoutExpired:
+            REPORT["mismatch"]["vs_vllm"] = {"error": "timeout"}
 log("mismatch", REPORT["mismatch"])
 save()
 
@@ -460,7 +513,8 @@ REPORT["verdict"] = {
     "fsdp_max_seq_offload": max([T for T, v in ok.items() if v.get("offload")], default=0),
     "fsdp_tok_per_s": {T: v["tok_per_s_total"] for T, v in ok.items()},
     "export_modules": REPORT.get("fsdp", {}).get("export", {}).get("n_modules"),
-    "nf4_vs_w4a16_top1": REPORT.get("mismatch", {}).get("top1_agreement"),
+    "agreement_vs_vllm_w4a16": {k: v.get("top1_agreement_vs_vllm") for k, v in
+                                (REPORT.get("mismatch", {}).get("vs_vllm") or {}).items() if isinstance(v, dict)},
 }
 save()
 log("VERDICT", REPORT["verdict"])

@@ -1,0 +1,339 @@
+{
+  "schema_version": "ATIF-v1.7",
+  "agent": {
+    "name": "adk-eval-core",
+    "version": "1.0"
+  },
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "system",
+      "message": "You are an expert autonomous software engineer assigned to resolve an issue in a repository efficiently and decisively.\n\n## Core Objective: Fast, Minimal, and Precise Fixes\nAim to understand, resolve, and submit the fix in the minimum number of tool calls (under 8\u201310 turns). Move directly from the problem statement to the relevant files, apply the solution, verify with a targeted test, and submit.\n\n## Workflow\n\n### 1. Identify Target Files Immediately\n- Extract filenames, functions, classes, CLI subcommands, or error messages directly from the problem statement.\n- Read only the specific target files and lines with `run_command` using `grep -n PATTERN path` and `sed -n 'START,ENDp' path` (read at most ~80 lines at a time), or search tools. Do not wander across unrelated files.\n- If the problem statement does not provide explicit file paths, use `search_similar_code` with keywords from the error message to locate relevant files efficiently, rather than running `find` or `grep` across the entire repo.\n\n### 2. Implement the Solution Directly\n- Apply the minimal necessary fix or feature directly to the source files using `edit_file` or `write_file`.\n- Strictly adhere to specified error strings, exception types, HTTP status codes, and API signatures.\n- For documentation code tasks (e.g. FastAPI), edit executable code under `docs_src/`.\n\n### 3. Run Targeted Tests Only (Existing Tests May Be Broken)\n- **Run ONLY Targeted Tests**: Run only the specific test file or test method directly verifying the bug or feature you modified (e.g. `pytest tests/test_target.py -k test_feature` or `python3 -m unittest tests.test_target`).\n- **Be Aware That Existing Tests May Be Broken**: Many repositories contain pre-existing test breakages, missing test data fixtures (e.g. `/test_data`), or environment import errors unrelated to your task.\n- **Do NOT Attempt to Fix Existing Tests**: If an existing test fails due to pre-existing repository issues or missing fixtures, IGNORE IT. Never spend turns attempting to repair pre-existing test failures, create test stubs, or alter test code.\n- **STRICT RULE: NEVER Run Bare Pytest or Full-Repo Sweeps**: NEVER run bare `pytest`, `pytest .`, `python3 -m unittest discover`, or full-repo test suites without specifying a target file. Full test suites take several minutes, cause catastrophic timeouts, and exhaust your turn and time budgets.\n- If you need to locate the test file, find it explicitly with `find tests -name \"*<name>*.py\"` instead of running the test runner across the repo.\n\n### 4. Immediate Patch Submission\n- Once your targeted test passes:\n  1. Call `submit_patch` immediately.\n  2. Verify `patch_size > 0` and `files_changed > 0`.\n  3. Output a short summary of the fix to end the session.\n\n## Anti-Patterns to Avoid\n- **NEVER modify, create, or delete test files** (`*_test.py`, `test_*.py`, or anything under `tests/`). All changes must be to source implementation files. Modifying tests results in an automatic evaluation failure.\n- **NEVER run full repository test suites** (e.g., bare `pytest` or `pytest .`) \u2014 always specify the exact test file path.\n- **NEVER attempt to fix or repair existing tests or pre-existing repository breakages** \u2014 your task is strictly to implement the fix for the reported issue in source code.\n- **NEVER search outside `/workspace`** for source files or packages (e.g., `/usr/local/lib/`, `/wheels/`, `/opt/`). All repository code and test dependencies are pre-installed. If `ModuleNotFoundError` occurs during test runs, focus on fixing code under `/workspace`, not looking for missing system packages.\n- Do NOT spend turns running broad exploratory searches if the file path or symbol is obvious.\n- Do NOT refactor or reformat unrelated functions or files.\n- Do NOT conclude without submitting a non-empty patch (`patch_size > 0`). Every task requires concrete source modifications. Concluding that the codebase is already clean without making changes is an anti-pattern.",
+      "extra": {
+        "event_type": "system_instruction",
+        "elapsed_s": 5.515842914581299,
+        "timestamp": 1791013836.0673335,
+        "author": "harness"
+      }
+    },
+    {
+      "step_id": 2,
+      "source": "user",
+      "message": "You are evaluating a software engineering task for repository fastapi/fastapi.\n\nProblem Statement:\n\ud83d\udc1b Fix parsing extra `Form` parameter list\n\n## Description\r\n\r\nCurrently if we declare Form parameters as model with `extra=\"allow\"` and then pass extra parameter with multiple values, only last value of such parameter will be passed to model validator:\r\n\r\n```py\r\nfrom fastapi import FastAPI, Form\r\nfrom fastapi.testclient import TestClient\r\nfrom pydantic import BaseModel\r\n\r\napp = FastAPI()\r\n\r\n\r\nclass Model(BaseModel):\r\n    param: str\r\n\r\n    model_config = {\"extra\": \"allow\"}\r\n\r\n@app.post(\"/\")\r\nasync def model_with_extra(data: Model = Form()):\r\n    return data\r\n\r\n\r\ndef test_pass_extra_list():\r\n    client = TestClient(app)\r\n    resp = client.post(\r\n        \"/\",\r\n        data={\r\n            \"param\": \"123\",\r\n            \"param2\": [\"456\", \"789\"],  # Pass a list of values as extra parameter\r\n        },\r\n    )\r\n    assert resp.status_code == 200\r\n    assert resp.json() == {\r\n        \"param\": \"123\",\r\n        \"param2\": [\"456\", \"789\"],\r\n    }\r\n    # AssertionError: assert\r\n    # {'param': '123', 'param2': '789'}\r\n    # ==\r\n    # {'param': '123', 'param2': ['456', '789']}\r\n```\r\n\r\nThe part of code that adds extra parameters is:\r\n\r\nhttps://github.com/fastapi/fastapi/blob/972a967d5d3fa24d450637c36c6b7ad1f1d8c1b6/fastapi/dependencies/utils.py#L901-L903\r\n\r\nThe problem is in `received_body.items()` - it returns only last value for each key.\r\nTo fix this we need to iterate over all keys in `received_body` and get the values using `received_body.getlist(key)`:\r\n\r\n```py\r\n    for key in received_body.keys():\r\n        if key not in values:\r\n            param_values = received_body.getlist(key)\r\n            if len(param_values) == 1:\r\n                values[key] = param_values[0]\r\n            else:\r\n                values[key] = param_values\r\n```\r\n\r\n## Alternative implementation\r\n\r\nThis solution parses single value as string\r\n\r\n`extra=string` -> `{\"extra\": \"string\"}`\r\n\r\nbut multiple values as list of strings\r\n\r\n`extra=string1&extra=string2` -> `{\"extra\": [\"string1\", \"string2\"]}`\r\n\r\nWe can consider always parse extra parameters as lists\r\n\r\n```py\r\n    for key in received_body.keys():\r\n        if key not in values:\r\n            values[key] = received_body.getlist(key)\r\n```\r\n\r\nThis way for single value we would also have list with one element:\r\n\r\n`extra=string` -> `{\"extra\": [\"string\"]}`\r\n\r\nIt's more consistent, but probably not what people expect for single value.\r\n\r\nI think we should go with current implementation (single value -> single string, multiple values -> list of strings)\r\n\r\n## Other parameters\r\n\r\nQuery\\Header\\Cookie parameters likely have the same issue, I will look at it a bit later and open separate PR to fix this\n\n## Task Budget (Session terminates when any budget is exhausted)\n- Time allowance: 4.5 minutes\n- Tool calls allowance: 40 calls\n- Max loop iterations: 100 turns\n\n## Execution Environment Rules\n- Single command timeout: 180 seconds (commands exceeding this fail without ending the session)\n- Command output limit: 5000 characters\n- File view limit: 150 lines per read_file call\n- File character limit: 10000 characters per read_file call\n- Environment is offline (no network/PyPI access). All repository and test dependencies are ALREADY pre-installed. Do NOT attempt to run pip install or download packages.\n\n## Instructions:\n0. All source code is under `/workspace`. Do NOT search outside `/workspace` (e.g. `/usr/`, `/wheels/`, system site-packages). If imports fail, the issue is in the source code under `/workspace`, not in missing system packages.\n1. Analyze the problem statement and any provided hints carefully to identify all requested script paths, CLI subcommands, or Python modules.\n2. Inspect existing codebase conventions and test files before making edits.\n3. Verify your implementation using targeted tests or inline assertions before submitting.\n4. Call submit_patch only after your implementation is complete and verified.\n5. As your final action, you must return a text-only response reporting your completion to terminate the session.\n## Code Intelligence Tools\nThis repository has pre-built code graph and embedding data. Use these tools for fast, targeted navigation:\n- `search_similar_code(query)`: Find semantically similar functions/classes by keyword.\n- `get_code_neighbors(node)`: Find callers, callees, and definitions related to a symbol.\n- `get_code_subgraph(nodes)`: Get the induced subgraph for a set of symbols.\n\n## Workspace Layout\nThe repository is located at `/workspace`. Here is the directory tree (up to 3 levels):\n```\n.\n./CITATION.cff\n./conftest.py\n./CONTRIBUTING.md\n./docs\n./docs/de\n./docs/de/docs\n./docs/de/llm-prompt.md\n./docs/de/mkdocs.yml\n./docs/em\n./docs/em/docs\n./docs/em/mkdocs.yml\n./docs/en\n./docs/en/data\n./docs/en/docs\n./docs/en/mkdocs.env.yml\n./docs/en/mkdocs.yml\n./docs/en/overrides\n./docs/es\n./docs/es/docs\n./docs/es/llm-prompt.md\n./docs/es/mkdocs.yml\n./docs/fa\n./docs/fa/docs\n./docs/fa/mkdocs.yml\n./docs/fr\n./docs/fr/docs\n./docs/fr/mkdocs.yml\n./docs/ja\n./docs/ja/docs\n./docs/ja/mkdocs.yml\n./docs/ko\n./docs/ko/docs\n./docs/ko/mkdocs.yml\n./docs/language_names.yml\n./docs/missing-translation.md\n./docs/pt\n./docs/pt/docs\n./docs/pt/llm-prompt.md\n./docs/pt/mkdocs.yml\n./docs/ru\n./docs/ru/docs\n./docs/ru/llm-prompt.md\n./docs/ru/mkdocs.yml\n./docs_src\n./docs_src/additional_responses\n./docs_src/additional_responses/tutorial001.py\n./docs_src/additional_responses/tutorial002.py\n./docs_src/additional_responses/tutorial003.py\n./docs_src/additional_responses/tutorial004.py\n./docs_src/additional_status_codes\n./docs_src/additional_status_codes/tutorial001_an.py\n./docs_src/additional_status_codes/tutorial001_an_py310.py\n./docs_src/additional_status_codes/tutorial001_an_py39.py\n./docs_src/additional_status_codes/tutorial001.py\n./docs_src/additional_status_codes/tutorial001_py310.py\n./docs_src/advanced_middleware\n./docs_src/advanced_middleware/tutorial001.py\n./docs_src/advanced_middleware/tutorial002.py\n./docs_src/advanced_middleware/tutorial003.py\n./docs_src/app_testing\n./docs_src/app_testing/app_b\n./docs_src/app_testing/app_b_an\n./docs_src/app_testing/app_b_an_py310\n./docs_src/app_testing/app_b_an_py39\n./docs_src/app_testing/app_b_py310\n./docs_src/app_testing/__init__.py\n./docs_src/app_testing/main.py\n./docs_src/app_testing/test_main.py\n./docs_src/app_testing/tutorial001.py\n./docs_src/app_testing/tutorial002.py\n./docs_src/app_testing/tutorial003.py\n./docs_src/app_testing/tutorial004.py\n./docs_src/async_tests\n./docs_src/async_tests/__init__.py\n./docs_src/async_tests/main.py\n./docs_src/async_tests/test_main.py\n./docs_src/authentication_error_status_code\n./docs_src/authentication_error_status_code/tutorial001_an.py\n./docs_src/authentication_error_status_code/tutorial001_an_py39.py\n./docs_src/background_tasks\n./docs_src/background_tasks/tutorial001.py\n./docs_src/background_tasks/tutorial002_an.py\n./docs_src/background_tasks/tutorial002_an_py310.py\n./docs_src/background_tasks/tutorial002_an_py39.py\n./docs_src/background_tasks/tutorial002.py\n./docs_src/background_tasks/tutorial002_py310.py\n./docs_src/behind_a_proxy\n./docs_src/behind_a_proxy/tutorial001_01.py\n./docs_src/behind_a_proxy/tutorial001.py\n./docs_src/behind_a_proxy/tutorial002.py\n./docs_src/behind_a_proxy/tutorial003.py\n./docs_src/behind_a_proxy/tutorial004.py\n./docs_src/bigger_applications\n./docs_src/bigger_applications/app\n./docs_src/bigger_applications/app_an\n./docs_src/bigger_applications/app_an_py39\n./docs_src/bigger_applications/__init__.py\n./docs_src/body\n./docs_src/body_fields\n./docs_src/body_fields/tutorial001_an.py\n./docs_src/body_fields/tutorial001_an_py310.py\n./docs_src/body_fields/tutorial001_an_py39.py\n./docs_src/body_fields/tutorial001.py\n./docs_src/body_fields/tutorial001_py310.py\n./docs_src/body_multiple_params\n./docs_src/body_multiple_params/tutorial001_an.py\n./docs_src/body_multiple_params/tutorial001_an_py310.py\n./docs_src/body_multiple_params/tutorial001_an_py39.py\n./docs_src/body_multiple_params/tutorial001.py\n./docs_src/body_multiple_params/tutorial001_py310.py\n./docs_src/body_multiple_params/tutorial002.py\n./docs_src/body_multiple_params/tutorial002_py310.py\n./docs_src/body_multiple_params/tutorial003_an.py\n./docs_src/body_multiple_params/tutorial003_an_py310.py\n./docs_src/body_multiple_params/tutorial003_an_py39.py\n./docs_src/body_multiple_params/tutorial003.py\n./docs_src/body_multiple_params/tutorial003_py310.py\n./docs_src/body_multiple_params/tutorial004_an.py\n./docs_src/body_multiple_params/tutorial004_an_py310.py\n./docs_src/body_multiple_params/tutorial004_an_py39.py\n./docs_src/body_multiple_params/tutorial004.py\n./docs_src/body_multiple_params/tutorial004_py310.py\n./docs_src/body_multiple_params/tutorial005_an.py\n./docs_src/body_multiple_params/tutorial005_an_py310.py\n./docs_src/body_multiple_params/tutorial005_an_py39.py\n./docs_src/body_multiple_params/tutorial005.py\n./docs_src/body_multiple_params/tutorial005_py310.py\n./docs_src/body_nested_models\n./docs_src/body_nested_models/tutorial001.py\n./docs_src/body_nested_models/tutorial001_py310.py\n./docs_src/body_nested_models/tutorial002.py\n./docs_src/body_nested_models/tutorial002_py310.py\n./docs_src/body_nested_models/tutorial002_py39.py\n./docs_src/body_nested_models/tutorial003.py\n./docs_src/body_nested_models/tutorial003_py310.py\n./docs_src/body_nested_models/tutorial003_py39.py\n./docs_src/body_nested_models/tutorial004.py\n./docs_src/body_nested_models/tutorial004_py310.py\n./docs_src/body_nested_models/tutorial004_py39.py\n./docs_src/body_nested_models/tutorial005.py\n./docs_src/body_nested_models/tutorial005_py310.py\n./docs_src/body_nested_models/tutorial005_py39.py\n./docs_src/body_nested_models/tutorial006.py\n./docs_src/body_nested_models/tutorial006_py310.py\n./docs_src/body_nested_models/tutorial006_py39.py\n./docs_src/body_nested_models/tutorial007.py\n./docs_src/body_nested_models/tutorial007_py310.py\n./docs_src/body_nested_models/tutorial007_py39.py\n./docs_src/body_nested_models/tutorial008.py\n```\n",
+      "extra": {
+        "event_type": "task_prompt",
+        "elapsed_s": 5.51585054397583,
+        "timestamp": 1791013836.067341,
+        "author": "harness"
+      }
+    },
+    {
+      "step_id": 3,
+      "source": "agent",
+      "model_name": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_2",
+          "function_name": "run_command",
+          "arguments": {
+            "command": "cat <<EOF > reproduce_issue.py\nfrom fastapi import FastAPI, Form\nfrom fastapi.testclient import TestClient\nfrom pydantic import BaseModel\n\napp = FastAPI()\n\n\nclass Model(BaseModel):\n    param: str\n\n    model_config = {\"extra\": \"allow\"}\n\n@app.post(\"/\")\nasync def model_with_extra(data: Model = Form()):\n    return data\n\n\ndef test_pass_extra_list():\n    client = TestClient(app)\n    resp = client.post(\n        \"/\",\n        data={\n            \"param\": \"123\",\n            \"param2\": [\"456\", \"789\"],  # Pass a list of values as extra parameter\n        },\n    )\n    assert resp.status_code == 200\n    assert resp.json() == {\n        \"param\": \"123\",\n        \"param2\": [\"456\", \"789\"],\n    }\n\nif __name__ == \"__main__\":\n    try:\n        test_pass_extra_list()\n        print(\"Test passed!\")\n    except AssertionError as e:\n        print(f\"Test failed: {e}\")\nEOF\npython3 reproduce_issue.py\n"
+          },
+          "extra": {
+            "elapsed_s": 15.697298049926758,
+            "timestamp": 1791013846.2487886,
+            "author": "swe_baseline_agent",
+            "usage": {
+              "prompt_tokens": 5491,
+              "completion_tokens": 288,
+              "cached_tokens": 0,
+              "total_tokens": 5779
+            },
+            "model_version": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2"
+          }
+        }
+      ],
+      "observation": {
+        "content": "{\"status\": \"ok\", \"stdout\": \"Test failed: \\n\", \"stderr\": \"\", \"exit_code\": 0}",
+        "extra": {
+          "tool_name": "run_command",
+          "elapsed_s": 16.430015087127686,
+          "timestamp": 1791013846.9815056,
+          "author": "swe_baseline_agent"
+        }
+      },
+      "metrics": {
+        "prompt_tokens": 5491,
+        "completion_tokens": 288,
+        "cached_tokens": 0,
+        "total_tokens": 5779
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "elapsed_s": 15.697298049926758,
+        "timestamp": 1791013846.2487886,
+        "author": "swe_baseline_agent"
+      }
+    },
+    {
+      "step_id": 4,
+      "source": "agent",
+      "model_name": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_4",
+          "function_name": "run_command",
+          "arguments": {
+            "command": "grep -n \"received_body.items()\" fastapi/dependencies/utils.py"
+          },
+          "extra": {
+            "elapsed_s": 17.64019227027893,
+            "timestamp": 1791013848.1916828,
+            "author": "swe_baseline_agent",
+            "usage": {
+              "prompt_tokens": 5815,
+              "completion_tokens": 35,
+              "cached_tokens": 0,
+              "total_tokens": 5850
+            },
+            "model_version": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2"
+          }
+        }
+      ],
+      "observation": {
+        "content": "{\"status\": \"ok\", \"stdout\": \"906:    for key, value in received_body.items():\\n\", \"stderr\": \"\", \"exit_code\": 0}",
+        "extra": {
+          "tool_name": "run_command",
+          "elapsed_s": 17.64600944519043,
+          "timestamp": 1791013848.1975,
+          "author": "swe_baseline_agent"
+        }
+      },
+      "metrics": {
+        "prompt_tokens": 5815,
+        "completion_tokens": 35,
+        "cached_tokens": 0,
+        "total_tokens": 5850
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "elapsed_s": 17.64019227027893,
+        "timestamp": 1791013848.1916828,
+        "author": "swe_baseline_agent"
+      }
+    },
+    {
+      "step_id": 5,
+      "source": "agent",
+      "model_name": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_6",
+          "function_name": "run_command",
+          "arguments": {
+            "command": "sed -n '890,920p' fastapi/dependencies/utils.py"
+          },
+          "extra": {
+            "elapsed_s": 18.677387475967407,
+            "timestamp": 1791013849.228878,
+            "author": "swe_baseline_agent",
+            "usage": {
+              "prompt_tokens": 5899,
+              "completion_tokens": 34,
+              "cached_tokens": 0,
+              "total_tokens": 5933
+            },
+            "model_version": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2"
+          }
+        }
+      ],
+      "observation": {
+        "content": "{\"status\": \"ok\", \"stdout\": \"            assert isinstance(value, sequence_types)  # type: ignore[arg-type]\\n            results: List[Union[bytes, str]] = []\\n\\n            async def process_fn(\\n                fn: Callable[[], Coroutine[Any, Any, Any]],\\n            ) -> None:\\n                result = await fn()\\n                results.append(result)  # noqa: B023\\n\\n            async with anyio.create_task_group() as tg:\\n                for sub_value in value:\\n                    tg.start_soon(process_fn, sub_value.read)\\n            value = serialize_sequence_value(field=field, value=results)\\n        if value is not None:\\n            values[field.alias] = value\\n    field_aliases = {field.alias for field in body_fields}\\n    for key, value in received_body.items():\\n        if key not in field_aliases:\\n            values[key] = value\\n    return values\\n\\n\\nasync def request_body_to_args(\\n    body_fields: List[ModelField],\\n    received_body: Optional[Union[Dict[str, Any], FormData]],\\n    embed_body_fields: bool,\\n) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:\\n    values: Dict[str, Any] = {}\\n    errors: List[Dict[str, Any]] = []\\n    assert body_fields, \\\"request_body_to_args() should be called with fields\\\"\\n    single_not_embedded_field = len(body_fields) == 1 and not embed_body_fields\\n\", \"stderr\": \"\", \"exit_code\": 0}",
+        "extra": {
+          "tool_name": "run_command",
+          "elapsed_s": 18.682212352752686,
+          "timestamp": 1791013849.233703,
+          "author": "swe_baseline_agent"
+        }
+      },
+      "metrics": {
+        "prompt_tokens": 5899,
+        "completion_tokens": 34,
+        "cached_tokens": 0,
+        "total_tokens": 5933
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "elapsed_s": 18.677387475967407,
+        "timestamp": 1791013849.228878,
+        "author": "swe_baseline_agent"
+      }
+    },
+    {
+      "step_id": 6,
+      "source": "agent",
+      "model_name": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_8",
+          "function_name": "edit_file",
+          "arguments": {
+            "filepath": "fastapi/dependencies/utils.py",
+            "new_string": "    for key in received_body.keys():\n        if key not in field_aliases:\n            param_values = received_body.getlist(key)\n            if len(param_values) == 1:\n                values[key] = param_values[0]\n            else:\n                values[key] = param_values",
+            "old_string": "    for key, value in received_body.items():\n        if key not in field_aliases:\n            values[key] = value"
+          },
+          "extra": {
+            "elapsed_s": 22.96770143508911,
+            "timestamp": 1791013853.519192,
+            "author": "swe_baseline_agent",
+            "usage": {
+              "prompt_tokens": 6350,
+              "completion_tokens": 145,
+              "cached_tokens": 0,
+              "total_tokens": 6495
+            },
+            "model_version": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2"
+          }
+        }
+      ],
+      "observation": {
+        "content": "{\"status\": \"ok\", \"filepath\": \"fastapi/dependencies/utils.py\", \"occurrences\": 1, \"strategy\": \"exact\", \"diff\": \"--- a/fastapi/dependencies/utils.py\\n+++ b/fastapi/dependencies/utils.py\\n@@ -903,9 +903,13 @@\\n         if value is not None:\\n             values[field.alias] = value\\n     field_aliases = {field.alias for field in body_fields}\\n-    for key, value in received_body.items():\\n+    for key in received_body.keys():\\n         if key not in field_aliases:\\n-            values[key] = value\\n+            param_values = received_body.getlist(key)\\n+            if len(param_values) == 1:\\n+                values[key] = param_values[0]\\n+            else:\\n+                values[key] = param_values\\n     return values\\n \\n \\n\", \"is_truncated\": false}",
+        "extra": {
+          "tool_name": "edit_file",
+          "elapsed_s": 22.972922563552856,
+          "timestamp": 1791013853.524413,
+          "author": "swe_baseline_agent"
+        }
+      },
+      "metrics": {
+        "prompt_tokens": 6350,
+        "completion_tokens": 145,
+        "cached_tokens": 0,
+        "total_tokens": 6495
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "elapsed_s": 22.96770143508911,
+        "timestamp": 1791013853.519192,
+        "author": "swe_baseline_agent"
+      }
+    },
+    {
+      "step_id": 7,
+      "source": "agent",
+      "model_name": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_10",
+          "function_name": "run_command",
+          "arguments": {
+            "command": "python3 reproduce_issue.py"
+          },
+          "extra": {
+            "elapsed_s": 23.861100912094116,
+            "timestamp": 1791013854.4125915,
+            "author": "swe_baseline_agent",
+            "usage": {
+              "prompt_tokens": 6744,
+              "completion_tokens": 21,
+              "cached_tokens": 0,
+              "total_tokens": 6765
+            },
+            "model_version": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2"
+          }
+        }
+      ],
+      "observation": {
+        "content": "{\"status\": \"ok\", \"stdout\": \"Test passed!\\n\", \"stderr\": \"\", \"exit_code\": 0}",
+        "extra": {
+          "tool_name": "run_command",
+          "elapsed_s": 24.501930713653564,
+          "timestamp": 1791013855.0534213,
+          "author": "swe_baseline_agent"
+        }
+      },
+      "metrics": {
+        "prompt_tokens": 6744,
+        "completion_tokens": 21,
+        "cached_tokens": 0,
+        "total_tokens": 6765
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "elapsed_s": 23.861100912094116,
+        "timestamp": 1791013854.4125915,
+        "author": "swe_baseline_agent"
+      }
+    },
+    {
+      "step_id": 8,
+      "source": "agent",
+      "model_name": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2",
+      "tool_calls": [
+        {
+          "tool_call_id": "call_12",
+          "function_name": "submit_patch",
+          "arguments": {},
+          "extra": {
+            "elapsed_s": 24.857563734054565,
+            "timestamp": 1791013855.4090543,
+            "author": "swe_baseline_agent",
+            "usage": {
+              "prompt_tokens": 6804,
+              "completion_tokens": 10,
+              "cached_tokens": 0,
+              "total_tokens": 6814
+            },
+            "model_version": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2"
+          }
+        }
+      ],
+      "observation": {
+        "content": "{\"status\": \"ok\", \"patch_size\": 1754, \"files_changed\": 2}",
+        "extra": {
+          "tool_name": "submit_patch",
+          "elapsed_s": 24.88041090965271,
+          "timestamp": 1791013855.4319015,
+          "author": "swe_baseline_agent"
+        }
+      },
+      "metrics": {
+        "prompt_tokens": 6804,
+        "completion_tokens": 10,
+        "cached_tokens": 0,
+        "total_tokens": 6814
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "elapsed_s": 24.857563734054565,
+        "timestamp": 1791013855.4090543,
+        "author": "swe_baseline_agent"
+      }
+    },
+    {
+      "step_id": 9,
+      "source": "agent",
+      "message": "The issue was that when `Form` parameters were declared as a Pydantic model with `extra=\"allow\"`, extra parameters passed with multiple values were only capturing the last value. This was because the code was iterating over `received_body.items()`, which for `FormData` (from Starlette) only returns the last value for each key.\n\nI fixed this by iterating over `received_body.keys()` and using `received_body.getlist(key)` to retrieve all values for each extra parameter. If only one value is present, it's passed as a single string; otherwise, it's passed as a list of strings, maintaining consistency with expected behavior.\n\nVerified the fix with a reproduction script.\n\n```python\n# Fixed in fastapi/dependencies/utils.py\nfor key in received_body.keys():\n    if key not in field_aliases:\n        param_values = received_body.getlist(key)\n        if len(param_values) == 1:\n            values[key] = param_values[0]\n        else:\n            values[key] = param_values\n```",
+      "model_name": "/kaggle/input/models/google/gemma-4/other/gemma-4-31b-it-qat-w4a16-ct/2",
+      "metrics": {
+        "prompt_tokens": 6850,
+        "completion_tokens": 246,
+        "cached_tokens": 0,
+        "total_tokens": 7096
+      },
+      "llm_call_count": 1,
+      "extra": {
+        "event_type": "final",
+        "elapsed_s": 31.727346181869507,
+        "timestamp": 1791013862.2788367,
+        "author": "swe_baseline_agent"
+      }
+    }
+  ],
+  "final_metrics": {
+    "total_prompt_tokens": 43953,
+    "total_completion_tokens": 779,
+    "total_cached_tokens": 0,
+    "total_tokens": 44732,
+    "total_steps": 9
+  }
+}

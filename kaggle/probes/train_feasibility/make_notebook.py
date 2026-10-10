@@ -10,7 +10,7 @@ import pathlib
 
 HERE = pathlib.Path(__file__).parent
 NB_DIR = HERE.parent / "check_l4"
-BUDGET_MIN = 75  # remaining GPU quota this week is ~90 min including session start-up
+BUDGET_MIN = 95  # v4: FSDP sweep + HF bf16 / W4A16 references + vLLM
 
 src = base64.b64encode((HERE / "probe_train.py").read_bytes()).decode()
 cell = f'''# Generated from kaggle/probes/train_feasibility/probe_train.py by make_notebook.py (do not edit here).
