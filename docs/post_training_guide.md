@@ -210,6 +210,8 @@ Add a row to §8 and, for anything surprising, a line in the decisions log (§5)
 | `rank_tails` in `train_report.json` with `CUDA out of memory` | a window too long for memory | tell Shrey (fix: `offload_from` lower or cap length) |
 
 ## 8. GPU quota ledger
+Oct 15 output verification: all Step A outputs downloaded. Both adapter copies have SHA-256 `09877873743ec96d0ef7d362e042ac512deb8331f1022bf5f5c02e4d1313d1a0`; stdlib-only header checks confirm all 820 BF16 tensors, rank-16 shapes, and complete file length. Per-rank logs show peak memory 17.61 / 18.46 / 18.69 / 18.81 GB, all below 21 GB. The throughput gate remains failed on the recorded rank-0 metrics; no automatic advancement.
+
 | Date | Account | Run | Expected h | Actual h | Result |
 |---|---|---|---|---|---|
 | Oct 15 | Atul | Step A v1: `gemma4-train-lora`, 40 own v7 windows, `conv_lora`, 2 h budget | 0.7 | 1.43 quota h (~0.71 session h) | COMPLETE, rc 0, 42.7 min. Val 0.2557 → 0.1818; 410 modules, shapes valid; peak logged 17.61 GB. Strict throughput gate FAIL (median logged 193.2 tok/s; metric undercounts tokens). B/C not launched. Pre-push quota 30.00 h; post-run 28.57 h. Existing generated files preserved unchanged. |
