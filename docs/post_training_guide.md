@@ -21,6 +21,7 @@ Code: `kaggle/probes/train_feasibility/probe_train.py` (the probe), `make_notebo
 ## 2. Concepts you need (short)
 | Term | What it is | Why it matters here |
 |---|---|---|
+| Oct 15 | **Step A reassessed PASS without rerunning, per Atul's instruction.** Exact schedule reconstruction matches all four logged plans: 40 windows / 270,421 input tokens. Using every rank's rounded rate to bound elapsed time and taking the slowest rank gives step throughput intervals 271.14–271.23, 287.55–287.66, 295.52–295.61, 276.95–277.04, 257.50–257.62 tok/s; all within 240–420. Source logging now sums tokens, takes maximum synchronized elapsed time and memory across ranks, and records token counts/durations. Original metrics and initial validation are preserved. | `analysis/reconstruct_training_throughput.py` verifies schedule, plans, rank-0 metrics equality, source hashes, and rounding bounds using stdlib only; synthetic uneven-workload/slow-rank checks PASS. B authorized using A v1's unchanged adapter; C still needs B PASS and explicit Shrey approval. |
 | **LoRA** | Instead of changing a weight matrix W (huge), learn two thin matrices A (r × in) and B (out × r) and use W + (α/r)·B·A. r = "rank", e.g. 16 | 31B params frozen; we train ~122M. The adapter file is small (≈245 MB at r16 in bf16) |
 | **Target modules** | Which matrices get LoRA: q/k/v/o (attention) + gate/up/down (MLP) in every layer | Gemma-4-31B has **410** such matrices (global layers share K and V, so they have no v_proj) |
 | **Quantisation** | Storing weights in fewer bits | The served model is **W4A16**: weights 4-bit, maths in 16-bit |
@@ -96,7 +97,7 @@ Every GPU stage runs as its own process, so nothing is left on the GPUs between 
 | Local eval | Works on 4×L4; metric = resolved on the **114** valid tasks (54 before the overlays) | `kaggle/eval_l4/` (§7.3) |
 | Training data | 200 public tasks → 974 train + 43 val windows, 7.37M tokens, 3.4 MB (embedded in the notebook) | `data/runs/train_public_200.npz` |
 | Smoke data | our own 185 v7 windows (21 tasks) | `data/runs/rs_v7_valid/train_v7_solved.npz` |
-| Training code | CPU smoke PASS; Atul Step A GPU training/export succeeded Oct 15; logged throughput gate FAIL due to identified token-count underreporting; B pending | `kaggle/train/`; `data/runs/atul_step_a_20261015_v1/` |
+| Training code | Step A GPU pipeline PASS after verified throughput correction Oct 15; original adapter reused for B | `kaggle/train/`; `data/runs/atul_step_a_20261015_v1/` |
 | Next GPU steps | pipeline check → serving check → 200-task training → eval (§7.3) | Atul's Kaggle |
 | Valid set | **114/129** with the overlays (done Oct 14, CPU) | `data/runs/eval_sweep_v2/` |
 
@@ -210,10 +211,11 @@ Add a row to §8 and, for anything surprising, a line in the decisions log (§5)
 | `rank_tails` in `train_report.json` with `CUDA out of memory` | a window too long for memory | tell Shrey (fix: `offload_from` lower or cap length) |
 
 ## 8. GPU quota ledger
-Oct 15 output verification: all Step A outputs downloaded. Both adapter copies have SHA-256 `09877873743ec96d0ef7d362e042ac512deb8331f1022bf5f5c02e4d1313d1a0`; stdlib-only header checks confirm all 820 BF16 tensors, rank-16 shapes, and complete file length. Per-rank logs show peak memory 17.61 / 18.46 / 18.69 / 18.81 GB, all below 21 GB. The throughput gate remains failed on the recorded rank-0 metrics; no automatic advancement.
+Oct 15 output verification: all Step A outputs downloaded. Both adapter copies have SHA-256 `09877873743ec96d0ef7d362e042ac512deb8331f1022bf5f5c02e4d1313d1a0`; stdlib-only header checks confirm all 820 BF16 tensors, rank-16 shapes, and complete file length. Per-rank logs show peak memory 17.61 / 18.46 / 18.69 / 18.81 GB, all below 21 GB. Step A was initially stopped on the faulty rank-0 throughput metric, then reassessed PASS after all-rank reconstruction bounded every step within target; original measurements retained.
 
 | Date | Account | Run | Expected h | Actual h | Result |
 |---|---|---|---|---|---|
+| Oct 15 | Atul | Step B v1: `check-l4`, `v8_lora_smoke`, 8 valid tasks, adapter from unchanged A v1, 2 h session budget | ~1 session h (~2 quota h based on A accounting) | pending | Pre-push quota: 28.57 h remaining; A COMPLETE with remote adapter available. Target B notebook absent from account listing. Metadata: Atul notebook; Shrey shared inputs; offline L4 and competition attached. |
 | Oct 15 | Atul | Step A v1: `gemma4-train-lora`, 40 own v7 windows, `conv_lora`, 2 h budget | 0.7 | 1.43 quota h (~0.71 session h) | COMPLETE, rc 0, 42.7 min. Val 0.2557 → 0.1818; 410 modules, shapes valid; peak logged 17.61 GB. Strict throughput gate FAIL (median logged 193.2 tok/s; metric undercounts tokens). B/C not launched. Pre-push quota 30.00 h; post-run 28.57 h. Existing generated files preserved unchanged. |
 | Oct 10 | Shrey | training probe v3 + v4 | 1.5 | ~1.7 | training envelope (≤8k) |
 | Oct 12 | Shrey | eval attempts 1–3 (my bugs) | — | ~0.8 | fixed: cell literal, Debian venv, health check |

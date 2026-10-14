@@ -100,7 +100,7 @@ class Trainer:
         self.log(event="plan", micro_steps=len(sched), optimizer_steps=total, **data.stats())
         opt = torch.optim.AdamW([p for p in self.fm.parameters() if p.requires_grad], lr=self.s.lr, weight_decay=0.0)
         self.validate(data, "start")
-        step, t_win, tok, loss_acc = 0, time.time(), 0, []
+        step, t_win, tok, loss_acc = 0, time.perf_counter(), 0, []
         for i, w in enumerate(sched):
             stop = torch.tensor([1.0 if self.s.hours_left() < 0.4 else 0.0], device=self.dev)
             dist.all_reduce(stop, op=dist.ReduceOp.MAX)  # every rank stops at the same micro-step
@@ -118,12 +118,24 @@ class Trainer:
                 opt.step()
                 opt.zero_grad(set_to_none=True)
                 step += 1
-                dt = time.time() - t_win
+                # Variable-length windows make world * rank0_tokens an underestimate.
+                # Keep the actual workload and slowest rank's duration for auditing.
+                if not self.s.smoke:
+                    torch.cuda.synchronize(self.dev)  # include queued optimizer work in elapsed time
+                dt = time.perf_counter() - t_win
+                local_peak = 0 if self.s.smoke else torch.cuda.max_memory_allocated() / 2 ** 30
+                tokens = torch.tensor([tok], device=self.dev, dtype=torch.int64)
+                resources = torch.tensor([dt, local_peak], device=self.dev, dtype=torch.float64)
+                dist.all_reduce(tokens, op=dist.ReduceOp.SUM)
+                dist.all_reduce(resources, op=dist.ReduceOp.MAX)
+                total_tokens, elapsed_s = int(tokens.item()), float(resources[0])
                 self.log(event="step", step=step, of=total, loss=round(sum(loss_acc) / len(loss_acc), 4),
                          lr=round(self.lr_at(step - 1, total), 7), grad_norm=round(float(gn), 3),
-                         tok_per_s=round(self.world * tok / dt, 1),
-                         peak_gb=0 if self.s.smoke else round(torch.cuda.max_memory_allocated() / 2 ** 30, 2))
-                t_win, tok, loss_acc = time.time(), 0, []
+                         tok_per_s=round(total_tokens / elapsed_s, 1),
+                         tokens=total_tokens, elapsed_s=round(elapsed_s, 6),
+                         rank_tokens=tok, rank_elapsed_s=round(dt, 6),
+                         peak_gb=round(float(resources[1]), 2))
+                t_win, tok, loss_acc = time.perf_counter(), 0, []
                 if self.s.val_every and step % self.s.val_every == 0:
                     self.validate(data, f"step{step}")
                 if self.s.save_every and step % self.s.save_every == 0:
