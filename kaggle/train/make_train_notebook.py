@@ -34,7 +34,10 @@ EVALKIT = REPO / "kaggle" / "eval_l4" / "evalkit"
 ENV_MODULES = ["__init__", "config", "util", "envsetup"]
 TRAIN_MODULES = ["__init__", "config", "data", "model", "export", "worker", "launcher", "main"]
 CFG_URL = "https://huggingface.co/google/gemma-4-31B-it-qat-q4_0-unquantized/raw/main/config.json"
-EMBED_MAX_MB = 20
+# Keep serialized source below Kaggle's reported 1 MB notebook-source limit.
+# Base64 expands inputs by 4/3; leave room for code and architecture config.
+EMBED_MAX_MB = 0.6
+SOURCE_MAX_BYTES = 1_000_000
 
 
 def first_doc_line(path):
@@ -45,7 +48,8 @@ def first_doc_line(path):
 def build(a):
     data = pathlib.Path(a.data)
     embed = data.stat().st_size / 1e6 <= EMBED_MAX_MB and not a.dataset
-    assert embed or a.dataset, f"{data} is {data.stat().st_size / 1e6:.0f} MB: upload it and pass --dataset"
+    assert embed or a.dataset, (f"{data} is {data.stat().st_size / 1e6:.2f} MB; embedding it would exceed the "
+                                "notebook source budget. Attach it as a dataset and pass --dataset owner/slug.")
     settings = {"name": a.name, "lr": a.lr, "max_windows": a.max_windows, "budget_h": a.budget_h, "smoke": a.smoke,
                 "epochs": a.epochs, "grad_accum": a.grad_accum, "save_every": a.save_every, "val_every": a.val_every}
     cells = [
@@ -100,6 +104,11 @@ print("exit code", proc.wait())"""),
             ast.parse(src.split("\n", 1)[1] if src.startswith("%%writefile") else src)
     nb = {"cells": cells, "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
                                        "language_info": {"name": "python"}}, "nbformat": 4, "nbformat_minor": 4}
+    # Match the CLI's source-list normalization before checking the wire size.
+    wire_nb = {**nb, "cells": [{**c, "source": "".join(c["source"])} for c in cells]}
+    source_bytes = len(json.dumps(wire_nb).encode("utf-8"))
+    assert source_bytes < SOURCE_MAX_BYTES, (f"Notebook source is {source_bytes:,} bytes; keep it below "
+                                             f"{SOURCE_MAX_BYTES:,}. Move embedded inputs to --dataset.")
     slug = "gemma4-train-smoke" if a.smoke else "gemma4-train-lora"
     out = REPO / "kaggle" / "train" / ("smoke_kernel" if a.smoke else "l4_kernel")
     out.mkdir(parents=True, exist_ok=True)
@@ -113,7 +122,8 @@ print("exit code", proc.wait())"""),
     if not a.smoke:
         meta["machine_shape"] = "NvidiaL4"
     (out / "kernel-metadata.json").write_text(json.dumps(meta, indent=2) + "\n")
-    print(f"wrote {out / (slug + '.ipynb')}: {len(cells)} cells, data {'embedded' if embed else a.dataset}, {settings}")
+    print(f"wrote {out / (slug + '.ipynb')}: {len(cells)} cells, source {source_bytes:,} bytes, "
+          f"data {'embedded' if embed else a.dataset}, {settings}")
 
 
 if __name__ == "__main__":
