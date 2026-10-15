@@ -266,3 +266,17 @@ Caveats: gold = code edited (including features). Issue-symbol extraction is reg
 | Method | not started | when method freezes |
 | Experiments & results | not started | experiment log A1, A2 |
 | Discussion / limitations | not started | failure analysis |
+
+
+## Atul Baliyan — Gemma 4 Post-Training Experiments
+
+Artifact audit completed after the October 15 runs (October 16 local time): **all required artifacts COMPLETE locally**, including C checkpoints 40/80/120, final and serving copies. Recovered 33 missing CPU-smoke files (2,832,825bytes); no healthy artifact or original report was overwritten. See [artifact audit](atul_training_artifact_audit_20261015.md), [completed training report](step_c_20261015_report.md), and the per-file inventory in `data/runs/atul_artifact_audit_20261015/summary.json`.
+
+- [Step A — gemma4-train-lora v1](https://www.kaggle.com/code/atulbaliyan/gemma4-train-lora): PASS after exact throughput reconstruction; original 193.2 tok/s median preserved, corrected median about 277.0. Validation 0.2557→0.1818; both 410-module adapter copies intact.
+- [Step B — check-l4 v1](https://www.kaggle.com/code/atulbaliyan/check-l4): PASS with A adapter; eight results/traces, five health checks true, 2/8 resolved. One turn-limit error; score is serving-smoke evidence, not generalization. Original archives pass integrity checks.
+- [CPU instrumentation — gemma4-train-smoke v1](https://www.kaggle.com/code/atulbaliyan/gemma4-train-smoke): PASS; distributed token SUM/elapsed MAX verified. Recovered tiny model/adapter exports, configuration/data and captured sources. No GPU cost.
+- [Step C — gemma4-train-lora v2](https://www.kaggle.com/code/atulbaliyan/gemma4-train-lora): COMPLETE/PASS, rc 0, 122/122 steps; validation 0.7718→0.3133→0.2909→0.2883→0.2882. Steady median 295.6 tok/s, global peak 18.88 GiB. Scheduler processed 972/974 train and 40/43 validation windows while retaining all 190/10 tasks. Actual 7.8203 session hours / 15.64 quota-hours; last recorded remaining 11.87quota-hours.
+
+Each C export has 410 modules/ 820 BF16 rank 16 tensors and is 244,982,352 bytes. Final/serving SHA-256: `a116b6be160fffcc98cdd2a4ab6cfaffafcfc54ac6709a8a5d95d95ebab544c6`. The approved 200-task NPZ hash also matches. Current B/CPU/C remote nested output sizes match local files. Historical A re-fetch is unavailable through the installed CLI/API; its original local evidence and adapters are intact. Remote checksum headers are absent; the audit distinguishes local hash verification from remote size comparison.
+
+The C adapter’s serving/issue-solving performance remains untested. The paired evaluation proposal is prepared separately; no evaluation, Step D, leaderboard submission or new training is authorized or launched by this artifact audit. Existing historical entries above are preserved, including their then-current approval/gate states.
