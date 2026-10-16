@@ -12,3 +12,6 @@ Each folder is an unzipped submission (zip the *contents*: `python tools/make_zi
 | v5_graph | v4 + code-map skill | 33 | 0.08 |
 | v7_noedit | v2 minus `edit_file` (61.5% of its calls drift); edits via python snippet-replace or write_file | – | **0.15** (current base) |
 | v6_trace | skill-only localizer + rich brief | – | 0.00 (~10 h; skill likely broken on scorer) |
+| v9_calls70 | v7 + eval_config max_tool_calls 40→70, max_turns 100→160 (time limit unchanged) | **0.12** (ref 57218504): no gain vs v7 |
+| v10_edit_test | v9 + system.md 'Call Budget Checkpoints': edit by ~call 20, test the changed code's test file before submit_patch, submit by ~call 60 | superseded by v10b (v9 base did not help) |
+| v10b_edit_test | v7 + system.md 'Call Budget Checkpoints' (40 calls): edit by ~call 15, test before submit_patch, submit by ~call 35 | pending (submitted Oct 16, ref 57253361) |
