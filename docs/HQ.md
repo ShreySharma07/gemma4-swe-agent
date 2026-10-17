@@ -1,5 +1,13 @@
 # Gemma 4 Developer Agent — HQ
 
+## Atul — E1 resolved; S3 runtime approval pending, October 18 follow-up
+
+**E1 source-edit replay PASS: 147/147 episodes, 182/182 edits.** Exact `instance_id`/repo joins to Nebius SWE-rebench revision `89cdfbab4ab1bd8f5a658bb212d1b63624f4f881` recovered every base commit. Only three benchmark columns (~1.64 MB) and 150 distinct pinned source files (~2.65 MB) were downloaded. Replay used audit-owned AST-equivalent replacement operations in a disposable, network-disabled bubblewrap namespace; no teacher code or repository setup/tests ran. All 151 episode/file initial and final Git blobs match teacher patch indexes. The empty-file edit is valid: actual source is zero bytes. No confirmed edit/feedback failures or data correction. Detailed local evidence and the small committed [summary/complete source manifest](../data/runs/atul_e1_replay_20261018/summary.json) support the [same consolidated report](atul_step1a_1b_step2_gate_report_20261018.md).
+
+The earlier universal pretraining E1 gate was an overly broad interpretation. The handoff explicitly permits CPU E1 in parallel and requires confirmed failures removed before training. Full replay now passes anyway. Separate primary-workspace `.venv` has only Kaggle CLI 2.2.4 and dependencies; existing login verified without copying/printing/inspecting credentials. Fresh 02:08:10 IST quota: **30.00 h available, 0 used/reserved**; no queued/running project notebook. Exact S3 notebook generated and metadata verified, **459,501 bytes**, unsubmitted. Source-derived validation limitation: unchanged scheduler covers 4/7 S3 and 20/21 S1 held-out windows.
+
+**Await explicit runtime approval before GPU push:** S3 ~2.1–2.4 session h / ~4.2–4.8 quota h; full S3/S1/gate forecast ~10.6–11.8 quota h. These exceed the preserved >2-session-h / >10-cumulative-quota-h rules. Settings remain exactly the handoff's two epochs and 3 h budgets. No training, GPU inference, gate, paired-task eval, notebook push, retry or submission occurred; no GPU quota spent. Prior preflight entry below is preserved as history, superseded on provenance and isolation availability by this follow-up.
+
 ## Atul — S3/S1/gate preflight, October 18, 2026
 
 The reporting requirement is **one consolidated technical report**: [Step 1a, Step 1b, Step 2 and E1](atul_step1a_1b_step2_gate_report_20261018.md). Primary workspace cleanly fast-forwarded to `fc29e53`; work is on `atul/s3-s1-gate-results`. Both NPZs, gate prefixes and preserved raw-row archive match the handoff hashes. Fresh authenticated quota at 01:25:27 IST: **30.00 h available, 0 used/reserved**; three project notebooks COMPLETE, two unrelated notebook sessions return 404.
