@@ -1,5 +1,13 @@
 # Gemma 4 Developer Agent — HQ
 
+## Atul — S3/S1/gate preflight, October 18, 2026
+
+The reporting requirement is **one consolidated technical report**: [Step 1a, Step 1b, Step 2 and E1](atul_step1a_1b_step2_gate_report_20261018.md). Primary workspace cleanly fast-forwarded to `fc29e53`; work is on `atul/s3-s1-gate-results`. Both NPZs, gate prefixes and preserved raw-row archive match the handoff hashes. Fresh authenticated quota at 01:25:27 IST: **30.00 h available, 0 used/reserved**; three project notebooks COMPLETE, two unrelated notebook sessions return 404.
+
+**Stopped before any GPU push.** E1's exact source bases are not established: no `base_commit` in 200 raw rows or 147 matching candidate compact episodes. The new S3-1k archive contains candidates matching all original S3 task and trajectory IDs, but matching IDs do not prove original rendered-byte identity. Static inspection finds 823 associated call/response pairs, 182 edit calls, 181 unique old literals in visible excerpts, and one empty-old/empty-file case requiring actual file bytes. No real-repository replay or teacher-command execution occurred; disposable isolation was not established. Do not call this E1 PASS or a confirmed edit failure.
+
+S3/S1/gate are **NOT STARTED**, not failed training runs. Exact source scheduling implies 35/33 optimizer steps at the handoff's two epochs. A token/load-based planning scenario is ~10.17 quota h before validation/export overhead, so review >2-session-h and >10-cumulative-quota-h approval limits before resuming. Ledger updated; no data regeneration, model load, notebook push, GPU use, evaluation, retry or submission. Existing findings below remain historical context.
+
 This is the single source of truth. Every new chat starts from this doc, and it gets updated at the end of each working session.
 
 ## Goals
