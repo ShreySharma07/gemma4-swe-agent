@@ -60,3 +60,21 @@ Read `gate_report.json`:
 **Total ≈ 8 quota-h** of Atul's 30. Stop after Step 2 and report. Step 3 (paired eval on the new-60, ~16 quota-h) runs on whichever account has quota, and only for adapters that PASS.
 
 **Stop rule:** if both adapters FAIL the gate, no task evaluation and no retraining. Diagnose from the per-type table.
+
+## Step 5 data, built ahead (Oct 18, CPU): S3-1k
+
+Ready in case S3 passes the gate, so the scale-up can start without a 2–3 day delay. **Not for training yet.**
+
+| | S3 (Step 1a) | **S3-1k** |
+|---|---|---|
+| Converted public runs | 200 | 1,150 distinct tasks (35,434 rows scanned; same settings: `--reasoning --one-per-task`, held-out repos excluded) |
+| Grounded episodes kept | 147 | **840** (203 edited a region never shown, 94 ungrounded, 13 over 8k). Superset: all 147 Step-1a episodes are included |
+| Tokens | 0.74M | **4.31M** (median 4,983 per episode; 12.8% supervised) |
+| Train / val | | 798 / 42 episodes (5% of tasks) |
+| E0 | | REPRODUCED (`data/runs/audit_e0_s3_1k/e0_report.json`) |
+| E2 | 0/182 ungrounded, 75% of loss on edits | 0% mid-run windows; **edits 75.3% of loss**, 0 batched calls; audit flags 3/1,048 edits as "file not shown", all non-`.py` files (`.ini`, `README.md`, `.rst`) that the audit's `.py`-only read regex can't see; the compactor's grounding check passed them |
+| File | `train_s3_compact.npz` | `train_s3_1k.npz` (1.74 MB) sha256 `d0b5e59edce9f21f1b9f02a9d55744f7638fe05535f3276c0fc09464b52ab8a9` |
+
+Episodes: `data/runs/s3_1k_episodes_20261018.tar.gz`. The raw source rows (241 MB, needed for E1 on the new 693 episodes) stay local on Shrey's machine; ask if needed.
+
+**Training it:** 1.74 MB is over the 0.6 MB embed limit, so it must be attached as a private Kaggle dataset (`--dataset owner/gemma4-train-s3-1k`), as in Step C. Cost at Step C's measured rate (~1 session-h per 1M tokens + 0.6 h load): **1 epoch ≈ 4.7 session-h ≈ 9.5 quota-h**, ~100 optimizer steps at batch 8. Over the 2 h rule: needs explicit agreement, and only after S3 passes the gate and Step 3's paired eval.
