@@ -2,9 +2,9 @@
 
 Date: October 18, 2026 (IST). Author: Atul's execution workspace.
 
-**Current status: E1 replay PASS; S3 notebook prepared; awaiting explicit runtime approval before any GPU submission.**
+**Current status: E1 PASS (147/147 episodes, 182/182 edits); S3 Compact version 1 submitted exactly once and initially RUNNING with unchanged `--budget-h 3`. S1 and the behaviour gate require separate approval.**
 
-**Follow-up correction:** the handoff explicitly allows E1 in parallel. A universal E1-completion gate was an overly broad interpretation in the initial report. Exact provenance and all 182 edit replays are now verified anyway. Sections 7.1 and 8.1 below contain the current results. Initial preflight observations are preserved as historical evidence. This is the single report for Steps 1a, 1b, 2 and CPU E1. It records completed checks and the blockers, rather than reporting unexecuted experiments as successes or failures. Update this same file when execution is authorized to resume.
+This is the single report for Steps 1a, 1b, 2 and CPU E1. Earlier preflight blockers are reconciled below; detailed evidence and the original initial-stage checks remain identifiable as history. No new training measurements are reported until actual output exists.
 
 ## 1. Executive Summary
 
@@ -12,21 +12,19 @@ The experiment objective is to test whether grounded, compact public demonstrati
 
 The reporting correction supersedes the original request for three separate reports. No separate Step 1a, Step 1b or Step 2 report was created.
 
-| Stage | Completed work | Outcome |
+| Stage | Completed work | Current outcome |
 |---|---|---|
-| Workspace/Git | Clean `main` fast-forwarded from `b90af48` to `fc29e53`; authorized feature branch created | PASS |
-| Artifact identity | Both training NPZs, gate prefixes and raw teacher-row archive match handoff hashes | PASS |
-| Kaggle access | Authenticated inventory and fresh accelerator-quota query | PASS; 30.00 quota-hours available, 0 reserved |
-| CPU E1 | Located 147 candidate episodes in the new S3-1k archive; matched all task and trajectory IDs; inspected action/feedback structure and literal edits | PARTIAL; no real-repository replay completed |
-| Step 1a S3 | Dataset and prescribed configuration inspected | NOT STARTED; E1 prerequisites unresolved |
-| Step 1b S1 | Dataset and prescribed configuration inspected | NOT STARTED; predecessor not completed |
-| Step 2 gate | Prefix counts and harness scoring inspected | NOT STARTED; no trained candidate outputs |
+| Workspace/Git | Authorized feature branch in the primary workspace | PASS |
+| Artifact identity | Both NPZs, gate prefixes and raw row archive match all four handoff hashes | PASS; rechecked before S3 push |
+| Kaggle access | Independent workspace CLI; fresh authenticated quota/inventory/status | PASS; pre-push 30.00 h available, 0 used/reserved |
+| CPU E1 | Exact benchmark bases, isolated filesystem replay, initial/final teacher-blob checks | **PASS: 147/147 episodes, 182/182 edits, zero failures/unverifiable edits** |
+| Step 1a S3 | Exact notebook verified and submitted once as version 1 | **RUNNING**; training/output checks pending |
+| Step 1b S1 | Dataset/configuration inspected | NOT RUN; separate approval required |
+| Step 2 gate | Prefix counts and harness scoring inspected | NOT RUN; separate approval required |
 
-At the initial preflight cutoff, the reported blocker was missing exact repository base commits for E1: none of the 200 preserved teacher rows or 147 matched compact episodes contains `base_commit`. A task/issue ID and final patch do not establish the source tree on which the converted edits must execute. No suitable disposable execution environment was established either: Docker and Podman were unavailable on PATH, and a basic bubblewrap isolation check failed under the current sandbox.
+The original missing-provenance issue was resolved through the authoritative benchmark, not by guessing repository versions. All 150 distinct source downloads succeeded, covering 151 episode/file states. Initial and final Git blobs match teacher patch indexes in all 151 cases. The empty-file case is valid at exact zero-byte source state. E1 details and limitations are in §7.
 
-Measured static findings: 147 candidate episodes cover 147 tasks and 132 repositories, with 182 edit calls and 823 total calls. All 823 calls have associated responses, with no duplicate response IDs. For 181 edits, the decoded old literal occurs exactly once in the retained visible excerpt after preceding simulated replacements. One empty-old-string edit needs exact file bytes to assess. These measurements do **not** establish successful filesystem transitions, correct final patches or truthful teacher feedback.
-
-New workflow GPU consumption is **0 session-hours / 0 quota-hours**. No new loss curves, adapter exports, gate verdicts or performance measurements exist.
+Only one S3 run is now authorized. Its expected duration is 2.1–2.4 session-hours / 4.2–4.8 quota-hours with the unchanged 3 h budget. The user explicitly withheld authorization for S1, the gate, retries and configuration changes. Training losses, export integrity, actual runtime and quota charges remain pending until this one run produces evidence. E1 does not establish coding-agent behaviour or clear synthesized test-feedback concerns.
 
 ## 2. Background and Research Motivation
 
@@ -44,7 +42,7 @@ S3 compresses a demonstration to one grounded episode: locating searches, the ed
 | Own-policy demonstrations preserve action selection | S1 gate compared with base and S3 | Untested |
 | Lower update dose reduces drift | Rank 16, half Step C's peak learning rate, fewer optimizer steps | Configuration inspected; effect untested |
 | Compact demonstrations can induce premature editing | Elevated edit frequency in `early` prefixes | Untested |
-| Converted success feedback corresponds to executable source changes | E1 at exact repository commits | Blocked |
+| Converted source-edit success feedback corresponds to executable changes | E1 at exact repository commits | Verified for 182/182 retained edits; test outcomes outside scope |
 
 The exact handoff specifies **two epochs** for both runs. The general strategy's earlier one-epoch recommendation is historical context; it was not substituted for the prescribed command.
 
@@ -78,7 +76,7 @@ python3 kaggle/train/make_train_notebook.py data/runs/train_s3_compact.npz --nam
 .venv/bin/kaggle kernels push -p kaggle/train/l4_s3_compact
 ```
 
-The commands above are the handoff commands, **not a record of execution**. The expected notebook identity is `atulbaliyan/gemma4-train-s3-compact`; no version was submitted or assigned by this workflow.
+The builder command and one push command above were executed with `KAGGLE_OWNER=atulbaliyan`. Kaggle accepted **version 1** of `atulbaliyan/gemma4-train-s3-compact`; the initial status query returned **RUNNING**. There was exactly one push attempt, no retry and no configuration change. Actual training measurements are pending terminal outputs.
 
 | Setting | Prescribed value / source default |
 |---|---|
@@ -100,14 +98,14 @@ Source schedule arithmetic gives 280 scheduled window presentations, 70 microste
 
 ### Losses, checkpoints, resources and export verification
 
-No S3 training run has occurred, so no `train_report.json`, `train_out/metrics.jsonl` or `run.log` exists in the prescribed `data/runs/atul_s3_compact/` output location. The notebook was not built at the initial cutoff; it is now generated and verified as described in §8.1, but remains unsubmitted. Consequently:
+S3 version 1 is now RUNNING. `train_report.json`, `train_out/metrics.jsonl` and `run.log` have not yet been downloaded to `data/runs/atul_s3_compact/`; no actual loss or export result is inferred from successful submission. Consequently:
 
 - Train/validation loss and loss curve: unavailable.
-- GPU memory, utilization, throughput, actual runtime and quota charge: unavailable; no run.
-- Adapter tensors, hashes, shapes and serving-copy equality: unavailable; no export.
-- Runtime warnings, failures or checkpoint interruption: no execution evidence.
+- GPU memory, utilization, throughput, actual runtime and quota charge: pending outputs and fresh quota accounting.
+- Adapter tensors, hashes, shapes and serving-copy equality: pending output verification.
+- Runtime warnings, failures or checkpoint interruption: pending log review; initial RUNNING is not a health or performance verdict.
 
-**Verdict: NOT STARTED / AWAITING RUNTIME APPROVAL, not training FAIL.** Required future checks remain rc 0, decreasing validation loss and a valid final 410-module export; integrity must include tensor shapes/dtype and file completeness. Lower loss alone cannot demonstrate behavioural improvement.
+**Verdict: RUNNING, version 1; training/export checks pending.** Required future checks remain rc 0, decreasing validation loss and a valid final 410-module export; integrity must include tensor shapes/dtype and file completeness. Lower loss alone cannot demonstrate behavioural improvement.
 
 ## 4. Step 1b — S1 Own Training
 
@@ -136,7 +134,7 @@ These are unexecuted prescribed commands. Expected identity: `atulbaliyan/gemma4
 
 No S1 `train_report.json`, `metrics.jsonl`, `run.log`, checkpoints or exports were produced. Loss convergence, validation performance, memory, throughput and runtime warnings are unavailable. New S1 GPU consumption is zero because it was not submitted.
 
-**Verdict: NOT STARTED.** It cannot proceed until S3 is COMPLETE and its required checks are reviewed. The small set of distinct tasks limits generalization claims even if future training loss and gate results are favorable.
+**Verdict: NOT STARTED / NOT AUTHORIZED.** It cannot proceed without separate user approval, even after S3 is COMPLETE and reviewed. The small set of distinct tasks limits generalization claims even if future training loss and gate results are favorable.
 
 ## 5. Comparative Analysis — S3 vs S1
 
@@ -209,48 +207,13 @@ No model-side tool failures, missing-edit rates, batching frequencies or gate in
 
 ## 7. CPU E1 Replay Audit
 
-### Recovery and provenance checks
+**Current verdict: PASS, 147/147 episodes and 182/182 source edits.** The source-provenance and isolation blockers are resolved; no dataset correction is needed. All edit assertions apply and change the intended file, with final file contents matching the teacher patch blob IDs. There are zero confirmed failures and zero unverifiable retained edits.
 
-The handoff expects 147 traces in `data/runs/s3_compact/`; only `compact_report.json` was present there. The read-only recovery checkout had no corresponding S3 directory. The newly pulled `data/runs/s3_1k_episodes_20261018.tar.gz` contains 840 trace JSONs plus a summary. macOS `._` metadata entries were excluded from inspection.
+The initial static-only check identified 823 paired calls, 182 edits and one ambiguous empty-old operation in reconstructed display text. It did not constitute replay. The subsequent exact-commit source recovery and isolated filesystem audit below supersede its incomplete status. In particular, the empty-file case is now verified against the actual zero-byte file.
 
-Filtering the archive by exact task IDs decoded from the original S3 NPZ found exactly 147 episodes, covering every S3 task once. All 147 trajectory IDs also match the preserved 200 teacher rows. This supports candidate episode recovery without modifying or regenerating the NPZ. It does **not** prove byte-for-byte identity with the missing original compact traces or re-establish tokenizer-level E0 for this subset.
+Source-edit replay does not verify tests, issue resolution or model behaviour. The compactor's synthesized test `status=ok` / exit-0 fields and tailed pipelines remain a distinct feedback-fidelity limitation, not a demonstrated source-edit failure.
 
-Raw row archive SHA-256: `b0ceaac824c543d8a417b7a4e45bbd5c1d62bf8791c5eb1047942100afdf8607` (matches handoff).
-
-### Completed static checks — not actual replays
-
-| Check | Measured result | Interpretation |
-|---|---:|---|
-| Matched episodes / tasks / repositories | 147 / 147 / 132 | Candidate coverage established |
-| Matching raw trajectory and instance IDs | 147/147 | Row association established |
-| Total calls | 823 | Retained action count |
-| Calls missing a response | 0/823 | Association exists; truthfulness untested |
-| Duplicate response IDs | 0 | No duplicate IDs observed within inspected episodes |
-| Edit calls parsed for literal old/new/path | 182/182 | No teacher code executed |
-| Old/new literal differs | 182/182 | Intended textual mutation, not proof of applied mutation |
-| Unique old literal in simulated visible state | 181/182 | Local excerpt precondition satisfied |
-| Empty-old special case | 1/182 | Requires exact source bytes |
-| Raw rows containing `base_commit` text | 0/200 | No explicit pinned base found |
-| Matched episodes containing `base_commit` text | 0/147 | No explicit pinned base found |
-| Actual repository-source transitions replayed | 0 | E1 incomplete |
-| Successful / failed real replays | N/A / N/A | Neither outcome measured |
-| Final source state compared with teacher patch | 0 episodes | Not established |
-
-The static utility decoded literals with `ast.literal_eval` and applied string replacements only to retained observation text in memory. It did not evaluate teacher Python, invoke teacher shell commands, run tests or mutate a source checkout.
-
-The special case is `ithaka__apiron-40`, `call_4`, target `apiron/__init__.py`. Its `old` literal is empty and the command asserts `s.count(old) == 1`. The reconstructed retained read is one newline character, so its empty-string count is 2. A genuinely empty file has empty-string count 1. Because the compactor appends a newline when reconstructing reads, this is **not a confirmed failed edit**. It demonstrates why excerpt simulation cannot replace real-file replay. The associated retained feedback reports `status=ok`, exit 0, but that report has not been validated against the real source state.
-
-### Blockers and technical implications
-
-Neither raw rows nor compact episodes supply an explicit base commit. No verified mapping or corresponding pinned source snapshots was established in the new worktree, recovery checkout or inspected desktop backup inventory. This is a local availability finding, not a claim that the upstream dataset cannot provide the commits. Do not infer a base from current repository HEAD or from an issue number.
-
-Docker and Podman were unavailable on PATH. Bubblewrap exists, but a basic isolated `/bin/true` invocation failed while creating its network namespace (`NETLINK_ROUTE`, operation not permitted). No elevated isolation attempt was needed once base provenance was missing. The task requires disposable isolation before any untrusted trajectory execution; that requirement remains unresolved.
-
-Source inspection also shows the compactor synthesizes a retained test response with status `ok` and exit code 0 after appending `2>&1 | tail -n 30`. That is not proof that the original pytest passed: pipeline exit status and test outcome can differ, and original tail text may describe failure. This is an observed construction rule, not a measured count of false feedback in the actual training corpus. The converter's old/new replacement commands similarly require E1 to verify their preconditions in the correct source state.
-
-No episodes were removed and no dataset was regenerated. Missing provenance, the empty-file case, actual edit applicability, expected diffs and final-state equivalence remain open. The initial report interpreted this as making the entire audit a prerequisite. That interpretation is corrected in §7.1: parallel E1 is explicitly authorized, while confirmed failures must be excluded before training. Dataset changes, if needed, still require reconciliation with the handoff hash.
-
-### 7.1 Follow-up: provenance recovered and genuine CPU edit replay completed
+### 7.1 Provenance recovery and completed CPU edit replay
 
 **Result: PASS, 147/147 episodes and 182/182 edits; E1's source-edit replay blocker is resolved.** No episodes were removed, and all four handoff hashes remain unchanged.
 
@@ -346,7 +309,7 @@ These are **forecasts**, not measured runtimes or replacements for the prescribe
 
 The quota ledger in [the guide, §8](post_training_guide.md#8-gpu-quota-ledger) is updated separately with this stopped preflight, zero new consumption and the estimate discrepancy.
 
-### 8.1 Follow-up GPU preflight — ready for runtime approval, not submitted
+### 8.1 GPU preflight and one-run approval
 
 A separate **primary-workspace `.venv`** was created with `include-system-site-packages=false`. It contains Kaggle CLI **2.2.4** and its dependency graph, installed through `pip install kaggle`; no training/model framework was installed there. Authentication was verified through the existing authorized login flow. No Kaggle credentials were copied, printed or inspected. The recovery checkout's virtual environment is no longer needed for handoff commands.
 
@@ -362,7 +325,7 @@ The exact S3 builder command in §3 was executed locally with `KAGGLE_OWNER=atul
 
 Read-only API checks at 02:11:05 IST confirmed access to both shared kernel outputs (`scorer_env.tgz` and the two training wheels) and the official wheelhouse (41 listed files, no further page). The generated notebook is 467,033 bytes on disk, SHA-256 `b93e23c6065f61c6ef6e312a0ef002ba4065950499860e3d944f44a1f79a669a`; its normalized source is 459,501 bytes. Both are below 1 MB.
 
-The generated notebook remains a local, uncommitted build artifact. No `kaggle kernels push` was issued. S1 and gate remain conditional on preceding stages' COMPLETE/pass checks.
+The generated notebook remains a local, uncommitted build artifact, with a copy archived under `data/runs/atul_s3_compact/submitted_notebook_v1/`. Exactly one subsequent push was accepted as version 1. S1 and gate require separate user approval as well as preceding-stage checks.
 
 The exact deterministic schedule was recalculated without importing torch:
 
@@ -382,35 +345,39 @@ Step C's actual model event records **2,243 s load** and `t_min=43.9`, which inc
 
 For authorization planning, use **S3 ~2.1–2.4 session h / ~4.2–4.8 quota h**, **S1 ~2.6–2.9 session h / ~5.2–5.8 quota h**, and the handoff gate estimate **0.6 session h / ~1.2 quota h**: total approximately **10.6–11.8 quota h**. Setup, validation/export and Kaggle accounting remain uncertain. S1 may approach the existing 3 h budget's stop-taking-steps threshold at 2.6 h; do not change its flags silently or call a budget-stopped run complete training.
 
-**Approval is required before Step 1a:** `docs/atul_codex_step1.md` requires asking before anything over 2 session-hours or total use over 10 quota-hours. The continuation request explicitly retains these limits. The immediate proposed action is exactly one S3 submission with the unchanged handoff command and 3 h budget. The cumulative forecast also exceeds 10 quota-hours, so authorization must address that threshold before proceeding through the whole sequence. No GPU quota is spent while this approval is pending.
+**Approval received for Step 1a only:** the user explicitly approved exactly one S3 run with the unchanged 3 h budget and exact handoff parameters. Expected duration remains below that budget. The user requires fresh preflight, one submission, no automatic retry, and separate approval for S1 and the gate. This is not approval for the cumulative >10 h plan. At pre-push time no quota has yet been spent; record actual run usage from fresh before/after snapshots.
+
+### 8.2 Approved S3 version 1 submission and monitoring
+
+Before push, fresh authenticated quota at **02:20:31 IST** was **30.00 h available, 0 used, 0 reserved**, with no queued/running notebook. All four hashes were rechecked. AST compilation, exact settings, metadata inputs/namespace and embedded data identity passed. The normalized notebook source is **459,501 bytes**, on-disk notebook **467,033 bytes**, unchanged SHA-256 `b93e23c6065f61c6ef6e312a0ef002ba4065950499860e3d944f44a1f79a669a`.
+
+The user explicitly approved **exactly one** S3 run with the unchanged 3 h budget. Expected duration remained **2.1–2.4 session h / 4.2–4.8 quota h**, below the approved session budget; the quota ledger was updated **before** push. The command `.venv/bin/kaggle kernels push -p kaggle/train/l4_s3_compact` returned **“Kernel version 1 successfully pushed.”** The initial status query returned **RUNNING**. No second push was issued.
+
+Run: [atulbaliyan/gemma4-train-s3-compact](https://www.kaggle.com/code/atulbaliyan/gemma4-train-s3-compact). Local `summary.json` and the exclusive-create `preflight_20261018/push_attempt.json` record the sole attempt and version. The ten-minute thread monitor `monitor-approved-s3-compact-v1` is ACTIVE to read status/quota and recover terminal outputs. Unchanged/non-actionable states do not trigger repeated notifications. Completion, failure, budget concerns or needed user actions will be reported.
+
+Actual loss, checkpoint/export integrity, memory, runtime and billed quota remain **PENDING**, not zero. Successful push/RUNNING does not establish training success. On terminal state the monitor must download and verify outputs, update this same report and the quota ledger, then pause. S1, the behaviour gate, retries and configuration changes are explicitly not authorized.
 
 ## 9. Major Findings and Technical Analysis
 
-**Current finding:** full E1 replay now passes; the initial findings below are retained for chronology and are superseded on replay availability by §7.1. Runtime approval, rather than missing provenance, is now the execution gate.
+1. **Input identity passed:** all four handoff hashes remain unchanged, including the embedded S3 data. No S3-1k substitution or data regeneration occurred.
+2. **E1 passed:** 147 episodes and 182 edits replayed at authoritative source revisions, with 151/151 initial and final episode/file blob matches. The prior missing-provenance issue and empty-file ambiguity are resolved.
+3. **Scope is precise:** zero retained source-edit feedback mismatches does not validate synthesized test outcomes, whole-episode execution or issue-solving behaviour.
+4. **Training plan is exact:** 35 planned S3 steps and 33 S1 steps follow from the unchanged two-epoch scheduler. Validation covers 4/7 S3 and 20/21 S1 windows; report this when interpreting eventual loss.
+5. **Authorization is narrow:** exactly one S3 run is approved, with no S1, gate, retry or configuration change. Forecast S3 time is below the approved 3 h budget.
+6. **Loss and behaviour remain distinct:** no new model behaviour can be inferred from E1 or from future loss alone. Step C/D remains the historical counterexample.
 
-1. **Artifact identity passed.** All four handoff hashes match. This prevents silent substitution with the newer S3-1k dataset, which remains outside the authorized training scope.
-2. **The missing original episode directory is partly recoverable.** The new archive contains matching task/trajectory candidates for all 147 S3 tasks. Exact historical rendered/tokenized identity remains distinct from ID-level recovery.
-3. **E1 has not passed.** Response IDs and visible snippets are structurally consistent in the measured ways, but the exact base source is missing and no real source edit was executed. Successful replay rate is undefined, not 0% or 100%.
-4. **Empty files require byte-aware validation.** The one empty-old edit shows how an added observation newline changes precondition counts. It must not be labeled a real edit failure solely from reconstructed display text.
-5. **Feedback construction deserves validation.** Synthesized shell/test success fields and tailed pipelines cannot establish test success. Measure actual mismatches in E1 rather than treating a plausible converter risk as a proven cause of Step D.
-6. **Planned updates differ slightly from prose estimates.** Source scheduling gives 35 S3 and 33 S1 steps; S1 loses two window presentations to grouping. Neither training coverage nor loss is inferable from the approximate 36-step handoff wording.
-7. **Resources are available but runtime authorization still matters.** The observed quota reset does not waive per-run or cumulative approval thresholds. Token-based estimates need reconciliation before launch.
-8. **No behavioural claim is supported yet.** There are no S3/S1 outputs or gate measurements. Step C demonstrates why lower loss, clean format and export integrity alone cannot settle the hypothesis.
-
-No paired significance result is reported: no new task outcomes or paired gate samples exist. Historical Step D remains evidence of the previous adapter's behaviour, not a fresh S3/S1 control experiment.
+No paired significance result is reported without new paired outcomes.
 
 ## 10. Recommendations and Future Research
 
-**Proceed to the prepared S3 training only after explicit runtime approval.** E1 source-edit verification now passes; provenance recovery and replay rows in the initial next-action table below are completed. Neither new adapter has yet been trained or behaviourally gated.
+Proceed with the one user-approved S3 run after recording the fresh preflight and expected charge. Stop after its output verification and reporting; S1 and the behaviour gate need separate approval.
 
-| Next action | Evidence required / stop condition | GPU cost |
+| Next action | Evidence required / current status | GPU cost |
 |---|---|---|
-| Recover exact source provenance | A verified instance/trajectory→repository→base-commit mapping or pinned source snapshots for all 147 episodes | 0 GPU h; CPU/network/storage effort unknown |
-| Complete isolated E1 | Disposable source trees; every edit precondition, intended source delta, feedback and final diff checked; explicitly resolve empty-file case | 0 GPU h; replay duration unmeasured |
-| Reconcile dataset if any replay fails | Quarantine failed episodes; obtain authorization for changed data/hash and rebuild; preserve originals | 0 GPU h for preprocessing |
-| Revisit resource estimates and approvals | Agreed bounds for runs expected >2 session h or cumulative >10 quota h; fresh quota/conflict check | 0 GPU h for planning |
-| Execute prescribed S3 then S1 once each | Log expected quota first; validate COMPLETE/rc/loss/export before continuing | Handoff 6.5 quota h combined; scenario ~8.97 plus overhead, uncertain |
-| Execute gate once after both pass | Correct adapter version/hash, full response coverage and per-type diagnostics | Handoff ~1.2 quota h, unmeasured |
+| Provenance recovery and isolated E1 | COMPLETE: 147/147 episodes, 182/182 edits; no correction | 0 GPU h |
+| Approved S3 training, one push | Exact unchanged notebook; fresh no-conflict/quota check; COMPLETE/rc/loss/export review | Expected 4.2–4.8 quota h, not measured yet |
+| S1 training | No authorization; request separately after S3 review | Forecast only, no spending |
+| Behaviour gate | No authorization; request separately after required training passes | Forecast only, no spending |
 
 Dataset improvements should follow measured E1 defects: preserve exact original success/error outcomes, represent empty-file operations correctly, and retain enough source state to make edits executable. Do not change the current NPZ merely because a code path looks suspicious. Compact episodes also need recovery examples and investigation state appropriate to early decisions; these are future design hypotheses.
 
@@ -418,13 +385,9 @@ Keep the prescribed rank and objective initially. First establish faithful data,
 
 ## 11. Final Conclusion
 
-**Current conclusion after the follow-up:** the E1 source-edit blocker is resolved by authoritative base commits, 182 successful isolated edit replays and matching initial/final source blobs for all 151 episode/file states. The empty-file case is valid; no dataset correction is needed. The separate CLI environment is ready and authenticated, and the exact S3 notebook passes local build/metadata/size checks. Await explicit approval for the >2-session-hour S3 run and the >10-quota-hour cumulative plan. S3, S1 and gate remain unsubmitted; GPU consumption remains zero.
+E1 source-edit verification is complete and successful: 147/147 episodes, 182/182 edits, matching initial/final Git blobs for all 151 episode/file states, and no data corrections. Missing provenance and isolation are resolved. The empty-file operation is valid. This clears the source-edit audit concern; it does not demonstrate model behaviour or validate teacher test results.
 
-The following initial conclusion is preserved as a historical record:
-
-Grounded compact supervision and own-policy demonstrations remain reasonable, untested responses to the measured Step C data defects. This continuation verified input identity and account readiness, recovered matching candidate episodes, and identified the source-provenance gap that prevents a valid E1 replay. It did not test whether S3 or S1 improves the agent.
-
-The behaviour gate **has not run and has not passed**. Prioritize the exact base-commit/source manifest and disposable replay environment, then resolve runtime approvals before spending GPU quota. Continue by updating this same report with actual `train_report.json`, `metrics.jsonl`, `run.log` and `gate_report.json` measurements when those experiments are executed. Preserve this blocked-stage record as part of the engineering history.
+Exactly one S3 training run was submitted successfully as version 1 and is initially RUNNING with unchanged handoff parameters and `--budget-h 3`. Ten-minute monitoring and terminal-output recovery are active. Its actual loss, exports, runtime and quota usage remain pending and must be reported from downloaded evidence, without extrapolating behavioural success. S1 and the behaviour gate remain unapproved. No automatic retry or configuration change is allowed.
 
 ### Evidence and delivery record
 
@@ -435,4 +398,4 @@ The behaviour gate **has not run and has not passed**. Prioritize the exact base
 - Static source checks: `posttrain/compact_episodes.py`, `posttrain/convert_public.py`, `kaggle/train/trainkit/{config,data,worker,main}.py`, and `kaggle/eval_l4/evalkit/gate.py`.
 - No credentials were inspected, copied or exposed; only the existing CLI/SDK authentication flow was used. Its preserved installation was invoked with Python bytecode writes disabled.
 - Recovery working files and Kaggle artifacts were preserved. Git uses administrative metadata under the recovery checkout's `.git/worktrees/` for this linked worktree; the authorized pull and feature-branch operations necessarily updated that shared metadata.
-- No new notebook push, GPU/model execution, teacher-command execution, dataset regeneration, paired task evaluation, leaderboard submission or automatic next-stage experiment occurred.
+- Exactly one approved S3 notebook was pushed as version 1. No teacher-command execution, dataset regeneration, paired task evaluation, leaderboard submission, S1/gate run or automatic next-stage experiment occurred.

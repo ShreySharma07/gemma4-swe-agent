@@ -4,6 +4,7 @@ Local = scorer-faithful run on Kaggle L4×4 (`run_official_l4.py`, subprocess sa
 
 | ID | Date | Submission | Change (one per run) | Local | LB | Takeaway |
 |---|---|---|---|---|---|---|
+| S3-1a | Oct 18 | `atulbaliyan/gemma4-train-s3-compact` v1, Atul | Grounded compact public SFT; exact handoff: 147 windows, rank 16, lr 5e-5, 2 epochs, accumulation 2, save every 9, budget 3 h. Hypothesis: source-state-preserving edit supervision improves action selection; training checks alone cannot test behaviour. E1 147/147 episodes and 182/182 edits PASS | **RUNNING; results pending** | Not submitted | Exactly one user-approved push; no retry/S1/gate. Expected 35 optimizer steps, start/end validation on 4/7 held-out windows, 410-module export. Expected 2.1–2.4 session h / 4.2–4.8 quota h; actual pending. [Consolidated report](atul_step1a_1b_step2_gate_report_20261018.md). |
 | r1 | Oct 1 | baseline_v1 | organisers' sample agent, temp 0.2, thinking off, 4.5 min / 40 calls | 15/129 (15/97 verifiable) | 0.00 | 42% empty patches. `read_file` args garbled (47% of reads) → read loops; context resets |
 | r2 | Oct 3 | v2_sed | remove `read_file`; read via grep/sed; test deps fixed locally | 26/129 | **0.08** | Empty patches 41 → 20, repeats 48% → 28%. New top failure: wrong fix never tested (47) |
 | — | Oct 3 | v2b_budget80 | v2 with 80 calls / 160 turns | not run | not submitted | |
