@@ -109,8 +109,10 @@ print("exit code", proc.wait())"""),
     source_bytes = len(json.dumps(wire_nb).encode("utf-8"))
     assert source_bytes < SOURCE_MAX_BYTES, (f"Notebook source is {source_bytes:,} bytes; keep it below "
                                              f"{SOURCE_MAX_BYTES:,}. Move embedded inputs to --dataset.")
-    slug = "gemma4-train-smoke" if a.smoke else "gemma4-train-lora"
-    out = REPO / "kaggle" / "train" / ("smoke_kernel" if a.smoke else "l4_kernel")
+    # one notebook per adapter, so a later run never overwrites the output an earlier adapter is served from
+    slug = ("gemma4-train-smoke" if a.smoke else "gemma4-train-lora" if a.name == "conv_lora"
+            else "gemma4-train-" + a.name.replace("_", "-"))
+    out = REPO / "kaggle" / "train" / ("smoke_kernel" if a.smoke else "l4_kernel" if a.name == "conv_lora" else f"l4_{a.name}")
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{slug}.ipynb").write_text(json.dumps(nb, indent=1))
     meta = {"id": mine(slug), "title": slug, "code_file": f"{slug}.ipynb", "language": "python",

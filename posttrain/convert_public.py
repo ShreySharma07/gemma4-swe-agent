@@ -128,8 +128,29 @@ def args_of(tc):
     return json.loads(a) if isinstance(a, str) else (a or {})
 
 
-def convert(row, template):
-    """-> (ATIF dict, stats) or raises Skip."""
+def short_reason(texts, limit=240):
+    """The teacher's decision text before a call, shortened to one or two sentences (markdown headers and
+    'Phase N' banners dropped). None if nothing is left."""
+    lines = []
+    for t in texts:
+        for line in str(t or "").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or re.match(r"(\*\*)?phase \d", line, re.I) or line.startswith("```"):
+                continue
+            lines.append(re.sub(r"^[-*\d.)\s]+", "", line))
+    text = re.sub(r"\s+", " ", " ".join(lines)).strip()
+    if not text:
+        return None
+    sents = re.split(r"(?<=[.!?])\s+", text)
+    out = sents[0]
+    if len(out) < 80 and len(sents) > 1:
+        out += " " + sents[1]
+    return out[:limit].rstrip() + ("…" if len(out) > limit else "")
+
+
+def convert(row, template, reasoning=False):
+    """-> (ATIF dict, stats) or raises Skip. reasoning=True attaches the teacher's short decision text (think +
+    prose since the previous kept call) to each kept call as the agent step's `message`."""
     tr = row["trajectory"]
     user = next(m for m in tr if m["role"] == "user")
     umsg = user["content"] if isinstance(user["content"], str) else json.dumps(user["content"])
@@ -147,16 +168,21 @@ def convert(row, template):
         return p[len("/workspace/"):] if p.startswith("/workspace/") else p
 
     obs_by_id = {m.get("tool_call_id"): m for m in tr if m["role"] == "tool"}
-    steps, tree, n_calls, final = [], None, 0, None
+    steps, tree, n_calls, final, pending = [], None, 0, None, []
     for m in tr:
         if m["role"] != "assistant":
             continue
+        if isinstance(m.get("content"), str) and m["content"].strip():
+            pending.append(m["content"])
         for tc in m.get("tool_calls") or []:
             name, a = tc["function"]["name"], args_of(tc)
             o = obs_by_id.get(tc.get("id"))
             obs = str((o or {}).get("content") or "")
             call = resp = None
-            if name in ("think", "task_tracker"):
+            if name == "think":
+                pending.append(a.get("thought", ""))
+                continue
+            if name == "task_tracker":
                 continue
             if name == "finish":
                 final = a.get("message") or "I have implemented and verified the fix, and submitted the patch."
@@ -217,8 +243,13 @@ def convert(row, template):
                 raise Skip(f"tool {name}")
             n_calls += 1
             cid = f"call_{n_calls}"
-            steps.append({"source": "agent", "tool_calls": [{"tool_call_id": cid, "function_name": call[0],
-                                                             "arguments": call[1], "extra": {"author": AUTHOR}}]})
+            step = {"source": "agent", "tool_calls": [{"tool_call_id": cid, "function_name": call[0],
+                                                       "arguments": call[1], "extra": {"author": AUTHOR}}]}
+            reason = short_reason(pending) if reasoning else None
+            if reason:
+                step["message"] = fix(reason)
+            pending = []
+            steps.append(step)
             steps.append({"source": "system", "observation": {"results": [{"source_call_id": cid, "content": resp}],
                                                               "extra": {"author": AUTHOR, "tool_name": call[0]}}})
     if tree is None:
@@ -270,11 +301,18 @@ def main():
     ap.add_argument("--hf-sample", type=int, default=None, help="convert until N kept, via datasets-server")
     ap.add_argument("--jsonl", default=None, help="rows as JSON lines")
     ap.add_argument("--one-per-task", action="store_true", help="keep at most one trajectory per instance_id")
+    ap.add_argument("--reasoning", action="store_true", help="keep the teacher's short decision text before each call")
+    ap.add_argument("--only-trajectories", default=None,
+                    help="dir of converted traces: convert exactly those trajectory_ids (stop when all are found)")
+    ap.add_argument("--save-rows", default=None, help="append the raw source rows of kept trajectories to this JSONL")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     tpl = Template(a.template)
-    rows = hf_rows(a.hf_sample) if a.hf_sample else (json.loads(l) for l in open(a.jsonl))
+    only = None
+    if a.only_trajectories:
+        only = {json.loads(f.read_text())["source"]["trajectory_id"] for f in Path(a.only_trajectories).glob("trace_*.json")}
+    rows = hf_rows(10 ** 9 if only else a.hf_sample) if (a.hf_sample or only) else (json.loads(l) for l in open(a.jsonl))
     why, kept, seen, calls, done = collections.Counter(), 0, 0, [], set()
     for f in out.glob("trace_*.json"):  # resume: traces already converted count as kept
         done.add(f.stem[len("trace_"):].rsplit("__", 1)[0])
@@ -287,11 +325,14 @@ def main():
         if row["repo"].lower() in HELD_OUT_REPOS:
             why["held-out repo"] += 1
             continue
+        if only is not None and row.get("trajectory_id") not in only:
+            why["not in --only-trajectories"] += 1
+            continue
         if a.one_per_task and row["instance_id"] in done:
             why["task already kept"] += 1
             continue
         try:
-            atif, n = convert(row, tpl)
+            atif, n = convert(row, tpl, reasoning=a.reasoning)
         except Skip as e:
             why[str(e)] += 1
             continue
@@ -300,7 +341,12 @@ def main():
         kept += 1
         calls.append(n)
         done.add(row["instance_id"])
-        if a.hf_sample and kept >= a.hf_sample:
+        if a.save_rows:
+            with open(a.save_rows, "a") as f:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        if only is not None and len(done) >= len(only):
+            break
+        if a.hf_sample and not only and kept >= a.hf_sample:
             break
     report = {"seen": seen, "kept": kept, "distinct_tasks": len(done), "skipped": dict(why.most_common()),
               "calls_median": sorted(calls)[len(calls) // 2] if calls else None}

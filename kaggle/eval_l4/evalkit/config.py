@@ -30,6 +30,8 @@ class Settings:
     devset: bool = False              # True -> renamed dev set (kernel output gemma4-devset-build)
     valid_only: bool = False          # True -> only tasks in valid_tasks.json (gold passes, empty fails; preflight sweep)
     sweep: bool = False               # preflight: gold + empty over ALL tasks -> valid_tasks.json (else 7-task smoke)
+    gate_adapters: list | None = None  # behaviour gate: adapter names to compare with base (evalkit/gate.py)
+    gate_samples: int = 4             # behaviour gate: samples per decision point
     t0: float = field(default_factory=time.time)  # notebook start; budget counts from here across processes
 
     @property

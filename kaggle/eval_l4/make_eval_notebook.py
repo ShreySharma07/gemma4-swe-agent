@@ -28,11 +28,14 @@ from owner import mine, src as shared  # noqa: E402
 KIT = REPO / "kaggle" / "eval_l4" / "evalkit"
 GPU_DIR = REPO / "kaggle" / "probes" / "check_l4"
 CPU_DIR = REPO / "kaggle" / "eval_l4" / "preflight_kernel"
+GATE_DIR = REPO / "kaggle" / "eval_l4" / "gate_kernel"
 VALID = REPO / "data" / "runs" / "eval_sweep_v2" / "valid_tasks.json"     # 114 tasks verifiable with the overlays (Oct 14)
 PRE_OVERLAY_VALID = REPO / "data" / "runs" / "eval_sweep" / "valid_tasks.json"  # 54 without them: decides which tasks get pins
 OVL_DIR = REPO / "kaggle" / "eval_l4" / "overlays_kernel"
 MODULES = ["__init__", "config", "util", "envsetup", "inputs", "submission", "compat", "server", "runner", "report",
-           "preflight", "overlays", "main"]
+           "preflight", "overlays", "gate", "main"]
+GATE_PREFIXES = REPO / "data" / "runs" / "gate" / "prefixes.json"
+SOURCE_MAX_BYTES = 1_000_000  # Kaggle rejects notebook source above ~1 MB (HTTP 400; found by Atul, Oct 15)
 
 
 def md(text):
@@ -86,6 +89,16 @@ def build(a):
     a.preflight = a.preflight or a.sweep or a.overlays
     settings = {"name": a.name, "max_tasks": a.max_tasks, "repeats": a.repeats, "devset": a.devset,
                 "session_budget_h": a.budget_h, "sweep": a.sweep, "valid_only": a.valid_only}
+    gate_b64 = system_b64 = tools_b64 = ""
+    if a.gate:  # behaviour gate: prefixes + v7's exact system prompt and declared tools
+        import gzip
+        sys.path.insert(0, str(REPO / "posttrain"))
+        import render_atif
+        settings.update(gate_adapters=[n for n in a.gate_adapters.split(",") if n], gate_samples=a.gate_samples)
+        gate_b64 = base64.b64encode(gzip.compress(GATE_PREFIXES.read_bytes())).decode()
+        system_b64 = base64.b64encode((REPO / "submissions" / "v7_noedit" / "prompts" / "system.md").read_bytes()).decode()
+        tools_b64 = base64.b64encode(json.dumps(render_atif.declared_tools(
+            REPO / "submissions" / "v7_noedit" / "agent.yaml")).encode()).decode()
     valid = pathlib.Path(a.valid_file) if a.valid_file else PRE_OVERLAY_VALID if a.overlays else VALID
     valid_b64 = base64.b64encode(valid.read_bytes()).decode() if (a.valid_only or a.overlays) else ""
     assert valid.exists() or not (a.valid_only or a.overlays), f"needs {valid} (run --sweep first)"
@@ -110,13 +123,20 @@ pathlib.Path("/kaggle/working/trace_analyzer.py").write_bytes(base64.b64decode(A
 VALID_B64 = {valid_b64!r}  # tasks the scorer env can verify (preflight sweep); empty unless --valid-only
 if VALID_B64:
     pathlib.Path("/kaggle/working/valid_tasks.json").write_bytes(base64.b64decode(VALID_B64))
+GATE_B64, SYSTEM_B64, TOOLS_B64 = {gate_b64!r}, {system_b64!r}, {tools_b64!r}  # behaviour gate only
+if GATE_B64:
+    import gzip
+    pathlib.Path("/kaggle/working/gate_prefixes.json").write_bytes(gzip.decompress(base64.b64decode(GATE_B64)))
+    pathlib.Path("/kaggle/working/gate_system.md").write_bytes(base64.b64decode(SYSTEM_B64))
+    pathlib.Path("/kaggle/working/gate_tools.json").write_bytes(base64.b64decode(TOOLS_B64))
 print("submission zip", len(base64.b64decode(SUBMISSION_B64)), "bytes")"""),
         md("## 3. evalkit modules\nOne cell per module."),
     ]
     for m in MODULES:
         cells.append(md(f"### `evalkit/{m}.py`\n{module_doc(m)}"))
         cells.append(code(f"%%writefile /kaggle/working/evalkit/{m}.py\n" + (KIT / f"{m}.py").read_text()))
-    step, result = ("preflight", "preflight.json") if a.preflight else ("main", "summary.json")
+    step, result = (("gate", "gate_report.json") if a.gate else ("preflight", "preflight.json") if a.preflight
+                    else ("main", "summary.json"))
     if a.overlays:  # CPU + Internet: build extras + per-task pins with the notebook's own Python 3.13 (no venv)
         cells += [
             md("## 4. Build overlays\nTest-only extras + per-task version pins (see `evalkit/overlays.py`)."),
@@ -140,9 +160,11 @@ print("exit code", proc.wait())"""),
           "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
                        "language_info": {"name": "python"}},
           "nbformat": 4, "nbformat_minor": 4}
-    out_dir = OVL_DIR if a.overlays else CPU_DIR if a.preflight else GPU_DIR
+    wire = len(json.dumps({**nb, "cells": [{**c, "source": "".join(c["source"])} for c in cells]}).encode())
+    assert wire < SOURCE_MAX_BYTES, f"notebook source {wire:,} bytes >= {SOURCE_MAX_BYTES:,}: move inputs to a dataset"
+    out_dir = GATE_DIR if a.gate else OVL_DIR if a.overlays else CPU_DIR if a.preflight else GPU_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
-    nb_name = ("gemma4-test-overlays.ipynb" if a.overlays else
+    nb_name = ("gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
                "gemma4-eval-preflight.ipynb" if a.preflight else "check-l4.ipynb")
     (out_dir / nb_name).write_text(json.dumps(nb, indent=1))
 
@@ -152,8 +174,8 @@ print("exit code", proc.wait())"""),
         "language": "python", "kernel_type": "notebook", "is_private": True}
     meta["dataset_sources"] = ["metric/gemma-4-developer-agent-wheelhouse", shared("test-deps-wheels")]
     meta["kernel_sources"] = [shared("gemma4-scorer-env"), shared("gemma4-devset-build")]  # scorer_site
-    if getattr(a, "adapter_from", None):
-        meta["kernel_sources"].append(a.adapter_from)
+    for k in a.adapter_from or []:  # training outputs holding adapters/<name>/
+        meta["kernel_sources"].append(k)
     if a.overlays_from and not a.overlays:  # extras + pins for the task sandboxes (the 114-task valid set needs them)
         meta["kernel_sources"].append(a.overlays_from)
     meta["model_sources"] = [] if a.preflight else ["google/gemma-4/Other/gemma-4-31b-it-qat-w4a16-ct/2"]
@@ -167,6 +189,8 @@ print("exit code", proc.wait())"""),
     if a.overlays:  # PyPI downloads; inputs = tasks + scorer site only
         meta.update(id=mine("gemma4-test-overlays"), title="gemma4-test-overlays", code_file=nb_name,
                     enable_internet=True, dataset_sources=[], kernel_sources=[shared("gemma4-devset-build")])
+    if a.gate:  # GPU (L4 via the competition source), no task sandboxes needed
+        meta.update(id=mine("gemma4-gate"), title="gemma4-gate", code_file=nb_name)
     if a.preflight:
         meta.pop("machine_shape", None)
     else:
@@ -188,5 +212,9 @@ if __name__ == "__main__":
     ap.add_argument("--overlays", action="store_true", help="CPU+Internet kernel that builds test extras + version pins")
     ap.add_argument("--overlays-from", default=shared("gemma4-test-overlays"), help="kernel whose output holds overlays/ (e.g. <owner>/gemma4-test-overlays)")
     ap.add_argument("--valid-file", default=None, help="valid task list to embed (default: the 114-task data/runs/eval_sweep_v2)")
-    ap.add_argument("--adapter-from", default=None, help="kernel whose output holds adapters/<name>/ (e.g. <owner>/gemma4-train-lora)")
+    ap.add_argument("--adapter-from", action="append", default=None,
+                    help="kernel whose output holds adapters/<name>/ (repeatable; e.g. <owner>/gemma4-train-s3-compact)")
+    ap.add_argument("--gate", action="store_true", help="GPU behaviour gate: base vs adapters at fixed decision points")
+    ap.add_argument("--gate-adapters", default="", help="comma-separated adapter names for --gate")
+    ap.add_argument("--gate-samples", type=int, default=4)
     build(ap.parse_args())
