@@ -2,9 +2,9 @@
 
 Date: October 18, 2026 (IST). Author: Atul's execution workspace.
 
-**Current status: E1 PASS (147/147 episodes, 182/182 edits); S3 Compact version 1 submitted exactly once and initially RUNNING with unchanged `--budget-h 3`. S1 and the behaviour gate require separate approval.**
+**Current status: E1 PASS (147/147 episodes, 182/182 edits); S3 Compact version 1 COMPLETE / training-export PASS, rc 0, all 35 steps, unchanged `--budget-h 3`. S1 and the behaviour gate require separate approval.**
 
-This is the single report for Steps 1a, 1b, 2 and CPU E1. Earlier preflight blockers are reconciled below; detailed evidence and the original initial-stage checks remain identifiable as history. No new training measurements are reported until actual output exists.
+This is the single report for Steps 1a, 1b, 2 and CPU E1. Earlier preflight blockers are reconciled below; detailed evidence and the original initial-stage checks remain identifiable as history. Actual S3 measurements below come from downloaded version-1 outputs; S1 and gate measurements remain unavailable because those stages were not run.
 
 ## 1. Executive Summary
 
@@ -18,13 +18,13 @@ The reporting correction supersedes the original request for three separate repo
 | Artifact identity | Both NPZs, gate prefixes and raw row archive match all four handoff hashes | PASS; rechecked before S3 push |
 | Kaggle access | Independent workspace CLI; fresh authenticated quota/inventory/status | PASS; pre-push 30.00 h available, 0 used/reserved |
 | CPU E1 | Exact benchmark bases, isolated filesystem replay, initial/final teacher-blob checks | **PASS: 147/147 episodes, 182/182 edits, zero failures/unverifiable edits** |
-| Step 1a S3 | Exact notebook verified and submitted once as version 1 | **RUNNING**; training/output checks pending |
+| Step 1a S3 | Version 1 COMPLETE; rc 0; 35/35 steps; all exports verified | **TRAINING/EXPORT PASS**; behaviour untested |
 | Step 1b S1 | Dataset/configuration inspected | NOT RUN; separate approval required |
 | Step 2 gate | Prefix counts and harness scoring inspected | NOT RUN; separate approval required |
 
 The original missing-provenance issue was resolved through the authoritative benchmark, not by guessing repository versions. All 150 distinct source downloads succeeded, covering 151 episode/file states. Initial and final Git blobs match teacher patch indexes in all 151 cases. The empty-file case is valid at exact zero-byte source state. E1 details and limitations are in §7.
 
-Only one S3 run is now authorized. Its expected duration is 2.1–2.4 session-hours / 4.2–4.8 quota-hours with the unchanged 3 h budget. The user explicitly withheld authorization for S1, the gate, retries and configuration changes. Training losses, export integrity, actual runtime and quota charges remain pending until this one run produces evidence. E1 does not establish coding-agent behaviour or clear synthesized test-feedback concerns.
+The sole authorized S3 run completed without a budget stop. Validation loss decreased **0.6089 → 0.1807**; all four exports and the serving copy pass **410-module / 820 BF16 rank-16 tensor** checks. The notebook log reaches **1.937136 h** (~1 h 56 min), while quota moved **0 → 3.874829 h used**, leaving **26.125171 h**. This is training/export success, not a behaviour-gate result. The user withheld authorization for S1, the gate, retries and configuration changes; none occurred. E1 remains 147/147 episode and 182/182 edit PASS.
 
 ## 2. Background and Research Motivation
 
@@ -76,7 +76,7 @@ python3 kaggle/train/make_train_notebook.py data/runs/train_s3_compact.npz --nam
 .venv/bin/kaggle kernels push -p kaggle/train/l4_s3_compact
 ```
 
-The builder command and one push command above were executed with `KAGGLE_OWNER=atulbaliyan`. Kaggle accepted **version 1** of `atulbaliyan/gemma4-train-s3-compact`; the initial status query returned **RUNNING**. There was exactly one push attempt, no retry and no configuration change. Actual training measurements are pending terminal outputs.
+The builder command and one push command above were executed with `KAGGLE_OWNER=atulbaliyan`. Kaggle accepted **version 1** of `atulbaliyan/gemma4-train-s3-compact`; the initial status query returned **RUNNING**. There was exactly one push attempt, no retry and no configuration change. Terminal status is now COMPLETE and the actual measurements are verified below.
 
 | Setting | Prescribed value / source default |
 |---|---|
@@ -94,18 +94,82 @@ The builder command and one push command above were executed with `KAGGLE_OWNER=
 | Validation cadence | Default `val_every=0`: start and end only |
 | Budget argument | 3 session-hours; not a hard guarantee of billed usage |
 
-Source schedule arithmetic gives 280 scheduled window presentations, 70 microsteps per rank and **35 optimizer steps**. Expected checkpoint tags are step9, step18, step27 and final, conditional on a complete run. This is more precise than the handoff's approximate 36-step description. Actual step counts and checkpoints remain unmeasured.
+Source schedule arithmetic gives 280 scheduled window presentations, 70 microsteps per rank and **35 optimizer steps**. Expected checkpoint tags are step9, step18, step27 and final, conditional on a complete run. This is more precise than the handoff's approximate 36-step description. Actual output confirms all 35 steps and all four expected checkpoint/export tags, without interruption.
 
-### Losses, checkpoints, resources and export verification
+### Execution identity and pass/fail checks
 
-S3 version 1 is now RUNNING. `train_report.json`, `train_out/metrics.jsonl` and `run.log` have not yet been downloaded to `data/runs/atul_s3_compact/`; no actual loss or export result is inferred from successful submission. Consequently:
+The notebook is **`atulbaliyan/gemma4-train-s3-compact` version 1**, pushed once, with no retry/configuration change. Kaggle status is COMPLETE. `train_report.json` records **rc 0** and the exact approved settings. All 35 planned optimizer steps completed; no `budget_stop`, OOM, traceback, non-finite validation loss or NCCL-error marker was found in the reviewed outputs.
 
-- Train/validation loss and loss curve: unavailable.
-- GPU memory, utilization, throughput, actual runtime and quota charge: pending outputs and fresh quota accounting.
-- Adapter tensors, hashes, shapes and serving-copy equality: pending output verification.
-- Runtime warnings, failures or checkpoint interruption: pending log review; initial RUNNING is not a health or performance verdict.
+The downloaded `train_data.npz` SHA-256 equals the approved S3 hash. All **12 downloaded trainkit/evalkit source modules** match the local submitted source, and all remote notebook cell types/source text match the submitted notebook. Remote metadata confirms version 1 and the correct L4/model/inputs, although its `last_run_time` is stale/inconsistent; it is excluded from runtime inference.
 
-**Verdict: RUNNING, version 1; training/export checks pending.** Required future checks remain rc 0, decreasing validation loss and a valid final 410-module export; integrity must include tensor shapes/dtype and file completeness. Lower loss alone cannot demonstrate behavioural improvement.
+| Check | Measured result |
+|---|---|
+| Return code / optimizer steps | 0 / 35 of 35 |
+| Per-rank microsteps / window presentations | 70 / 280 total |
+| Training tasks represented | All 140 training tasks; two epochs |
+| Processed training input tokens | 1,409,618 |
+| Supervised next-token targets over two epochs | 177,902, reconstructed from unchanged arrays and schedule |
+| Validation windows actually scheduled | 4 of 7 per pass; 2,983 supervised targets per pass |
+| Expected exports | step9, step18, step27, final: all present |
+| Adapter integrity | All four exports plus serving copy PASS |
+| Final vs serving SHA-256 | Identical |
+| Budget stop / retry | Neither occurred |
+
+### Training and validation losses
+
+| Measurement | Optimizer step | Elapsed from training configuration timer, min | Loss |
+|---|---:|---:|---:|
+| Validation start | 0 | 35.4 | **0.6089** |
+| Training first | 1 | 37.4 | 0.7160 |
+| Training at checkpoint | 9 | 55.2 | 0.3484 |
+| Training at checkpoint | 18 | 76.4 | 0.1608 |
+| Training at checkpoint | 27 | 96.2 | 0.2705 |
+| Training last | 35 | 115.3 | 0.1697 |
+| Validation end | 35 | 115.7 | **0.1807** |
+
+![Measured S3 training loss and start/end validation losses](assets/atul_s3_compact_loss_20261018.png)
+
+The validation decrease is **0.4282**, approximately **70.3%**. Validation was measured only at start/end (`val_every=0`); the figure deliberately does not invent intermediate validation points. The 35 training losses range **0.1249–0.8962**, with minimum at step 31 and maximum at step 3. Training loss is not monotonic across variable batches (for example step 27 exceeds step 18). A smooth convergence/plateau or absence of overfitting cannot be established from two validation measurements.
+
+Training metrics average rank-0 window losses, while validation weights by supervised-token count across ranks. These are different estimators. The validation decrease is meaningful for the four scheduled held-out examples, but cannot demonstrate coding-agent behaviour, broad generalization or superiority to Step C on a different dataset.
+
+The four evaluated validation tasks are `oduwsdl__MementoEmbed-131`, `rsheftel__pandas_market_calendars-11`, `statsmodels__statsmodels-8339`, and `hhm970__c10-games-tracker-project-88`. The group-of-four scheduler omits `Ouranosinc__xclim-488`, `pre-commit__pre-commit-933`, and `mozilla__bleach-722`. This is a limitation of the unchanged prescribed scheduler, not a post-hoc task selection or a change to the split.
+
+### GPU performance, runtime and numerical observations
+
+| Measurement | Actual S3 result |
+|---|---:|
+| Model load | 1,879 s (31.32 min) |
+| Model-ready configuration-clock elapsed | 34.9 min |
+| Model memory after wrapping | 4.64 GiB per logged rank |
+| Median global throughput | **299.3 input tokens/s** |
+| Per-step global throughput range | 241.0–351.8 input tokens/s |
+| Work-weighted throughput | 294.293 input tokens/s |
+| Global peak allocated memory | **18.86 GiB**, below the 21 GiB check |
+| Notebook maximum elapsed log timestamp | **6,973.689619 s / 1.937136 h** |
+| Final training-metrics timer | 115.7 min / 1.928333 h |
+| Billed GPU quota delta | **3.874829 h** |
+| Quota h / notebook log elapsed h | **2.000288×**, approximate session-accounting ratio |
+
+All four rank logs contain 35 step events. Reconstructing each step's global token SUM and maximum rank elapsed time agrees with all **35/35 logged throughput values**, within their rounding precision. The 18.86 GiB peak is the distributed maximum, not a sum over GPUs or a measured utilization percentage. No continuous GPU-utilization sampling is available.
+
+The recorded gradient norm is the value returned by `clip_grad_norm_(1.0)`, i.e. the pre-clipping norm. It peaks at **1,208 at step 6**, with another large value **103 at step 8**; the full range is 0.295–1,208. These spikes are technical observations, not evidence of a failed optimizer step: clipping remained configured, the run stayed finite and completed. Their cause has not been isolated.
+
+Non-fatal reviewed warning classes were one `UserWarning` about barrier device inference and two `SyntaxWarning` notices for invalid escape sequences (`\|`, `\_`). There is no observed traceback, OOM, budget-stop event or NCCL-error marker. No configuration was changed to address warnings.
+
+### Checkpoint and final export verification
+
+| Export | Timer, min | Modules / tensors | Bytes | SHA-256 |
+|---|---:|---|---:|---|
+| step9 | 55.2 | 410 / 820 | 244,982,352 | `e7adb1dc73aff952129fbf98fdd3436846cb04aa511afc5693102dc8363c1ca8` |
+| step18 | 76.4 | 410 / 820 | 244,982,352 | `3c232c06233e9893f9e345a4632288b67c15b60c4369c4940a26cc0e03ed1cab` |
+| step27 | 96.3 | 410 / 820 | 244,982,352 | `9d7cc1b3f5a74f6ff079b6811dc980ab0dda1583de6243fd7c5a70b2749930e2` |
+| final | 115.7 | 410 / 820 | 244,982,352 | `74c041da7cc4540d617463e769173942db80a5d2c60b2ba615c4afc38c616caa` |
+| serving_copy | copy | 410 / 820 | 244,982,352 | `74c041da7cc4540d617463e769173942db80a5d2c60b2ba615c4afc38c616caa` |
+
+Every file passed BF16 dtype, rank-16 A/B orientation, pairing, two-dimensional shape, contiguous/non-overlapping tensor-offset and exact file-length checks. PEFT configuration verifies rank 16, alpha 32, dropout 0 and the prescribed target projection set. Final module-family counts are q/k/o/gate/up/down = 60 each and v = 50, totaling 410. Final and serving copies have identical SHA-256; all three earlier checkpoints have distinct hashes.
+
+**Verdict: training/export PASS.** All handoff checks are met. Serving and the behaviour gate have not been run for S3; no claim of successful model-side source-edit proposals or improved issue resolution follows from this result.
 
 ## 4. Step 1b — S1 Own Training
 
@@ -146,9 +210,9 @@ No S1 `train_report.json`, `metrics.jsonl`, `run.log`, checkpoints or exports we
 | Supervised mask share | 12.6% | 17.8% | About 16% |
 | Peak learning rate | 5e-5 planned | 5e-5 planned | 1e-4 actual |
 | Epochs | 2 planned | 2 planned | 1 actual |
-| Optimizer steps | 35 planned | 33 planned | 122 actual |
-| Validation trajectory | Unmeasured | Unmeasured | 0.7718 → 0.3133 → 0.2909 → 0.2883 → 0.2882 |
-| Export integrity | Unmeasured | Unmeasured | step40/80/120/final: 410 modules, shapes valid |
+| Optimizer steps | **35 actual** | 33 planned | 122 actual |
+| Validation trajectory | **0.6089 → 0.1807** (4 windows) | Not run | 0.7718 → 0.3133 → 0.2909 → 0.2883 → 0.2882 |
+| Export integrity | **step9/18/27/final + serving: all PASS** | Not run | step40/80/120/final: 410 modules, shapes valid |
 | Behaviour | Unmeasured | Unmeasured | D: 114/114 empty patches, 0/114 resolved |
 
 S1 has approximately 1.32× S3's training-split input tokens and much less task diversity. Similar optimizer-step counts therefore do not mean matched token exposure, supervised-token exposure or compute. S3's 75% edit-token share from E2 must not be confused with its 12.6% overall supervised-mask density: these use different denominators.
@@ -163,7 +227,7 @@ The historical Step C values above were checked against its preserved report and
 | Step 120 | 0.2883 |
 | End | 0.2882 |
 
-The table provides the actual historical loss trajectory; S3/S1 curves cannot be drawn without their metrics. Even eventual lower validation loss across S3 and S1 would not rank their behaviour: validation tasks, targets and token distributions differ. No causal attribution among grounding, compression, reasoning retention, teacher style and dose is possible from configuration inspection alone.
+The table provides the actual historical Step C loss trajectory; the measured S3 curve is in §3. S1 has no curve because it was not run. Even eventual lower validation loss across S3 and S1 would not rank their behaviour: validation tasks, targets and token distributions differ. No causal attribution among grounding, compression, reasoning retention, teacher style and dose is possible from configuration inspection alone.
 
 ## 6. Step 2 — Behaviour Gate
 
@@ -281,33 +345,20 @@ The small [E1 summary and complete per-episode source manifest](../data/runs/atu
 
 ## 8. GPU Runtime and Quota Accounting
 
-Fresh authenticated SDK snapshot: **October 18, 2026, 01:25:27 IST** (`2026-10-17T19:55:27.112455+00:00`). API GPU quota: total 30.00 h, used 0.00 h, reserved 0.00 h. Available quota after subtracting used and reserved is 30.00 h.
+The completed S3 run is the only new GPU experiment. Pre-push quota was **30.00 h total/available, 0 used/reserved** at 02:20:31 IST. The first actual terminal query was at **06:42:27 IST** (`2026-10-18T01:12:27.705660+00:00`), and a later verification at **08:52:04 IST** found the same charge: **3.874829444 quota h used**, **26.125170556 h remaining**, none reserved.
 
-The CLI's authenticated `--mine` inventory returned five notebooks in Atul's namespace. Status queries returned COMPLETE for `gemma4-train-smoke`, `check-l4` and `gemma4-train-lora`. The two older unrelated notebooks returned HTTP 404 for session status; these are not represented as COMPLETE. The zero-reservation observation supports the absence of a currently reserved GPU session. This snapshot must be refreshed before any future push.
+| Run | Handoff forecast session / quota h | Approved pre-push forecast | Actual execution / quota | Available before → after |
+|---|---|---|---|---|
+| S3 v1 | ~1.4 / ~3.0 | 2.1–2.4 / 4.2–4.8 | **1.937136 notebook-log h / 3.874829 quota h** | **30.000000 → 26.125171 h** |
+| S1 | ~1.7 / ~3.5 | Not authorized | **Not run; 0** | No run-boundary measurement |
+| Gate | ~0.6 / ~1.2 | Not authorized | **Not run; 0** | No run-boundary measurement |
+| Total new usage | ~7.7 quota h for original full plan | Only S3 approved | **3.874829 quota h** | **26.125171 h remains** |
 
-| Run | Handoff expected session h | Handoff expected quota h | Actual new session/quota h | Before / after available quota | Observed charge ratio |
-|---|---:|---:|---|---|---|
-| S3 | ~1.4 | ~3.0 | 0 / 0; not submitted | No run-boundary pair | N/A |
-| S1 | ~1.7 | ~3.5 | 0 / 0; not submitted | No run-boundary pair | N/A |
-| Gate | ~0.6 | ~1.2 | 0 / 0; not submitted | No run-boundary pair | N/A |
-| Total | ~3.7 | ~7.7 (rounded to ~8 in handoff) | **0 / 0** | Single snapshot: **30.00 h available** | N/A |
+S3 finished below the approved 3 h budget, below the revised 2.1–2.4 h forecast and above the original handoff's 1.4 h estimate. The ratio of billed quota to the notebook's independently recorded elapsed-log duration is **2.000288×**, consistent with historical ~2× billing. This ratio uses a log-duration proxy, not independently verified backend GPU allocation start/end timestamps.
 
-There is no post-run snapshot because there was no run. The 2× billing factor is a historical planning estimate, not a new measured ratio. Historical Step C was 7.8203 session-hours / 15.64 quota-hours; Step D was 4.4916 / 8.9942, approximately 2.0024×.
+Runtime evidence has limits. The notebook log's maximum relative time is **6,973.689619288 s**; final metrics reach 115.7 min. The configuration's absolute `t0` is `2026-10-17T21:08:57.494513+00:00`. The pull API reports `last_run_time=2026-10-15T03:16:05.518000`, inconsistent with this newly submitted version; it is excluded. Time between push and a later COMPLETE observation is **not** treated as session runtime. Exact absolute backend finish time was not verified.
 
-### Runtime estimate requiring review before resumption
-
-The prescribed two epochs expose approximately 1.410M S3 training input tokens and 1.867M S1 training input tokens before S1's two omitted presentations. A simple scenario using 280 tokens/s and the previously measured 37-minute load gives:
-
-| Run | Approximate training-input time | Plus 37-minute load | Approximate quota at 2× |
-|---|---:|---:|---:|
-| S3 | 1.40 h | 2.02 session h | 4.03 h |
-| S1 | 1.85 h | 2.47 session h | 4.94 h |
-| Gate, handoff estimate | — | 0.60 session h | 1.20 h |
-| Combined scenario | — | 5.09 session h | 10.17 h |
-
-These are **forecasts**, not measured runtimes or replacements for the prescribed configuration. They omit validation, checkpoint/export and setup overhead; shorter windows may run faster than 280 tokens/s. They demonstrate that the handoff's ~8 quota-hour total is uncertain for two epochs and repeated model loading. Both the >2-session-hour and >10-cumulative-quota-hour approval rules need review before resumption. A `--budget-h 3` argument is not itself permission for a longer run or a guarantee of billing termination.
-
-The quota ledger in [the guide, §8](post_training_guide.md#8-gpu-quota-ledger) is updated separately with this stopped preflight, zero new consumption and the estimate discrepancy.
+The quota ledger in [the guide, §8](post_training_guide.md#8-gpu-quota-ledger) records actual usage separately. Historical preflight and submission evidence follows; it does not represent additional runs or charges.
 
 ### 8.1 GPU preflight and one-run approval
 
@@ -353,41 +404,46 @@ Before push, fresh authenticated quota at **02:20:31 IST** was **30.00 h availab
 
 The user explicitly approved **exactly one** S3 run with the unchanged 3 h budget. Expected duration remained **2.1–2.4 session h / 4.2–4.8 quota h**, below the approved session budget; the quota ledger was updated **before** push. The command `.venv/bin/kaggle kernels push -p kaggle/train/l4_s3_compact` returned **“Kernel version 1 successfully pushed.”** The initial status query returned **RUNNING**. No second push was issued.
 
-Run: [atulbaliyan/gemma4-train-s3-compact](https://www.kaggle.com/code/atulbaliyan/gemma4-train-s3-compact). Local `summary.json` and the exclusive-create `preflight_20261018/push_attempt.json` record the sole attempt and version. The ten-minute thread monitor `monitor-approved-s3-compact-v1` is ACTIVE to read status/quota and recover terminal outputs. Unchanged/non-actionable states do not trigger repeated notifications. Completion, failure, budget concerns or needed user actions will be reported.
+Run: [atulbaliyan/gemma4-train-s3-compact](https://www.kaggle.com/code/atulbaliyan/gemma4-train-s3-compact). Local `summary.json` and the exclusive-create `preflight_20261018/push_attempt.json` record the sole attempt and version. Monitoring recovered terminal outputs and is paused after review. The original requested monitoring cadence was ten minutes; the effective persisted automation cadence was thirty minutes. Actual snapshots include 21:36 and 22:06 UTC on October 17; the terminal check executed later than its heartbeat trigger. Ten-minute observation coverage is therefore **not** claimed. Use the actual snapshot timestamps, not scheduled heartbeat times.
 
-Actual loss, checkpoint/export integrity, memory, runtime and billed quota remain **PENDING**, not zero. Successful push/RUNNING does not establish training success. On terminal state the monitor must download and verify outputs, update this same report and the quota ledger, then pause. S1, the behaviour gate, retries and configuration changes are explicitly not authorized.
+Terminal output download exited **0** and retrieved all pages, including all five adapter files, report, metrics, run/rank/notebook logs, source modules and exact input NPZ. `analysis/validate_training_run.py` was inspected and run with stdlib only; its historical stage label was overridden to S3 in a new result file. All checks PASS. No original result/model artifact was changed. S1, the behaviour gate, retries and configuration changes remain unauthorized.
 
 ## 9. Major Findings and Technical Analysis
 
-1. **Input identity passed:** all four handoff hashes remain unchanged, including the embedded S3 data. No S3-1k substitution or data regeneration occurred.
-2. **E1 passed:** 147 episodes and 182 edits replayed at authoritative source revisions, with 151/151 initial and final episode/file blob matches. The prior missing-provenance issue and empty-file ambiguity are resolved.
-3. **Scope is precise:** zero retained source-edit feedback mismatches does not validate synthesized test outcomes, whole-episode execution or issue-solving behaviour.
-4. **Training plan is exact:** 35 planned S3 steps and 33 S1 steps follow from the unchanged two-epoch scheduler. Validation covers 4/7 S3 and 20/21 S1 windows; report this when interpreting eventual loss.
-5. **Authorization is narrow:** exactly one S3 run is approved, with no S1, gate, retry or configuration change. Forecast S3 time is below the approved 3 h budget.
-6. **Loss and behaviour remain distinct:** no new model behaviour can be inferred from E1 or from future loss alone. Step C/D remains the historical counterexample.
+1. **S3 training/export succeeded:** rc 0; 35/35 steps; 1,409,618 input tokens; validation 0.6089→0.1807; all four exports and serving copy pass integrity checks; no budget stop or retry.
+2. **E1 remains fully verified:** 147 episodes, 182 edits and 151 initial/final episode-file blob matches. The empty-file operation is valid; no NPZ correction was made.
+3. **Loss improvement tests imitation, not behaviour:** the gate has not run. S3 has no measured edit rate, nonempty-patch rate or issue-resolution score.
+4. **Validation coverage is small:** only 4 of 7 held-out windows and 2,983 supervised targets per pass; only start/end validation. No claim of stable convergence, optimal checkpoint or no overfitting is warranted.
+5. **Numerical spikes and warnings did not prevent completion:** preclip gradient norms reached 1,208; three non-fatal warning notices were observed. Their cause/behavioural consequences are not established.
+6. **Resource use was within approval:** 18.86 GiB peak and ~1.937 notebook-log h; 3.874829 quota h, below the revised estimate. Exact backend absolute session boundaries remain unavailable.
+7. **Execution identity is corroborated:** remote version/cell sources, downloaded code and input hash match the approved submission. The inconsistent metadata date is not used for runtime.
+8. **Monitoring was less frequent than requested:** effective thirty-minute cadence and delayed terminal processing are documented. They do not imply that the GPU ran until the later check or exceeded its budget.
 
-No paired significance result is reported without new paired outcomes.
+S3 and Step C use different datasets, state preservation, token weights and update doses. The improved S3 final validation loss cannot isolate which change matters or establish superiority. S1 is unrun, so the intended own-policy control comparison remains unavailable. No paired significance result is reported without paired behavioural outcomes.
 
 ## 10. Recommendations and Future Research
 
-Proceed with the one user-approved S3 run after recording the fresh preflight and expected charge. Stop after its output verification and reporting; S1 and the behaviour gate need separate approval.
+**Stop at the completed S3 review.** The authorized run has passed its training/export checks; S1 and the gate require separate user approval. Preserve final S3 and checkpoints without selecting one using unrun evaluation outcomes.
 
-| Next action | Evidence required / current status | GPU cost |
+| Next action | Evidence required / authorization | Cost status |
 |---|---|---|
-| Provenance recovery and isolated E1 | COMPLETE: 147/147 episodes, 182/182 edits; no correction | 0 GPU h |
-| Approved S3 training, one push | Exact unchanged notebook; fresh no-conflict/quota check; COMPLETE/rc/loss/export review | Expected 4.2–4.8 quota h, not measured yet |
-| S1 training | No authorization; request separately after S3 review | Forecast only, no spending |
-| Behaviour gate | No authorization; request separately after required training passes | Forecast only, no spending |
+| E1/source-data correction | No correction indicated: 182/182 retained edits passed | Complete, 0 GPU h |
+| S3 training/output review | Complete; final and serving hashes equal | Actual 3.874829 quota h |
+| S1 own-policy control | Separate approval, fresh quota/no-conflict check, unchanged prescribed flags unless explicitly changed | Prior forecast 5.2–5.8 quota h; **unmeasured**, do not launch |
+| Behaviour gate | Separate approval after required training; full per-type/early/batch/no-call results | Prior forecast ~1.2 quota h; **unmeasured**, do not launch |
+| Data/scheduler improvement | Preserve exact provenance; consider validating all held-out windows and true test feedback in a separately reviewed change | CPU design work only, not performed here |
 
-Dataset improvements should follow measured E1 defects: preserve exact original success/error outcomes, represent empty-file operations correctly, and retain enough source state to make edits executable. Do not change the current NPZ merely because a code path looks suspicious. Compact episodes also need recovery examples and investigation state appropriate to early decisions; these are future design hypotheses.
+With current S3 charge and the prior remaining-stage forecasts, the whole sequence would total approximately **10.27–10.87 quota h** before further overhead; that is a planning estimate, not new permission. The account currently retains **26.125171 quota h**. Future approval must cover each >2 h session and the >10 h cumulative threshold as applicable.
 
-Keep the prescribed rank and objective initially. First establish faithful data, a valid behavioural measurement and authorized runtime. Neither lower validation loss nor a syntactic edit label warrants higher-dose retraining, mixed S4 training, DPO/RL or S3-1k scale-up. Any later task evaluation, retry or scale-up needs its own authorization; both adapters failing the gate would trigger the existing stop rule.
+The next scientific question is whether S3 improves correctly timed source-edit decisions without premature `early` edits. Reduced loss cannot answer it. Preserve the own-run control and planned gate rather than jumping to task evals, S3-1k, S4, DPO/RL or extra retraining. All such GPU work remains outside this approval.
 
 ## 11. Final Conclusion
 
-E1 source-edit verification is complete and successful: 147/147 episodes, 182/182 edits, matching initial/final Git blobs for all 151 episode/file states, and no data corrections. Missing provenance and isolation are resolved. The empty-file operation is valid. This clears the source-edit audit concern; it does not demonstrate model behaviour or validate teacher test results.
+**Step 1a S3 Compact is COMPLETE / training-export PASS.** One approved version, unchanged configuration, rc 0, all 35 optimizer steps, validation loss **0.6089→0.1807**, and valid **410-module** checkpoint/final exports were verified. Final and serving copies match SHA-256 `74c041da7cc4540d617463e769173942db80a5d2c60b2ba615c4afc38c616caa`.
 
-Exactly one S3 training run was submitted successfully as version 1 and is initially RUNNING with unchanged handoff parameters and `--budget-h 3`. Ten-minute monitoring and terminal-output recovery are active. Its actual loss, exports, runtime and quota usage remain pending and must be reported from downloaded evidence, without extrapolating behavioural success. S1 and the behaviour gate remain unapproved. No automatic retry or configuration change is allowed.
+The run used **3.874829 quota h**, leaving **26.125171 h**; notebook logs support **1.937136 h** execution duration, within the approved 3 h budget. E1 is **147/147 episode, 182/182 edit PASS**, with no data changes.
+
+This supports feasibility of the compact-data training recipe, not improved coding-agent behaviour. S1 and the behaviour gate were not run. Monitoring is paused after terminal review; no retry, next-stage launch or configuration change is authorized. Prioritize the separately approved control/gate before any claim of behavioural recovery from Step D.
 
 ### Evidence and delivery record
 
@@ -398,4 +454,4 @@ Exactly one S3 training run was submitted successfully as version 1 and is initi
 - Static source checks: `posttrain/compact_episodes.py`, `posttrain/convert_public.py`, `kaggle/train/trainkit/{config,data,worker,main}.py`, and `kaggle/eval_l4/evalkit/gate.py`.
 - No credentials were inspected, copied or exposed; only the existing CLI/SDK authentication flow was used. Its preserved installation was invoked with Python bytecode writes disabled.
 - Recovery working files and Kaggle artifacts were preserved. Git uses administrative metadata under the recovery checkout's `.git/worktrees/` for this linked worktree; the authorized pull and feature-branch operations necessarily updated that shared metadata.
-- Exactly one approved S3 notebook was pushed as version 1. No teacher-command execution, dataset regeneration, paired task evaluation, leaderboard submission, S1/gate run or automatic next-stage experiment occurred.
+- Exactly one approved S3 notebook was pushed as version 1 and completed successfully. Raw outputs and adapters remain local/uncommitted; only permitted small evidence and documentation are committed. No teacher-command execution, dataset regeneration, paired task evaluation, leaderboard submission, S1/gate run or automatic next-stage experiment occurred.
