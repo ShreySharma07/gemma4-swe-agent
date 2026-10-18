@@ -2,9 +2,9 @@
 
 Date: October 18, 2026 (IST). Author: Atul's execution workspace.
 
-**Current status: E1 PASS (147/147 episodes, 182/182 edits); S3 Compact version 1 COMPLETE / training-export PASS, rc 0, all 35 steps, unchanged `--budget-h 3`. S1 Own version 1 is also COMPLETE / training-export PASS: rc 0, all 33 steps and unchanged settings. The behaviour gate remains NOT RUN / NOT APPROVED.**
+**Current status: E1 PASS (147/147 episodes, 182/182 edits); S3 Compact version 1 COMPLETE / training-export PASS, rc 0, all 35 steps, unchanged `--budget-h 3`. S1 Own version 1 is also COMPLETE / training-export PASS: rc 0, all 33 steps and unchanged settings. Step 2 version 1 is COMPLETE/rc 0 with valid serving and 360/360 responses; both S1 and S3 FAIL the unchanged behaviour gate.**
 
-This is the single report for Steps 1a, 1b, 2 and CPU E1. Earlier preflight blockers are reconciled below; detailed evidence and the original initial-stage checks remain identifiable as history. Actual S3 and S1 measurements below come from their downloaded version-1 outputs. Each was submitted exactly once. The gate remains NOT RUN and unapproved.
+This is the single report for Steps 1a, 1b, 2 and CPU E1. Earlier preflight blockers are reconciled below; detailed evidence and the original initial-stage checks remain identifiable as history. Actual S3 and S1 measurements below come from their downloaded version-1 outputs. Each was submitted exactly once. The one separately approved gate completed as version 1: valid execution and complete response coverage, but both candidate adapters FAIL.
 
 ## 1. Executive Summary
 
@@ -18,15 +18,17 @@ The reporting correction supersedes the original request for three separate repo
 | Artifact identity | Both NPZs, gate prefixes and raw row archive match all four handoff hashes | PASS; rechecked before S3 push |
 | Kaggle access | Independent workspace CLI; fresh authenticated quota/inventory/status | PASS; pre-push 30.00 h available, 0 used/reserved |
 | CPU E1 | Exact benchmark bases, isolated filesystem replay, initial/final teacher-blob checks | **PASS: 147/147 episodes, 182/182 edits, zero failures/unverifiable edits** |
-| Step 1a S3 | Version 1 COMPLETE; rc 0; 35/35 steps; all exports verified | **TRAINING/EXPORT PASS**; behaviour untested |
-| Step 1b S1 | Version 1 COMPLETE; rc 0; 33/33 steps; all exports verified | **TRAINING/EXPORT PASS**; behaviour untested |
-| Step 2 gate | Prefix counts and harness scoring inspected | NOT RUN; separate approval required |
+| Step 1a S3 | Version 1 COMPLETE; rc 0; 35/35 steps; all exports verified | **TRAINING/EXPORT PASS**; subsequent gate FAIL (§6) |
+| Step 1b S1 | Version 1 COMPLETE; rc 0; 33/33 steps; all exports verified | **TRAINING/EXPORT PASS**; subsequent gate FAIL (§6) |
+| Step 2 gate | Version 1 COMPLETE/rc 0; source/adapter identity and 360/360 response coverage verified | **S1 FAIL; S3 FAIL; base reference** |
 
 The original missing-provenance issue was resolved through the authoritative benchmark, not by guessing repository versions. All 150 distinct source downloads succeeded, covering 151 episode/file states. Initial and final Git blobs match teacher patch indexes in all 151 cases. The empty-file case is valid at exact zero-byte source state. E1 details and limitations are in §7.
 
-The sole authorized S3 run completed without a budget stop. Validation loss decreased **0.6089 → 0.1807**; all four exports and the serving copy pass **410-module / 820 BF16 rank-16 tensor** checks. The notebook log reaches **1.937136 h** (~1 h 56 min), while quota moved **0 → 3.874829 h used**, leaving **26.125171 h**. This is training/export success, not a behaviour-gate result. The completed S3 authorization did not cover S1. The separately approved sole S1 run has now also completed and passed training/export checks; the gate, retries and configuration changes remain unauthorized. E1 remains 147/147 episode and 182/182 edit PASS.
+The sole authorized S3 run completed without a budget stop. Validation loss decreased **0.6089 → 0.1807**; all four exports and the serving copy pass **410-module / 820 BF16 rank-16 tensor** checks. The notebook log reaches **1.937136 h** (~1 h 56 min), while quota moved **0 → 3.874829 h used**, leaving **26.125171 h**. This is training/export success, not a behaviour-gate result. The completed S3 authorization did not cover S1. The separately approved sole S1 run has now also completed and passed training/export checks; the gate was subsequently approved once and completed; retries and configuration changes remain unauthorized. E1 remains 147/147 episode and 182/182 edit PASS.
 
 S1 validation decreased **0.2395 → 0.1362 (43.13%)** on 20/21 windows across all three held-out tasks. All 33 updates completed without a budget stop; every checkpoint and final/serving copy passes the same 410-module checks. S1 used **4.208630 quota h** and **2.104073 notebook-log h**; cumulative S3+S1 usage is **8.083459 h**, with **21.916541 h** remaining. Both runs demonstrate training/export feasibility. Neither demonstrates behavioral recovery from Step D. Different validation sets prevent ranking the adapters by loss.
+
+The completed gate measured **base 74/120 (61.67%), S1 63/120 (52.50%), S3 66/120 (55.00%)** scenario-correct decisions. Edit@file_in_view was **24/32,19/32,21/32**, respectively. Both candidates fall below base on both required rates, despite zero batching and zero request errors. S3 submits after failure 28/32 and edits early 10/32; its 24/24 submissions after success do not outweigh those failures. S1 preserves early reading 32/32 but loses edit/failure-recovery decisions. **Neither adapter advances; no task evaluation or retraining follows.** Gate usage was **0.838354 quota h**, making cumulative S3+S1+gate **8.921814 h**, with **21.078186 h remaining**. This is a tool-decision diagnostic, not an executed-patch or issue-resolution result.
 
 ## 2. Background and Research Motivation
 
@@ -40,8 +42,8 @@ S3 compresses a demonstration to one grounded episode: locating searches, the ed
 
 | Hypothesis | Intended evidence | Current status |
 |---|---|---|
-| Grounded source-edit supervision improves edit decisions | S3 edit rate at `file_in_view` at least base; overall gate rate at least base | Untested |
-| Own-policy demonstrations preserve action selection | S1 gate compared with base and S3 | Untested |
+| Grounded source-edit supervision improves edit decisions | S3 edit and overall rates at least base | Not supported on this gate:21/32 vs24/32 edits;66/120 vs74/120 passes |
+| Own-policy demonstrations preserve action selection | S1 gate compared with base and S3 | Early reading retained; broader improvement not supported:19/32 edits,63/120 passes |
 | Lower update dose reduces drift | Rank 16, half Step C's peak learning rate, fewer optimizer steps | Configuration inspected; effect untested |
 | Compact demonstrations can induce premature editing | Elevated edit frequency in `early` prefixes | Untested |
 | Converted source-edit success feedback corresponds to executable changes | E1 at exact repository commits | Verified for 182/182 retained edits; test outcomes outside scope |
@@ -326,7 +328,7 @@ S1's model load took 512 s versus S3's 1,879 s. Faster startup explains much of 
 | Optimizer steps | **35 actual** | **33 actual** | 122 actual |
 | Validation trajectory | **0.6089 → 0.1807** (4 windows) | **0.2395 → 0.1362** (20 windows) | 0.7718 → 0.3133 → 0.2909 → 0.2883 → 0.2882 |
 | Export integrity | **step9/18/27/final + serving: all PASS** | **step9/18/27/final + serving: all PASS** | step40/80/120/final: 410 modules, shapes valid |
-| Behaviour | Unmeasured | Unmeasured | D: 114/114 empty patches, 0/114 resolved |
+| Behaviour | gate FAIL; detailed §6 | gate FAIL; detailed §6 | D:114/114 empty patches,0/114 resolved |
 
 S1 has approximately 1.32× S3's training-split input tokens and much less task diversity. Similar optimizer-step counts therefore do not mean matched token exposure, supervised-token exposure or compute. S3's 75% edit-token share from E2 must not be confused with its 12.6% overall supervised-mask density: these use different denominators.
 
@@ -347,7 +349,7 @@ S1 has approximately 1.32× S3's training-split input tokens and much less task 
 | Log-duration proxy hours | 1.937136 | 2.104073 |
 | Quota hours | 3.874829 | 4.208630 |
 
-S1 processed **1.316×** the input and **1.891×** the supervised next-token targets of S3, despite fewer optimizer steps. More targets per window and fewer distinct tasks change the imitation problem and effective dose. Thus neither final loss nor relative loss reduction is a shared quality metric. S1's throughput and model-load differences are measured resource observations, not causal evidence that own-policy demonstrations train better. Both adapter structures pass identically; serving/behavior remain untested for these outputs. S1 weighted input throughput is about 4.32% lower than S3, while total log duration is about 8.62% longer and quota about 8.61% higher despite 31.60% more processed input tokens. These aggregate efficiencies include very different startup costs and sequence mixes; they are not a controlled dataset-efficiency result. S1 also begins with lower validation loss before any optimizer update (0.2395 vs 0.6089), consistent with different targets and baseline familiarity; this observation alone cannot establish the cause or comparative generalization.
+S1 processed **1.316×** the input and **1.891×** the supervised next-token targets of S3, despite fewer optimizer steps. More targets per window and fewer distinct tasks change the imitation problem and effective dose. Thus neither final loss nor relative loss reduction is a shared quality metric. S1's throughput and model-load differences are measured resource observations, not causal evidence that own-policy demonstrations train better. Both adapter structures pass identically; subsequent gate serving succeeded and both behavioral verdicts FAIL (§6). S1 weighted input throughput is about 4.32% lower than S3, while total log duration is about 8.62% longer and quota about 8.61% higher despite 31.60% more processed input tokens. These aggregate efficiencies include very different startup costs and sequence mixes; they are not a controlled dataset-efficiency result. S1 also begins with lower validation loss before any optimizer update (0.2395 vs 0.6089), consistent with different targets and baseline familiarity; this observation alone cannot establish the cause or comparative generalization.
 
 The historical Step C values above were checked against its preserved report and metrics. Its first logged step loss is **1.7400**, its last is **0.3897**, median logged throughput **294.8 tokens/s**, and maximum logged global peak **18.88 GiB**. These exact values take precedence here over the guide's approximate initial training-loss description. This is a historical comparison, not a rerun.
 
@@ -361,9 +363,13 @@ The historical Step C values above were checked against its preserved report and
 
 The table provides the actual historical Step C loss trajectory; the measured S3 curve is in §3. S1's measured curve and full step table are in §4. Even eventual lower validation loss across S3 and S1 would not rank their behaviour: validation tasks, targets and token distributions differ. No causal attribution among grounding, compression, reasoning retention, teacher style and dose is possible from configuration inspection alone.
 
+The detailed training-review records in §§3–4 are preserved. Any statements there that serving/the gate was unrun describe that earlier review stage; §6 now records the verified subsequent gate. Their measured training findings remain unchanged.
+
 ## 6. Step 2 — Behaviour Gate
 
-### Setup and exact intended configuration
+### 6.1 Objectives, authorization and exact configuration
+
+**Execution COMPLETE / rc 0; serving and evaluation coverage PASS; S1 FAIL and S3 FAIL under the unchanged gate criteria.** Base is the reference, not a candidate assigned an adapter verdict. The user authorized exactly one unchanged submission, and no retry, repair, retraining, task evaluation or leaderboard work. Exactly one push returned version 1: [atulbaliyan/gemma4-gate](https://www.kaggle.com/code/atulbaliyan/gemma4-gate). The exclusive-create `preflight_20261018/push_attempt.json` and immutable `submitted_notebook_v1/` preserve the sole attempt and source. There was no source or generated-notebook hand edit.
 
 ```bash
 export KAGGLE_OWNER=atulbaliyan
@@ -371,35 +377,145 @@ python3 kaggle/eval_l4/make_eval_notebook.py v7_noedit --gate --gate-adapters s1
 .venv/bin/kaggle kernels push -p kaggle/eval_l4/gate_kernel
 ```
 
-The gate would serve the W4A16 base and both final adapters in one scorer-configured vLLM server. Adapter provenance must be established by training version and verified export hashes before use. S3 final is verified; S1 final is also verified with SHA-256 `c41939e731011b0bc6fb5ab222c6e84f6f4a1512301201fb14bbe230d6c21040`. The gate has not been submitted. `gate_report.json` was not generated.
+Both training version 1 notebooks remained COMPLETE and the full local validators reran PASS before submission. Final/serving hashes were checked, prefixes were hash-verified, every required scorer/model/wheel/adapter input was readable, and no project GPU notebook was running or queued. At the final pre-push refresh **10:24:07UTC /15:54:07IST**, quota was **8.083459444 h used /21.916540556 h available**, reserved0. The ledger recorded the approved ~0.6 session h/~1.2 quota h estimate before push, giving forecast cumulative 9.283459 h, below10. Two unrelated old notebook session queries returned404; those did not report running jobs.
 
-The verified prefix file SHA-256 is `d07b5ef760aa4dd917800c2eb7641337d62e4b095b9fc26a31583bd4acf95e12`. Direct JSON inspection confirms 30 prefixes. The handoff specifies four samples each: 120 expected responses per model, 360 total. The inspected request uses temperature 0.2, top-p 0.95, top-k 40, `max_tokens=1024`, automatic tool choice and `enable_thinking=False`. This is a one-response diagnostic, not a full task evaluation under v7's normal output allowance.
+| Setting | Verified configuration |
+|---|---|
+| Model | Google Gemma4 `gemma-4-31b-it-qat-w4a16-ct`, Other/version 2 |
+| Server | Official scorer vLLM 0.19.1; TP=4, 4×NVIDIA L4, BF16, max_model_len=32768, memory fraction0.80 |
+| LoRA limits / actual adapters | max_loras=8 / two; max_rank=128 / rank 16 |
+| Parsers | gemma4 tool-call and reasoning parsers; automatic tool choice enabled |
+| Prompt | Frozen v7_noedit system; SHA-256 `8cb9b8cf39dd5bfd76fc07236fdf2a01a514de9a47d7789a17e2825f8afb2c4b` |
+| Tools | Frozen seven rendered schemas; SHA-256 `18ff6ba46db967ec2e32baf78907164c29ff1d1cdc2f429fbb928cac4eb971e9` |
+| Tool names | run_command, write_file, get_status, submit_patch, get_code_neighbors, search_similar_code, get_code_subgraph |
+| Prefix hash | `d07b5ef760aa4dd917800c2eb7641337d62e4b095b9fc26a31583bd4acf95e12` |
+| Samples | 30 fixed prefixes ×4/model; 120/model, 360 total |
+| Sampling | temperature=0.2, top_p=0.95, top_k=40, max_tokens=1024, tool_choice=auto, enable_thinking=False |
+| Notebook | 40 compiled cells;217,310 normalized source bytes/227,532 on disk; private, GPU L4, Internetoff |
+| Submitted notebook SHA-256 | `805db113c76b2687e69f014a38f11a4f548bde65a80d655d8210198dda8c2d4c` |
+| Runtime budget limitation | Unchanged common session_budget_h=10.5 is unused by fixed-request gate.py; no enforced wall-clock cap and no authorization extension |
 
-| Model | Intended identity | Verdict | Overall pass rate | Edit rate at file_in_view | Batched / no-call / request errors |
-|---|---|---|---|---|---|
-| Base | Unadapted served base with v7 prompt/tools | NOT RUN | N/A | N/A | N/A / N/A / N/A |
-| S1 | Final `s1_own` from its separate training notebook | NOT RUN | N/A | N/A | N/A / N/A / N/A |
-| S3 | Final `s3_compact` from its separate training notebook | NOT RUN | N/A | N/A | N/A / N/A / N/A |
+`render_atif.declared_tools()` omits optional agent_tool/code-analyzer schema and warns at build time. All 342 historical prefix calls (341run_command and one write_file) have declared schemas; none uses the omitted analyzer. Runtime imports verify torch 2.10.0+cu128, vLLM 0.19.1, swegemma 0.2.11, adk-submission 0.2.13 and ADK 1.36.1. All models receive the same seven tools, but this is a fidelity limitation relative to the full v7 action space. No schema was silently repaired. The generic10.5 h setting was retained exactly; monitoring and the user's2 session h/10 cumulativequota h approval boundaries remained controlling. The completed run stayed below both.
 
-### Complete per-type table
+### 6.2 Adapter provenance and serving verification
 
-| Type | Prefixes | Planned responses per model | Harness pass condition, exactly one call | Base | S1 | S3 |
-|---|---:|---:|---|---|---|---|
-| `file_in_view` | 8 | 32 | Classified source edit | N/A | N/A | N/A |
-| `test_failed` | 8 | 32 | Edit or read; command differs from prior command | N/A | N/A | N/A |
-| `test_passed` | 6 | 24 | `submit_patch` | N/A | N/A | N/A |
-| `early` | 8 | 32 | Read/search | N/A | N/A | N/A |
-| Total | 30 | 120 | Type-specific condition plus one call | N/A | N/A | N/A |
+| Candidate | Attached training identity | Actual copied adapter SHA-256 | Integrity |
+|---|---|---|---|
+| s1_own | atulbaliyan/gemma4-train-s1-own v1, final serving export | `c41939e731011b0bc6fb5ab222c6e84f6f4a1512301201fb14bbe230d6c21040` | PASS:410 modules/820 BF16 rank 16 tensors;244,982,352 B |
+| s3_compact | atulbaliyan/gemma4-train-s3-compact v1, final serving export | `74c041da7cc4540d617463e769173942db80a5d2c60b2ba615c4afc38c616caa` | PASS:410 modules/820 BF16 rank 16 tensors;244,982,352 B |
 
-A candidate PASS requires `edit_rate_file_in_view >= base`, overall `pass_rate >= base`, zero batched responses and zero request errors. No-call responses fail individual decisions. The base is the reference, rather than a candidate with an independently assigned adapter verdict. Future reporting must also verify expected response coverage; the harness excludes request-error rows from scored-rate denominators, so a percentage alone is insufficient.
+The unchanged gate copies only `adapters/<name>/` from attached training outputs, not checkpoint directories. Full remote output paths were checked before push. The actual copied gate files were downloaded and their SHA-256 equals the previously verified training final/serving copies. Config bytes also match; pairing, rank axes, offset/length, dtype and PEFT structure pass stdlib-only validation. No local torch/model/tensor inference was used.
 
-### Early category, proposal validity and limitations
+Remote gate metadata still identifies version 1. All notebook cell types/source text match the submitted copy; all 14 downloaded evalkit modules match authorized source. Downloaded `eval_cfg.json` equals the exact generated settings except generated t0. Prefix, system and tools hashes match preflight. The server registered the W4A16 version 2 base path and both `s1_own` and `s3_compact` model IDs; the source iterates those exact IDs. vLLM started successfully in 409 s and the gate process exited0. Thus this is an executable comparison of the intended adapters, not an adapter-loading or request-infrastructure failure.
 
-S3's compact locate→edit ordering could cause edits before sufficient investigation. That is a hypothesis to inspect in `early`, using its actual edit/read/test/no-call distribution, not merely the aggregate rate. There are currently no generated `early` responses.
+### 6.3 Coverage, scoring semantics and overall results
 
-The inspected `kind()` classifier identifies an edit by the presence of `PYEOF` and `write_text(` in a shell command. This is a syntactic heuristic. It does not execute the command, prove the target is eligible repository source, check a unique replacement or validate the resulting diff. A future classified edit rate must therefore not be presented as an executed source-edit success rate. `write_file` has its own tool label and is not automatically counted as an edit by this classifier.
+All 30 expected prefix IDs have exactly four scored responses for each model. There are **360/360 scored responses**, no missing/extra samples, no unknown IDs, no type mismatches, no structurally invalid report rows and no request errors. Row-derived aggregates exactly reproduce every official aggregate and candidate verdict. A no-call is a returned response with zero tool calls; it is counted as a scenario failure, not a missing sample.
 
-No model-side tool failures, missing-edit rates, batching frequencies or gate infrastructure failures have been measured in this workflow. The gate's GPU request path remains untested. If infrastructure fails after a future authorized push, preserve outputs and request authorization before modifying `gate.py` or resubmitting, as the task requires.
+The official candidate criteria are unchanged: edit@file_in_view≥base, overall pass_rate≥base, zero batched responses and zero request errors. Both adapters satisfy the last two but miss **both** comparative rates. Harness rates are rounded to three decimals before its comparison; this report also supplies exact counts/percentages. Coverage-aware pass/120 and official scored-denominator rates coincide here because no request failed. In an incomplete run the harness would exclude failed requests from scored denominators; that omission is not hidden or used to inflate these results.
+
+| Metric | Base reference | S1 Own | S3 Compact |
+|---|---:|---:|---:|
+| Scored / expected | 120/120 | 120/120 | 120/120 |
+| Scenario-correct decisions | 74/120 (61.67%) | 63/120 (52.50%) | 66/120 (55.00%) |
+| Official pass_rate | 0.617 | 0.525 | 0.55 |
+| Edit@file_in_view | 24/32 (75.000%) | 19/32 (59.375%) | 21/32 (65.625%) |
+| Official edit_rate_file_in_view | 0.75 | 0.594 | 0.656 |
+| Exactly one tool call | 116/120 (96.67%) | 119/120 (99.17%) | 115/120 (95.83%) |
+| Batched responses | 0 | 0 | 0 |
+| No-call responses | 4 | 1 | 5 |
+| Classified malformed/none first calls | 0 | 0 | 0 |
+| Request errors / expected affected samples | 0 /0 | 0 /0 | 0 /0 |
+| Missing / extra / invalid report rows | 0 /0 /0 | 0 /0 /0 | 0 /0 /0 |
+| Overall pass difference vs base | Reference | -9.17 pp | -6.67 pp |
+| Gate verdict | REFERENCE | **FAIL** | **FAIL** |
+
+“Scenario-correct tool-call rate” here means exactly one call satisfying the fixed type rubric—the overall pass rate. Exactly-one-call rate is a separate structural measure; it cannot establish correct timing or arguments. Zero `malformed` classifications only says the recorded classifier found no such first-call kind. Full generated arguments are not retained, so complete schema/argument validity cannot be independently recomputed.
+
+![Measured base/S1/S3 per-type gate decisions](assets/atul_gate_behaviour_20261018.png)
+
+### 6.4 Complete per-type and action-distribution results
+
+| Type | Prefixes / responses per model | Official rule with exactly one call | Base passes | S1 passes | S3 passes |
+|---|---|---|---:|---:|---:|
+| file_in_view | 8 /32 | Classified source edit | 24/32 (75.00%) | 19/32 (59.38%) | 21/32 (65.62%) |
+| test_failed | 8 /32 | Read/edit; command differs from previous command | 13/32 (40.62%) | 8/32 (25.00%) | 0/32 (0.00%) |
+| test_passed | 6 /24 | submit_patch | 5/24 (20.83%) | 4/24 (16.67%) | 24/24 (100.00%) |
+| early | 8 /32 | Read/search | 32/32 (100.00%) | 32/32 (100.00%) | 21/32 (65.62%) |
+
+| Type | Model | Edit | Read | Test | submit_patch | Other | No call | Batched |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| file_in_view | base | 24 | 2 | 0 | 0 | 2 | 4 | 0 |
+| file_in_view | s1_own | 19 | 11 | 0 | 0 | 1 | 1 | 0 |
+| file_in_view | s3_compact | 21 | 7 | 0 | 0 | 0 | 4 | 0 |
+| test_failed | base | 5 | 8 | 7 | 0 | 12 | 0 | 0 |
+| test_failed | s1_own | 1 | 7 | 14 | 0 | 10 | 0 | 0 |
+| test_failed | s3_compact | 0 | 0 | 4 | 28 | 0 | 0 | 0 |
+| test_passed | base | 0 | 0 | 4 | 5 | 15 | 0 | 0 |
+| test_passed | s1_own | 0 | 0 | 4 | 4 | 16 | 0 | 0 |
+| test_passed | s3_compact | 0 | 0 | 0 | 24 | 0 | 0 | 0 |
+| early | base | 0 | 32 | 0 | 0 | 0 | 0 | 0 |
+| early | s1_own | 0 | 32 | 0 | 0 | 0 | 0 | 0 |
+| early | s3_compact | 10 | 21 | 0 | 0 | 0 | 1 | 0 |
+
+At **file_in_view**, the missing-edit counts are **8/32 base,13/32 S1 and 11/32 S3**. S1 makes eleven extra reads and one other call plus one no-call instead of editing; base has two reads/two other/four no-call, while S3 has seven reads/four no-call. Relative to base, S1 loses five edit decisions (−15.625pp) and S3 loses three (−9.375pp). Neither clears the edit gate even before considering other categories. These are missing classified edits, not measured empty final patches.
+
+At **test_failed**, base responds with 13 read/edit decisions (eight reads/five edits), S1 with 8 (seven reads/one edit), and S3 with 0. All recorded base/S1 read/edit calls pass the previous-command-difference rule. Base makes seven new test-kind decisions and S1 fourteen; the output rows omit command text, so exact repeated-test counts cannot be recovered. It is therefore incorrect to claim that every subsequent test call blindly repeats the same command.
+
+S3 instead calls **submit_patch28/32 times (87.5%)** after failure-labeled feedback, across seven of eight prefixes with 4/4 submissions each. The remaining prefix yields four test calls. This explains its zero failure-recovery score. The observed failure is premature termination under this rubric, rather than an HTTP/model-loading problem.
+
+At **test_passed**, S3 submits 24/24, a substantial improvement over base5/24 and S1 4/24. Base/S1 mostly emit “other” calls (15/16 respectively) and four test calls each. S3's correct termination after success is therefore a measured success, but it is accompanied by submission after failures. Those opposing effects must not be compressed into “S3 knows when to submit.”
+
+### 6.5 Special investigation of early decisions
+
+Base and S1 read/search32/32 with **zero** classified early edits. S3 reads 21/32, edits**10/32 (31.25%)**, and returns one no-call. Those ten edits occur in three of eight early prefixes:
+
+| Early-prefix task | S3 four-sample outcomes |
+|---|---|
+| fastapi_15588 | Four edits |
+| fastapi_15661 | Four edits |
+| fastapi_15800 | Two edits, one read, one no-call |
+
+The other five early prefixes produce four reads each. The concern is therefore replicated across several fixed contexts, not a single accidental response. S3 loses eleven early passes relative to base; S1 preserves all 32. This supports the predeclared risk that compressed locate→edit demonstrations can shift action timing toward earlier editing. It does **not** prove the edits were executable, semantically wrong or intrinsically premature for every repository state: “premature” here refers to the fixed early/read rubric, and no edit was executed. Compression, target weighting, synthetic feedback, task diversity and update dose were not isolated causal factors.
+
+### 6.6 Prefix feedback, task scope and statistical limitations
+
+The30 prefixes cover **23 distinct tasks**, disjoint from all 21 S1 task IDs (not only its training split). Four stochastic samples per prefix are clustered decisions, not120 independent issue-resolution tasks. Several task IDs appear in different scenario types. Results are descriptive; no task-level McNemar p-value or leaderboard significance is fabricated. Arbitrary pairing of sample indices would not supply a valid independent task-level significance test.
+
+| Comparison against base | More passes at a prefix | Fewer passes | Ties |
+|---|---:|---:|---:|
+| s1_own, all 30 prefixes | 1 | 7 | 22 |
+| s3_compact, all 30 prefixes | 6 | 9 | 15 |
+
+These are counts of per-prefix pass-count changes, not evidence of statistically significant generalization. S1's losses are concentrated in three file-in-view, three failure and one passed-test prefix, with one file-in-view improvement. S3 improves five passed-test prefixes and one file-in-view prefix, but loses four failure, three early and two file-in-view prefixes.
+
+A read-only audit of frozen feedback confirms all six test_passed prefixes contain status=ok, exit code 0 and explicit passed-test counts (18,56,6,1,4,1); none uses a `| tail` pipeline in the immediately preceding command, and no failed-test-count text was found there. The eight test_failed prefixes all have status=error, with exit codes1,2 or4. At least one contains an import error. Thus this category includes tool/test-environment failures as well as assertion failure; “failed test” does not imply a confirmed incorrect source patch in every case. No labels, prefix bytes or scoring thresholds were changed after observing results.
+
+The frozen renderer omits the optional analyzer schema; the classifier recognizes edit only via `PYEOF` plus `write_text(`, a heuristic that can miss alternate valid edit forms or count a non-source write. “Other” is unclassified by that regex, not automatically meaningless. Only first-call kind is retained; generated arguments, patch applicability and semantic validity are **unknown**. Finish reasons and generated-token usage are not retained either, so no-call causes (plain prose, truncation, parser behavior or another cause) cannot be separated. Gate decisions never execute tool calls. E1's182/182 teacher-edit replay does not establish success of these newly generated proposals.
+
+### 6.7 Runtime, warnings, output recovery and interpretation
+
+| Runtime milestone | Platform elapsed seconds |
+|---|---:|
+| vLLM up | 636.430110 |
+| GATE base | 929.401505 |
+| GATE s1_own | 1201.080086 |
+| GATE s3_compact | 1494.105982 |
+| VERDICT s1_own | 1494.106789 |
+| VERDICT s3_compact | 1494.107427 |
+| exit code 0 | 1501.243472 |
+
+The maximum platform-log timestamp is **1508.124183121 s /0.418923384 h (25.14 min)**, an execution-duration proxy. vLLM's own startup event records 409 s. Base, S1 and S3 request-loop intervals are approximately292.97,271.68 and 293.03 s, respectively, derived from successive logged loop-completion milestones after server-up. These intervals include request/serialization overhead; no generated-token throughput or continuous serving-GPU peak/utilization was measured. No separate vLLM worker-log artifact was emitted in the37-file output inventory; serving milestones/IDs are verified from run.log and notebook output, not an unavailable full worker trace. Hardware checks list four NVIDIA L4 s with 23,034 MiB each. Configured memory fraction0.80 is not actual peak allocation.
+
+The gate used **0.838354444 quota h**, cumulative **8.921813889 h**, with **21.078186111 h remaining**, reserved0. Quota/log-hour ratio is **2.001212×**. This is below the approved0.6 session h/1.2 quota h forecast and the10 cumulativequota h boundary. API last_run_time remains stale/inconsistent (Oct15) and is excluded; delayed COMPLETE observation is not session duration. Exact backend allocation boundaries remain unverified; §8 supplies actual snapshot accounting.
+
+Setup logged the expected missing-pip probe, followed by the existing ensure_pip recovery and successful version verification. A non-fatal sitecustomize notice names missing wrapt; scorer imports and the full gate subsequently succeeded. Two LiteLLM warnings concern remote cost-metadata lookup in the offline environment and local fallback. Two invalid-escape SyntaxWarnings (`\|`, `\_`) appeared during notebook conversion. There is no actual Python traceback header, CUDA OOM or request HTTP=400/500 marker in the captured notebook log; a case-insensitive “traceback” keyword occurs in the sitecustomize notice and is not a model-serving crash. All 90 prefix requests returned the expected four samples, and process exit code 0 corroborates completion. No source repair was needed or performed.
+
+The initial CLI download failed with ConnectionError/IncompleteRead on a copied adapter. Bounded whole-file recovery also hit connection failures. Original completed outputs and partial evidence were preserved; bounded parallel HTTP Range reads recovered the remaining remote bytes. All**37/37** remote outputs are retained, including both copied adapters, source/config/prefix/tools/prompt/report, notebook/run logs and submission archive. The adapters were verified against the exact training hashes after assembly. This was read-only output recovery, not an evaluation retry. Raw logs/traces/models remain local; only permitted small evidence is committed.
+
+**Measured interpretation:** both candidate FAIL verdicts are valid under the predeclared rubric, with complete coverage and successful serving. S3 improves success-triggered submission while worsening failure handling and early action timing; S1 improves single-call frequency but does not improve scenario correctness. Neither adapter beats base on the required edit or overall rate. This is not a repeat of Step D's measured114/114 empty patches—both candidates generate classified edits—but it still does not justify advancing to task evaluation. The strategy's training/export feasibility survives; its proposed behavioral improvement is not supported by this gate. The causal reasons remain hypotheses.
+
+**Required stop:** neither adapter advances. The handoff explicitly says that if both fail, stop task evaluation and retraining. No automatic follow-up, scale-up, checkpoint search, paired task evaluation or leaderboard submission is authorized. Next recommendations are in §10.
 
 ## 7. CPU E1 Replay Audit
 
@@ -477,20 +593,30 @@ The small [E1 summary and complete per-episode source manifest](../data/runs/atu
 
 ## 8. GPU Runtime and Quota Accounting
 
-| Run | Handoff session / quota h forecast | Approved pre-push forecast | Actual log-duration / quota h | Available before → after |
-|---|---|---|---|---|
-| S3 v1 | ~1.4 / ~3.0 | 2.1–2.4 / 4.2–4.8 | 1.937136 / 3.874829 | 30.000000 → 26.125171 |
-| S1 v1 | ~1.7 / ~3.5 | 2.6–2.9 / 5.2–5.8 | **2.104073 / 4.208630** | **26.125171 → 21.916541** |
-| Gate | ~0.6 / ~1.2 | NOT APPROVED | NOT RUN; no gate charge | No gate boundary |
-| Cumulative S3+S1 | — | Upper forecast 9.674829 quota h | **8.083459 quota h** | **21.916541 h remains** |
+| Run | Approved pre-push session/quota forecast | Actual log-duration proxy / quota h | Account available before→after |
+|---|---|---|---|
+| S3 v1 |2.1–2.4 /4.2–4.8 |1.937136 /3.874829 |30.000000→26.125171 |
+| S1 v1 |2.6–2.9 /5.2–5.8 |2.104073 /4.208630 |26.125171→21.916541 |
+| Gate v1 |~0.6 /~1.2 |**0.418923 /0.838354** |**21.916541→21.078186** |
+| Total new usage |Gate pre-push cumulative forecast 9.283459 h |**8.921814 quota h** |**21.078186 h remaining**, reserved0 |
 
-S1 quota moved from **3.8748294444444444 h used** at `2026-10-18T06:50:39.453295+00:00` to **8.083459444444445 h** at `2026-10-18T09:51:00.050050+00:00`; total remains 30 h and reserved 0. Its charge is the account-wide used-quota difference, **4.208630000 h**. No conflicting GPU job was found at preflight or the terminal inventory (all project notebooks COMPLETE; two unrelated old sessions404). Complete interval-by-interval exclusion of unrelated account activity is unavailable, so the delta is attributed to the sole approved S1 run with that limitation. Terminal quota was refreshed after download/review.
+Gate quota is fresh terminal used **8.921813888888888 h** minus pre-push used **8.083459444444445 h** = **0.838354444 h**. Preflight was refreshed at 10:24:07UTC; post-download/review status at `2026-10-18T11:46:48.481402+00:00` still shows COMPLETE with the stable terminal charge. Account total is 30 h. Terminal inventory shows all project notebooks COMPLETE, two unrelated old sessions 404; no conflicting project activity was observed at either boundary, although unobserved interval activity cannot be independently ruled out. Remaining capacity is not permission for new experiments.
 
-S1's maximum platform-log elapsed time is **7574.662380328 s / 2.104072883 h**; final metrics reach 125.8 min. This log-duration proxy gives **2.000230 quota h/log h**, versus S3's 2.000288×. Exact backend allocation boundaries remain unverified. S1 metadata returned `last_run_time=2026-10-15T09:32:46.835000`, inconsistent with October 18 version1, and is excluded. S3's same metadata issue remains excluded as previously documented. Neither push-to-observation delay nor delayed heartbeat execution is treated as actual GPU duration.
+The gate log's maximum elapsed time **1508.124183121 s /0.418923384 h** gives **2.001212 quota h/log h**, consistent with approximate 2× billing (S3 2.000288×, S1 2.000230×). Exact backend GPU allocation start/end boundaries are unverified for all three runs. The gate config t0 is `2026-10-18T10:31:26.646385+00:00`; it is a runtime configuration timestamp, not an independently verified allocation boundary. Stale/inconsistent API last_run_time dates are excluded. Push-to-observation delay, late heartbeat execution and output-download time are not charged here as session runtime.
 
-Both runs finished within their unchanged 3 h budgets. S1 finished below its conservative approved 2.6–2.9 h forecast and its S3-based 2.43–2.52 h scenarios, largely alongside a measured faster model-load event (512 vs 1,879 s); no configuration change was made. Cumulative usage **8.083459 h** remains below the 10 h stop threshold. Remaining quota is capacity, not permission for the unapproved gate.
+Gate actual checked-at snapshots (UTC):
 
-The separate GPU ledger is updated in [the guide, §8](post_training_guide.md#8-gpu-quota-ledger). Monitoring requested ten minutes, but the client persisted thirty minutes. Actual S1 checks include 07:39:05 UTC (RUNNING), 08:45:48 UTC (RUNNING; recovered after transient 401), and 09:32:13 UTC (COMPLETE); later terminal refresh is recorded above. The 08:47:19 scheduled heartbeat executed its check at 09:32:13, illustrating scheduling delay. The first two observed gaps were about 66.72 and 46.43 minutes, so continuous thirty-minute coverage is not claimed either. These observations do not establish exact completion time, continuous ten-minute observation or GPU overrun. S1 monitoring is paused after terminal review.
+| Checked at | State | Cumulative quota used h |
+|---|---|---:|
+| 2026-10-18T10:25:16.087555+00:00 | RUNNING | 8.095505266 |
+| 2026-10-18T10:37:02.868276+00:00 | RUNNING | 8.488491855 |
+| 2026-10-18T10:47:03.699615+00:00 | RUNNING | 8.821530823 |
+| 2026-10-18T11:18:07.498104+00:00 | COMPLETE | 8.921813889 |
+| 2026-10-18T11:46:48.481402+00:00 | COMPLETE | 8.921813889 |
+
+The gate monitor persisted a 10-minute interval, unlike the older training monitors'30-minute normalization. Actual early gaps were about 11.78 and 10.01 minutes; the next terminal observation came 31.06 minutes later. The 10:56:50 scheduled heartbeat executed its status check at 11:18:07. Thus uninterrupted 10-minute coverage is not claimed. Gate execution ended earlier than that observation; no absolute finish time is invented. Monitoring is paused after terminal review/reporting, and the separate ledger in [the guide §8](post_training_guide.md#8-gpu-quota-ledger) records actual usage.
+
+Historical preflight and submission accounting below remains context, not additional runs or current authorization.
 
 ### 8.1 GPU preflight and one-run approval
 
@@ -538,52 +664,45 @@ The user explicitly approved **exactly one** S3 run with the unchanged 3 h budge
 
 Run: [atulbaliyan/gemma4-train-s3-compact](https://www.kaggle.com/code/atulbaliyan/gemma4-train-s3-compact). Local `summary.json` and the exclusive-create `preflight_20261018/push_attempt.json` record the sole attempt and version. Monitoring recovered terminal outputs and is paused after review. The original requested monitoring cadence was ten minutes; the effective persisted automation cadence was thirty minutes. Actual snapshots include 21:36 and 22:06 UTC on October 17; the terminal check executed later than its heartbeat trigger. Ten-minute observation coverage is therefore **not** claimed. Use the actual snapshot timestamps, not scheduled heartbeat times.
 
-Terminal output download exited **0** and retrieved all pages, including all five adapter files, report, metrics, run/rank/notebook logs, source modules and exact input NPZ. `analysis/validate_training_run.py` was inspected and run with stdlib only; its historical stage label was overridden to S3 in a new result file. All checks PASS. No original result/model artifact was changed. At that S3-only stage S1 was unapproved; it was subsequently approved once and completed as detailed in §4. The behaviour gate, retries and configuration changes remain unauthorized.
+Terminal output download exited **0** and retrieved all pages, including all five adapter files, report, metrics, run/rank/notebook logs, source modules and exact input NPZ. `analysis/validate_training_run.py` was inspected and run with stdlib only; its historical stage label was overridden to S3 in a new result file. All checks PASS. No original result/model artifact was changed. At that S3-only stage S1 and the gate were unapproved; both were subsequently approved once and completed as detailed in §§4/6. Retries and configuration changes remain unauthorized.
 
 ## 9. Major Findings and Technical Analysis
 
-1. **S3 training/export succeeded:** rc 0; 35/35 steps; 1,409,618 input tokens; validation 0.6089→0.1807; all four exports and serving copy pass integrity checks; no budget stop or retry.
-2. **E1 remains fully verified:** 147 episodes, 182 edits and 151 initial/final episode-file blob matches. The empty-file operation is valid; no NPZ correction was made.
-3. **Loss improvement tests imitation, not behaviour:** the gate has not run. S3 has no measured edit rate, nonempty-patch rate or issue-resolution score.
-4. **Validation coverage is small:** only 4 of 7 held-out windows and 2,983 supervised targets per pass; only start/end validation. No claim of stable convergence, optimal checkpoint or no overfitting is warranted.
-5. **Numerical spikes and warnings did not prevent completion:** preclip gradient norms reached 1,208; three non-fatal warning notices were observed. Their cause/behavioural consequences are not established.
-6. **Resource use was within approval:** 18.86 GiB peak and ~1.937 notebook-log h; 3.874829 quota h, below the revised estimate. Exact backend absolute session boundaries remain unavailable.
-7. **Execution identity is corroborated:** remote version/cell sources, downloaded code and input hash match the approved submission. The inconsistent metadata date is not used for runtime.
-8. **Monitoring was less frequent than requested:** effective thirty-minute cadence and delayed terminal processing are documented. They do not imply that the GPU ran until the later check or exceeded its budget.
+1. **Training/export succeeded for both recipes:** S3 rc 0/35steps/validation0.6089→0.1807; S1 rc 0/33steps/validation0.2395→0.1362; every expected export and serving copy passes integrity. Those measured results remain valid after a behavioral FAIL.
+2. **E1 remains PASS:**147/147 episodes,182/182 source edits, exact source provenance and final blob checks; no data correction was made. It verifies teacher-edit applicability, not generated decisions or test feedback.
+3. **Serving/evaluation succeeded:** gate version 1, rc 0, exact base/adapters, all 360 expected responses, no request errors, no missing samples. Both failures therefore reflect the predefined decision diagnostic, not a broken request path or an accidentally older adapter.
+4. **Neither adapter clears either comparative gate rate:** base 74/120 and 24/32 edits; S1 63/120 and 19/32; S3 66/120 and 21/32. Zero batching is necessary but insufficient. S1's 119/120 single-call rate does not compensate for wrong scenario decisions.
+5. **S3 trades better termination after success for worse conditional behavior:** test_passed 24/24, but failure recovery 0/32, submission after failure 28/32 and early edits10/32. The predeclared early-edit risk is observed on this fixed set. A general ability to distinguish success from failure is not demonstrated.
+6. **Own-policy data did not supply the hoped-for improvement:** S1 preserves early reading 32/32 but has fewer file-in-view edits and failure read/edit decisions than base. Few tasks and unmatched target dose remain confounders; a single own-policy training run cannot rule out every such training method.
+7. **Lower imitation loss does not approve a release:** both validation curves improved while behavioral thresholds failed. This reinforces Step D's distinction between training fit and agent action selection without claiming that this gate reproduced114 empty patches.
+8. **Feedback quality is a concrete research lead, not a proved cause:** S3's compressed/synthesized test feedback and repeated test→submit pattern could explain weak failure conditioning; direct causal attribution remains unresolved. Frozen gate failure feedback also includes environment/import errors. Further audits require no reinterpretation of the official thresholds.
+9. **Resource use stayed within authorization:** gate 0.418923 log h/0.838354 quota h; total 8.921814 quota h; no additional GPU run, retry or source fix. Exact allocation boundaries and serving peak-memory/utilization remain unavailable.
+10. **Output recovery was completed without experimental changes:**37 remote files preserved; copied adapter hashes verified after bounded range recovery. Local download errors did not become a training/gate retry. Raw artifacts and traces remain uncommitted.
 
-9. **S1 training/export also succeeded:** rc 0, 33/33 steps, 1,855,104 input tokens, 336,455 supervised targets, validation 0.2395→0.1362; every expected export passes.
-10. **The control remains observationally incomplete:** lower S1 held-out loss and smaller gradient extremes do not test timely source edits; only three held-out tasks and incomplete windows limit inference.
-11. **Both budgets were respected:** cumulative measured quota 8.083459 h; no training retry or config change. Faster S1 loading reduced forecast cost without requiring a changed budget.
-
-S3 and Step C use different datasets, state preservation, token weights and update doses. The improved S3 final validation loss cannot isolate which change matters or establish superiority. S1 now also passes training/export checks; the intended behavioral own-policy control comparison remains unavailable because the gate is unrun. No paired significance result is reported without paired behavioural outcomes.
+The result rejects advancing either **current final adapter** under this gate. It does not establish a statistically significant task-resolution regression, compare checkpoints, isolate grounding versus dose, or prove all possible SFT strategies ineffective. Four samples at 30 prefixes/23 tasks are not an independent 120-task benchmark. No paired task evaluation or leaderboard gain is reported.
 
 ## 10. Recommendations and Future Research
 
-**Both S3 and S1 training/output reviews are complete. Stop here and wait for separate gate approval.** Preserve final S3 and checkpoints without selecting one using unrun evaluation outcomes.
+**Advance neither adapter. Stop task evaluation and retraining as Shrey's handoff requires when both fail.** Preserve these final adapters and their checkpoints for reproducibility, without selecting an earlier checkpoint after seeing this gate. No S3-1k/S4 scaling, DPO/RL, paired evaluation or leaderboard run follows automatically. The gate monitor is paused after review; all later work requires separate approval.
 
-| Next action | Evidence required / authorization | Cost status |
+| Proposed next action | Purpose and approval status | Cost |
 |---|---|---|
-| E1/source-data correction | No correction indicated: 182/182 retained edits passed | Complete, 0 GPU h |
-| S3 training/output review | Complete; final and serving hashes equal | Actual 3.874829 quota h |
-| S1 own-policy control | Complete, all required training/export checks PASS; behavior unmeasured | Actual 4.208630 quota h |
-| Behaviour gate | Separate approval after required training; full per-type/early/batch/no-call results | Prior forecast ~1.2 quota h; **unmeasured**, do not launch |
-| Data/scheduler improvement | Preserve exact provenance; consider validating all held-out windows and true test feedback in a separately reviewed change | CPU design work only, not performed here |
+| CPU-only feedback/decision audit, recommended first | With user approval, compare S3's actual test-feedback/termination supervision with original teacher outcomes and inspect failure/early prefixes. Separate import/setup failures from source-test failures; preserve original data/hashes |0 GPU h; CPU time not measured |
+| Review gate observability and rubric | If authorized, design retention of generated call arguments/finish reasons and explicit schema/applicability diagnostics, restore/justify optional tool schema, enforce a reviewed runtime cap, and validate complete held-out window schedules. No source patch/rebuild performed here |CPU design; no GPU run authorized |
+| Prompt/config baseline investigation | Discuss the handoff's direction after both gate failures. Any new fixed-prefix or paired run needs a concrete separate proposal and approval; unchanged gate cost was 0.838354 quota h, not a guarantee for a different run |Forecast must be recalculated |
+| Retraining, scaling or task evaluation of these finals |Do not proceed under this approval; both candidates fail the advance gate |0 additional GPU h authorized |
 
-Actual S3+S1 usage is **8.083459 quota h**; adding the prior ~1.2 h gate forecast would give **9.283459 h**, a planning estimate below 10 h but still requiring the user's separate gate approval. The account retains **21.916541 h**. Gate runtime/infrastructure remain unmeasured; stop and seek authorization if configuration changes or retries would be needed.
+The most discriminating next question is whether S3 learned “test then submit” without conditioning on outcome, and whether its early-edit targets lack sufficient investigation diversity. Measure those dataset/feedback properties on CPU before designing another experiment. S1's failure suggests that matching source policy alone is insufficient at this dose/data diversity, but this is a hypothesis needing controlled evidence, not permission to tune repeatedly. Any future study should preregister separate failure-recovery and early-timing endpoints, retain full validation coverage, and match or explicitly account for supervised-token dose.
 
-Neither adapter should advance to paired task evaluation yet. Subject to separate authorization, compare both verified final adapters against base in the planned gate, especially file_in_view edits and premature early edits; enforce response coverage, no-call/batching/error counts and inspect edit proposal syntax. Only a gate-passing adapter should be considered for the later paired task evaluation (~16 quota h in the handoff, separate approval). Do not select a checkpoint from incomparable loss values. Future CPU design work could improve complete validation scheduling, held-out task diversity, real test-exit feedback, and matched input/target dose ablations; none was executed as a new experiment here.
-
-The next scientific question is whether S3 improves correctly timed source-edit decisions without premature `early` edits. Reduced loss cannot answer it. Preserve the own-run control and planned gate rather than jumping to task evals, S3-1k, S4, DPO/RL or extra retraining. All such GPU work remains outside this approval.
+Account quota remaining **21.078186 h** is capacity only. The original later paired-evaluation estimate (~16 quota h) is not relevant approval after both candidates fail. Present the measured negative gate result, the Step D collapse and E1/E2 evidence to Shrey before choosing a new direction.
 
 ## 11. Final Conclusion
 
-**Step 1a S3 Compact is COMPLETE / training-export PASS.** One approved version, unchanged configuration, rc 0, all 35 optimizer steps, validation loss **0.6089→0.1807**, and valid **410-module** checkpoint/final exports were verified. Final and serving copies match SHA-256 `74c041da7cc4540d617463e769173942db80a5d2c60b2ba615c4afc38c616caa`.
+**Step 1a S3 and Step 1b S1 both passed training/export; Step 2 completed successfully as software execution but both adapters FAIL the unchanged behaviour gate.** S3 retains its 147-episode E1 grounding success and 0.6089→0.1807 validation decrease; S1 retains 0.2395→0.1362. All expected 410-module/820-BF16-rank 16 exports and final/serving identities verify.
 
-The run used **3.874829 quota h**, leaving **26.125171 h**; notebook logs support **1.937136 h** execution duration, within the approved 3 h budget. E1 is **147/147 episode, 182/182 edit PASS**, with no data changes.
+The valid 360-response gate scored **base 74/120, S1 63/120, S3 66/120**; classified source-edit decisions at file_in_view were **24/32,19/32,21/32**. S3's 24/24 success submissions coexist with 28/32 submissions after failures and 10/32 early edits. S1 preserved early reading but did not improve required overall/edit metrics. There were no batched responses or request errors. Neither adapter earns advancement, and no issue-resolution, patch-applicability or leaderboard improvement is claimed.
 
-**Step 1b S1 Own is also COMPLETE / training-export PASS.** One approved version, rc 0, 33/33 steps, no budget stop, validation 0.2395→0.1362, and all 410-module exports verified. Final/serving SHA-256 is `c41939e731011b0bc6fb5ab222c6e84f6f4a1512301201fb14bbe230d6c21040`. S1 used **4.208630 quota h** and **2.104073 notebook-log h**; cumulative usage is **8.083459 h**, leaving **21.916541 h**.
-
-Both recipes are feasible within the approved training budgets and improve imitation on their own partially covered validation sets. Their different datasets cannot rank agent quality. The central action-selection hypotheses remain untested; **the behaviour gate did not run and has no PASS verdict**. Preserve E1/S3/S1 evidence and prioritize the base/S1/S3 gate only after separate approval. Both monitors are paused; no retraining, configuration change or next-stage experiment was launched.
+Training strategy feasibility is established; the proposed behavioral recovery is not supported for these two final adapters. The next priority is a separately approved CPU audit of feedback and decision supervision, followed by discussion with Shrey—not automatic task evaluation or retraining. Gate usage was **0.838354 quota h**, totalS3+S1+gate **8.921814 h**, leaving **21.078186 h**; the execution-duration proxy was **0.418923 h**, with exact backend boundaries unavailable. Monitoring is paused after terminal review/reporting and all experiment actions stop here.
 
 ### Evidence and delivery record
 
@@ -594,4 +713,4 @@ Both recipes are feasible within the approved training budgets and improve imita
 - Static source checks: `posttrain/compact_episodes.py`, `posttrain/convert_public.py`, `kaggle/train/trainkit/{config,data,worker,main}.py`, and `kaggle/eval_l4/evalkit/gate.py`.
 - No credentials were inspected, copied or exposed; only the existing CLI/SDK authentication flow was used. Its preserved installation was invoked with Python bytecode writes disabled.
 - Recovery working files and Kaggle artifacts were preserved. Git uses administrative metadata under the recovery checkout's `.git/worktrees/` for this linked worktree; the authorized pull and feature-branch operations necessarily updated that shared metadata.
-- Exactly one approved S3 notebook was pushed as version 1 and completed successfully. Raw outputs and adapters remain local/uncommitted; only permitted small evidence and documentation are committed. S1 was separately approved and pushed exactly once as version 1 and completed successfully. No teacher-command execution, dataset regeneration, paired task evaluation, leaderboard submission, gate run or automatic next-stage experiment occurred.
+- Exactly one approved S3 notebook was pushed as version 1 and completed successfully. Raw outputs and adapters remain local/uncommitted; only permitted small evidence and documentation are committed. S1 was separately approved and pushed exactly once as version 1 and completed successfully. The gate was subsequently approved and submitted once as version 1, completed and reviewed; both candidates FAIL. No teacher-command execution, dataset regeneration, paired task evaluation, leaderboard submission or automatic next-stage experiment occurred.
