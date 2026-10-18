@@ -16,7 +16,16 @@ everything else. The teacher's short decision text (convert_public.py --reasonin
 comment in the command, because Gemma's template renders an assistant message's text AFTER its tool call.
 An episode is rejected if any kept edit's old text is not visible in an earlier kept read (grounding), or if the
 rendered window exceeds 8,192 tokens.
-Usage: python posttrain/compact_episodes.py CONVERTED_DIR OUT_DIR [--tokenizer data/g4tok]
+S3b options (behaviour gate, Oct 18: S3 submitted after FAILED tests 28/32 and edited at early prefixes 10/32, because
+every S3 episode was search -> read -> edit -> passing test -> submit):
+  --feedback   keep real test results: each failed existing-test run between edits (real status and output, the
+               command as the teacher ran it), and the final run only if it passed; runs of test files the teacher
+               edited are dropped (those edits are not in the episode). Teaches fail -> fix, pass -> submit.
+  --explore N  keep the teacher's last N searches/reads of other files before the first edit (real outputs).
+  --pre-test   keep the teacher's last existing-test run before the first edit (real result, pass or fail), so a
+               test is not always followed by submit: before the fix it leads to reading/editing.
+Defaults reproduce S3 exactly.
+Usage: python posttrain/compact_episodes.py CONVERTED_DIR OUT_DIR [--tokenizer data/g4tok] [--feedback] [--explore N]
 """
 import argparse
 import collections
@@ -125,7 +134,7 @@ def with_reason(cmd, reason):
     return "# " + reason.replace("\n", " ").strip() + "\n" + cmd
 
 
-def compact(trace, margin=25):
+def compact(trace, margin=25, feedback=False, explore=0, pre_test=False):
     task, calls, final = parse(trace)
     created = {(tc.get("arguments") or {}).get("filepath") for tc, _, _ in calls if tc["function_name"] == "write_file"}
     edits, reads = [], {}  # reads: path -> latest successful cat -n before each edit, as (index, lines)
@@ -173,6 +182,25 @@ def compact(trace, margin=25):
         for j, tc, r, rs in found[-2:]:
             kept.append((j - 0.5, {"function_name": "run_command",
                                    "arguments": {"command": with_reason(CD.sub("", cmd_of(tc)), rs)}}, r))
+    if explore:  # the teacher's investigation before the first edit: other files' searches and reads, as they ran
+        first = min(e[0] for e in edits)
+        edited = {e[1] for e in edits}
+        inv = [(j, tc, r, rs) for j, (tc, r, rs) in enumerate(calls[:first]) if tc["function_name"] == "run_command"
+               and ok(r) and j not in {k[0] for k in kept} and j - 0.5 not in {k[0] for k in kept}
+               and (re.match(r"(grep|find|rg|ls)\b", CD.sub("", cmd_of(tc)))
+                    or (read_target(cmd_of(tc)) and read_target(cmd_of(tc)) not in edited))]
+        for j, tc, r, rs in inv[-explore:]:
+            kept.append((j - 0.25, {"function_name": "run_command",
+                                    "arguments": {"command": with_reason(CD.sub("", cmd_of(tc)), rs)}}, r))
+    if pre_test:
+        first = min(e[0] for e in edits)
+        test_files = {(tc.get("arguments") or {}).get("filepath") for tc, _, _ in calls} | \
+                     {m.group(1) for tc, _, _ in calls for m in [PATH.search(cmd_of(tc))] if m and is_test_path(m.group(1))}
+        pre = [(j, tc, r, rs) for j, (tc, r, rs) in enumerate(calls[:first]) if tc["function_name"] == "run_command"
+               and re.match(r"(python3? -m )?pytest", CD.sub("", cmd_of(tc))) and not any(f in cmd_of(tc) for f in test_files if f)]
+        if pre:
+            j, tc, r, rs = pre[-1]
+            kept.append((j, {"function_name": "run_command", "arguments": {"command": with_reason(CD.sub("", cmd_of(tc)), rs)}}, r))
     seen_idx = set()
     kept = [k for k in kept if not (k[0] in seen_idx or seen_idx.add(k[0]))]  # a search can locate two files
     for i, path, old, tc, r, reason, new in edits:  # simulate the visible text as edits apply
@@ -181,7 +209,22 @@ def compact(trace, margin=25):
         shown[path] = shown[path].replace(old, new, 1)
         kept.append((i, {"function_name": "run_command", "arguments": {"command": with_reason(cmd_of(tc), reason)}}, r))
     last_edit = max(e[0] for e in edits)
-    tests = [(j, tc, r, rs) for j, (tc, r, rs) in enumerate(calls) if j > last_edit and tc["function_name"] == "run_command"
+    if feedback:
+        test_files = {(tc.get("arguments") or {}).get("filepath") for tc, _, _ in calls} | \
+                     {m.group(1) for tc, _, _ in calls for m in [PATH.search(cmd_of(tc))] if m and is_test_path(m.group(1))}
+        runs = [(j, tc, r, rs) for j, (tc, r, rs) in enumerate(calls) if j > min(e[0] for e in edits)
+                and tc["function_name"] == "run_command" and re.match(r"(python3? -m )?pytest", CD.sub("", cmd_of(tc)))
+                and not any(f in cmd_of(tc) for f in test_files if f)]
+        edit_idx = sorted(e[0] for e in edits)
+        for j, tc, r, rs in runs:
+            later = [e for e in edit_idx if e > j]
+            if later and not ok(r) and not any(j < j2 < later[0] for j2, *_ in runs):  # last failed run before a fix
+                kept.append((j, {"function_name": "run_command", "arguments": {"command": with_reason(CD.sub("", cmd_of(tc)), rs)}}, r))
+        final_runs = [x for x in runs if x[0] > last_edit]
+        if final_runs and ok(final_runs[-1][2]):
+            j, tc, r, rs = final_runs[-1]
+            kept.append((j, {"function_name": "run_command", "arguments": {"command": with_reason(CD.sub("", cmd_of(tc)), rs)}}, r))
+    tests = [] if feedback else [(j, tc, r, rs) for j, (tc, r, rs) in enumerate(calls) if j > last_edit and tc["function_name"] == "run_command"
              and re.match(r"(python3? -m )?pytest", CD.sub("", cmd_of(tc)))
              and not any(f in cmd_of(tc) for f in created if f)]
     if tests:
@@ -219,6 +262,9 @@ def main():
     ap.add_argument("converted")
     ap.add_argument("out")
     ap.add_argument("--tokenizer", default="data/g4tok")
+    ap.add_argument("--feedback", action="store_true", help="S3b: keep real failed-test -> fix and passing-final-test results")
+    ap.add_argument("--pre-test", action="store_true", help="S3b: keep the last existing-test run before the first edit")
+    ap.add_argument("--explore", type=int, default=0, help="S3b: keep the last N investigation calls before the first edit")
     a = ap.parse_args()
     from transformers import AutoTokenizer
     tok = AutoTokenizer.from_pretrained(a.tokenizer)
@@ -228,19 +274,19 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     why, kept_calls, tokens = collections.Counter(), [], []
     for f in sorted(Path(a.converted).glob("trace_*.json")):
+        # over 8k: narrower reads (margin 8), then (S3b) fewer investigation calls
+        tries = [(25, a.explore), (8, a.explore)] + [(8, k) for k in sorted({a.explore // 2, 0}) [::-1] if k < a.explore]
         try:
-            ep, n = compact(json.loads(f.read_text()))
-            convs, _ = render_atif.conversations(ep)
-            msgs = next(iter(convs.values()))
-            text = render_atif.render(tok, system, msgs, tools)
-            nt = len(tok(text, add_special_tokens=False)["input_ids"])
-            if nt > MAX_TOKENS:
-                ep, n = compact(json.loads(f.read_text()), margin=8)
+            for margin, explore in tries:
+                ep, n = compact(json.loads(f.read_text()), margin=margin, feedback=a.feedback, explore=explore,
+                                pre_test=a.pre_test)
                 convs, _ = render_atif.conversations(ep)
                 text = render_atif.render(tok, system, next(iter(convs.values())), tools)
                 nt = len(tok(text, add_special_tokens=False)["input_ids"])
-                if nt > MAX_TOKENS:
-                    raise Reject("over 8192 tokens")
+                if nt <= MAX_TOKENS:
+                    break
+            else:
+                raise Reject("over 8192 tokens")
         except Reject as e:
             why[str(e)] += 1
             continue

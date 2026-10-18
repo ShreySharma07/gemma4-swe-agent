@@ -41,7 +41,7 @@ def kind(call):
         return "edit"
     if re.match(r"(python3? -m )?pytest|python3? -m unittest", c):
         return "test"
-    if re.match(r"(sed -n|cat |grep|find|ls|rg|head|tail)\b", c):
+    if re.match(r"(sed -n|cat|grep|find|ls|rg|head|tail)\b", c):  # "cat \b" never matched `cat -n` (fixed Oct 18)
         return "read"
     return "other"
 
@@ -124,7 +124,9 @@ def main():
                     except Exception:  # noqa: BLE001
                         cmd = None
                 ok = len(calls) == 1 and passes(p["type"], k, prev, cmd)
-                rows.append({"id": p["id"], "type": p["type"], "kind": k, "n_calls": len(calls), "pass": ok})
+                rows.append({"id": p["id"], "type": p["type"], "kind": k, "n_calls": len(calls), "pass": ok,
+                             "call": (calls[0]["function"].get("name", "") + " " + (cmd or ""))[:300] if calls
+                             else (ch["message"].get("content") or "")[:300]})
                 t = by_type.setdefault(p["type"], {"pass": 0, "n": 0, "kinds": {}})
                 t["pass"] += ok
                 t["n"] += 1

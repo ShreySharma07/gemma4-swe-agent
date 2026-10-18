@@ -52,7 +52,7 @@ def kind(call):
         return "edit"
     if re.match(r"(python3? -m )?pytest|python3? -m unittest", c):
         return "test"
-    if re.match(r"(sed -n|cat |grep|find|ls|rg|head|tail)\b", c):
+    if re.match(r"(sed -n|cat |grep|find|ls|rg|head|tail)\b", c):  # kept as used for the frozen prefixes.json; misses `cat -n` (gate.py fixed)
         return "read"
     return "other"
 
