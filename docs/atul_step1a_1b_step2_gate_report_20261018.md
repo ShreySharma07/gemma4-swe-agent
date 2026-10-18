@@ -2,9 +2,9 @@
 
 Date: October 18, 2026 (IST). Author: Atul's execution workspace.
 
-**Current status: E1 PASS (147/147 episodes, 182/182 edits); S3 Compact version 1 COMPLETE / training-export PASS, rc 0, all 35 steps, unchanged `--budget-h 3`. S1 and the behaviour gate require separate approval.**
+**Current status: E1 PASS (147/147 episodes, 182/182 edits); S3 Compact version 1 COMPLETE / training-export PASS, rc 0, all 35 steps, unchanged `--budget-h 3`. S1 Own version 1 was separately approved and submitted once with unchanged settings and is initially RUNNING; the behaviour gate remains unapproved.**
 
-This is the single report for Steps 1a, 1b, 2 and CPU E1. Earlier preflight blockers are reconciled below; detailed evidence and the original initial-stage checks remain identifiable as history. Actual S3 measurements below come from downloaded version-1 outputs; S1 and gate measurements remain unavailable because those stages were not run.
+This is the single report for Steps 1a, 1b, 2 and CPU E1. Earlier preflight blockers are reconciled below; detailed evidence and the original initial-stage checks remain identifiable as history. Actual S3 measurements below come from downloaded version-1 outputs. S1 is now approved for one unchanged run, with measurements pending; the gate remains NOT RUN and unapproved.
 
 ## 1. Executive Summary
 
@@ -19,12 +19,12 @@ The reporting correction supersedes the original request for three separate repo
 | Kaggle access | Independent workspace CLI; fresh authenticated quota/inventory/status | PASS; pre-push 30.00 h available, 0 used/reserved |
 | CPU E1 | Exact benchmark bases, isolated filesystem replay, initial/final teacher-blob checks | **PASS: 147/147 episodes, 182/182 edits, zero failures/unverifiable edits** |
 | Step 1a S3 | Version 1 COMPLETE; rc 0; 35/35 steps; all exports verified | **TRAINING/EXPORT PASS**; behaviour untested |
-| Step 1b S1 | Dataset/configuration inspected | NOT RUN; separate approval required |
+| Step 1b S1 | Exact notebook verified and submitted once as version 1 | **RUNNING**; output checks pending |
 | Step 2 gate | Prefix counts and harness scoring inspected | NOT RUN; separate approval required |
 
 The original missing-provenance issue was resolved through the authoritative benchmark, not by guessing repository versions. All 150 distinct source downloads succeeded, covering 151 episode/file states. Initial and final Git blobs match teacher patch indexes in all 151 cases. The empty-file case is valid at exact zero-byte source state. E1 details and limitations are in §7.
 
-The sole authorized S3 run completed without a budget stop. Validation loss decreased **0.6089 → 0.1807**; all four exports and the serving copy pass **410-module / 820 BF16 rank-16 tensor** checks. The notebook log reaches **1.937136 h** (~1 h 56 min), while quota moved **0 → 3.874829 h used**, leaving **26.125171 h**. This is training/export success, not a behaviour-gate result. The user withheld authorization for S1, the gate, retries and configuration changes; none occurred. E1 remains 147/147 episode and 182/182 edit PASS.
+The sole authorized S3 run completed without a budget stop. Validation loss decreased **0.6089 → 0.1807**; all four exports and the serving copy pass **410-module / 820 BF16 rank-16 tensor** checks. The notebook log reaches **1.937136 h** (~1 h 56 min), while quota moved **0 → 3.874829 h used**, leaving **26.125171 h**. This is training/export success, not a behaviour-gate result. The completed S3 authorization did not cover S1. The user has now separately approved exactly one S1 run; the gate, retries and configuration changes remain unauthorized. E1 remains 147/147 episode and 182/182 edit PASS.
 
 ## 2. Background and Research Motivation
 
@@ -194,11 +194,35 @@ python3 kaggle/train/make_train_notebook.py data/runs/train_s1_own.npz --name s1
 .venv/bin/kaggle kernels push -p kaggle/train/l4_s1_own
 ```
 
-These are unexecuted prescribed commands. Expected identity: `atulbaliyan/gemma4-train-s1-own`. Settings otherwise match S3. The current scheduler groups four windows and truncates incomplete groups: `floor(133×2/4)=66` microsteps per rank, yielding **33 optimizer steps** and 264 window presentations rather than all 266. Which two presentations are omitted depends on the deterministic shuffled schedule; no task-coverage conclusion was derived here. Expected checkpoint tags are step9, step18, step27 and final.
+The exact builder command and exactly one push were executed after separate user approval. Kaggle accepted **version 1** and the initial status query returned **RUNNING**. Verified identity: `atulbaliyan/gemma4-train-s1-own`. Settings otherwise match S3. The current scheduler groups four windows and truncates incomplete groups: `floor(133×2/4)=66` microsteps per rank, yielding **33 optimizer steps** and 264 window presentations rather than all 266. The seed-0 schedule retains all 18 training tasks. The omitted presentations are window 66 (`rich_3043`, 8,074 tokens) and window 107 (`rich_3676`, 3,772 tokens); each still appears in the other epoch. Expected checkpoint tags are step9, step18, step27 and final.
 
-No S1 `train_report.json`, `metrics.jsonl`, `run.log`, checkpoints or exports were produced. Loss convergence, validation performance, memory, throughput and runtime warnings are unavailable. New S1 GPU consumption is zero because it was not submitted.
+S1 version 1 is RUNNING. `train_report.json`, `metrics.jsonl`, `run.log`, checkpoints and exports have not yet been downloaded. Actual S1 loss, memory, throughput, warnings, duration and quota charge are pending terminal output review; they are not represented as zero or a training PASS.
 
-**Verdict: NOT STARTED / NOT AUTHORIZED.** It cannot proceed without separate user approval, even after S3 is COMPLETE and reviewed. The small set of distinct tasks limits generalization claims even if future training loss and gate results are favorable.
+**Current status: RUNNING, version 1.** No S1 training/export PASS is claimed before terminal output verification. The small set of distinct tasks limits generalization claims even if future training loss and gate results are favorable.
+
+### 4.1 S1 approval and verified preflight
+
+The user explicitly authorized **exactly one** S1 run, unchanged handoff settings and `--budget-h 3`, with an approved planning range **2.6–2.9 session h / 5.2–5.8 quota h**. No retry, parameter change, gate or additional experiment is authorized.
+
+Fresh authenticated checks at **12:16:50 IST** (`2026-10-18T06:46:50.232947+00:00`) found S3 COMPLETE, no running/queued project notebook, **3.874829 quota h used**, **26.125171 h available** and none reserved. Independent remote metadata confirms S3 remains version 1 COMPLETE; its local required checks were rerun and PASS (rc 0, 35 steps, final/serving equality). Shared environment outputs, official wheelhouse and exact Google model version are readable. The primary-workspace `.venv` uses the existing authorized login without credential access/copy.
+
+The S1 builder compiled all code cells and generated **37 cells**, **507,049 normalized source bytes / 514,581 on-disk bytes**, under 1 MB. Notebook SHA-256 is `18e87ab9ae34d7a64b83c01994add8a25ecd2f744d17e597aaf60cad80669ab4`. AST-extracted settings and decoded embedded NPZ match the exact handoff; identity/namespace, model/competition/shared sources, GPU L4, Internet off and private metadata all verify. S3 output files remain preserved.
+
+| Preflight schedule measurement | Value |
+|---|---:|
+| Training windows / distinct tasks | 133 / 18 |
+| Scheduled presentations / input tokens | 264 / 1,855,104 |
+| Planned optimizer steps | 33 |
+| Supervised next-token targets | 336,455 |
+| Validation coverage | 20 of 21 windows, all 3 held-out tasks |
+| Validation input / supervised targets per pass | 143,444 / 22,357 |
+| Omitted validation window | 98: `rich_3518`, 7,027 input tokens |
+
+The actual S3-weighted 294.293 tokens/s and 34.9 min model-ready timer, with validation work scaled by input tokens, forecast S1's final training step at **142.82 min** and total end near **145.64 min / 2.43 h**. A conservative 280 tokens/s scenario gives **148.18 min** before final validation and **151.00 min / 2.52 h** total. These forecasts are below the unchanged worker's **156 min** stop-taking-microsteps threshold and approved 180 min budget. A premature stop is not predicted from these scenarios, but startup/throughput variation can consume the modest margin; no guarantee or budget extension is inferred.
+
+For quota authorization retain the user's conservative **5.2–5.8 h** estimate. Completed S3 plus that upper estimate is **9.674829 h**, below 10 h. The gate would be a separate run needing separate approval and a fresh cumulative check. A final pre-push quota/status refresh at **12:20:39 IST** confirmed the same used/available values and no conflicting job; no S1 notebook existed in the inventory. The quota ledger is updated before S1 push. S1's actual metrics and artifact validity remain pending.
+
+**Submission/monitoring:** the one command `.venv/bin/kaggle kernels push -p kaggle/train/l4_s1_own` returned “Kernel version 1 successfully pushed.” Initial status is RUNNING. Exclusive-create `preflight_20261018/push_attempt.json` records attempt 1; the submitted source was copied locally to `data/runs/atul_s1_own/submitted_notebook_v1/` without modification. Thread monitor `monitor-approved-s1-own-v1` is **ACTIVE**; its saved configuration was read back and confirms **`FREQ=MINUTELY;INTERVAL=10`**, unlike the earlier S3 monitor's effective 30-minute setting. Actual snapshot timestamps will be retained, so scheduled cadence will not be confused with guaranteed execution latency. On terminal state download/verify and update this same report, then pause. No retry or Step 2 is authorized.
 
 ## 5. Comparative Analysis — S3 vs S1
 
@@ -208,11 +232,11 @@ No S1 `train_report.json`, `metrics.jsonl`, `run.log`, checkpoints or exports we
 | Windows / tasks | 147 / 147 | 154 / 21 | 1,017 / 200 |
 | Total input tokens | 744,278 | 1,083,946 | About 7.37M |
 | Supervised mask share | 12.6% | 17.8% | About 16% |
-| Peak learning rate | 5e-5 planned | 5e-5 planned | 1e-4 actual |
-| Epochs | 2 planned | 2 planned | 1 actual |
+| Peak learning rate | 5e-5 actual | 5e-5 planned | 1e-4 actual |
+| Epochs | 2 actual | 2 planned | 1 actual |
 | Optimizer steps | **35 actual** | 33 planned | 122 actual |
-| Validation trajectory | **0.6089 → 0.1807** (4 windows) | Not run | 0.7718 → 0.3133 → 0.2909 → 0.2883 → 0.2882 |
-| Export integrity | **step9/18/27/final + serving: all PASS** | Not run | step40/80/120/final: 410 modules, shapes valid |
+| Validation trajectory | **0.6089 → 0.1807** (4 windows) | RUNNING; pending | 0.7718 → 0.3133 → 0.2909 → 0.2883 → 0.2882 |
+| Export integrity | **step9/18/27/final + serving: all PASS** | Pending verification | step40/80/120/final: 410 modules, shapes valid |
 | Behaviour | Unmeasured | Unmeasured | D: 114/114 empty patches, 0/114 resolved |
 
 S1 has approximately 1.32× S3's training-split input tokens and much less task diversity. Similar optimizer-step counts therefore do not mean matched token exposure, supervised-token exposure or compute. S3's 75% edit-token share from E2 must not be confused with its 12.6% overall supervised-mask density: these use different denominators.
@@ -227,7 +251,7 @@ The historical Step C values above were checked against its preserved report and
 | Step 120 | 0.2883 |
 | End | 0.2882 |
 
-The table provides the actual historical Step C loss trajectory; the measured S3 curve is in §3. S1 has no curve because it was not run. Even eventual lower validation loss across S3 and S1 would not rank their behaviour: validation tasks, targets and token distributions differ. No causal attribution among grounding, compression, reasoning retention, teacher style and dose is possible from configuration inspection alone.
+The table provides the actual historical Step C loss trajectory; the measured S3 curve is in §3. S1 has no curve yet because measured outputs have not been recovered from its running version 1. Even eventual lower validation loss across S3 and S1 would not rank their behaviour: validation tasks, targets and token distributions differ. No causal attribution among grounding, compression, reasoning retention, teacher style and dose is possible from configuration inspection alone.
 
 ## 6. Step 2 — Behaviour Gate
 
@@ -239,7 +263,7 @@ python3 kaggle/eval_l4/make_eval_notebook.py v7_noedit --gate --gate-adapters s1
 .venv/bin/kaggle kernels push -p kaggle/eval_l4/gate_kernel
 ```
 
-The gate would serve the W4A16 base and both final adapters in one scorer-configured vLLM server. Adapter provenance must be established by training version and verified export hashes before use; neither new adapter exists from this workflow. `gate_report.json` was not generated.
+The gate would serve the W4A16 base and both final adapters in one scorer-configured vLLM server. Adapter provenance must be established by training version and verified export hashes before use. S3 final is verified; S1 final is not yet available. `gate_report.json` was not generated.
 
 The verified prefix file SHA-256 is `d07b5ef760aa4dd917800c2eb7641337d62e4b095b9fc26a31583bd4acf95e12`. Direct JSON inspection confirms 30 prefixes. The handoff specifies four samples each: 120 expected responses per model, 360 total. The inspected request uses temperature 0.2, top-p 0.95, top-k 40, `max_tokens=1024`, automatic tool choice and `enable_thinking=False`. This is a one-response diagnostic, not a full task evaluation under v7's normal output allowance.
 
@@ -345,14 +369,14 @@ The small [E1 summary and complete per-episode source manifest](../data/runs/atu
 
 ## 8. GPU Runtime and Quota Accounting
 
-The completed S3 run is the only new GPU experiment. Pre-push quota was **30.00 h total/available, 0 used/reserved** at 02:20:31 IST. The first actual terminal query was at **06:42:27 IST** (`2026-10-18T01:12:27.705660+00:00`), and a later verification at **08:52:04 IST** found the same charge: **3.874829444 quota h used**, **26.125170556 h remaining**, none reserved.
+S3 is the completed experiment with verified accounting below; the separately approved S1 version 1 is now running and its actual quota delta is pending. Pre-push quota was **30.00 h total/available, 0 used/reserved** at 02:20:31 IST. The first actual terminal query was at **06:42:27 IST** (`2026-10-18T01:12:27.705660+00:00`), and a later verification at **08:52:04 IST** found the same charge: **3.874829444 quota h used**, **26.125170556 h remaining**, none reserved.
 
 | Run | Handoff forecast session / quota h | Approved pre-push forecast | Actual execution / quota | Available before → after |
 |---|---|---|---|---|
 | S3 v1 | ~1.4 / ~3.0 | 2.1–2.4 / 4.2–4.8 | **1.937136 notebook-log h / 3.874829 quota h** | **30.000000 → 26.125171 h** |
-| S1 | ~1.7 / ~3.5 | Not authorized | **Not run; 0** | No run-boundary measurement |
+| S1 v1 | ~1.7 / ~3.5 | **2.6–2.9 / 5.2–5.8 approved** | **RUNNING; actual pending** | Pre-push **26.125171 h**; after-run pending |
 | Gate | ~0.6 / ~1.2 | Not authorized | **Not run; 0** | No run-boundary measurement |
-| Total new usage | ~7.7 quota h for original full plan | Only S3 approved | **3.874829 quota h** | **26.125171 h remains** |
+| Cumulative | ~7.7 quota h for original full plan | One S3 and one S1 approved; gate unapproved | **3.874829 verified S3 + S1 pending** | **26.125171 h at S1 pre-push**; terminal remaining pending |
 
 S3 finished below the approved 3 h budget, below the revised 2.1–2.4 h forecast and above the original handoff's 1.4 h estimate. The ratio of billed quota to the notebook's independently recorded elapsed-log duration is **2.000288×**, consistent with historical ~2× billing. This ratio uses a log-duration proxy, not independently verified backend GPU allocation start/end timestamps.
 
@@ -423,17 +447,17 @@ S3 and Step C use different datasets, state preservation, token weights and upda
 
 ## 10. Recommendations and Future Research
 
-**Stop at the completed S3 review.** The authorized run has passed its training/export checks; S1 and the gate require separate user approval. Preserve final S3 and checkpoints without selecting one using unrun evaluation outcomes.
+**S3 review is complete and one S1 run is now separately approved.** Execute only that unchanged run after preflight, then stop before the unapproved gate. Preserve final S3 and checkpoints without selecting one using unrun evaluation outcomes.
 
 | Next action | Evidence required / authorization | Cost status |
 |---|---|---|
 | E1/source-data correction | No correction indicated: 182/182 retained edits passed | Complete, 0 GPU h |
 | S3 training/output review | Complete; final and serving hashes equal | Actual 3.874829 quota h |
-| S1 own-policy control | Separate approval, fresh quota/no-conflict check, unchanged prescribed flags unless explicitly changed | Prior forecast 5.2–5.8 quota h; **unmeasured**, do not launch |
+| S1 own-policy control | Exactly one run separately approved; fresh preflight PASS; unchanged settings | Approved forecast 5.2–5.8 quota h; actual pending |
 | Behaviour gate | Separate approval after required training; full per-type/early/batch/no-call results | Prior forecast ~1.2 quota h; **unmeasured**, do not launch |
 | Data/scheduler improvement | Preserve exact provenance; consider validating all held-out windows and true test feedback in a separately reviewed change | CPU design work only, not performed here |
 
-With current S3 charge and the prior remaining-stage forecasts, the whole sequence would total approximately **10.27–10.87 quota h** before further overhead; that is a planning estimate, not new permission. The account currently retains **26.125171 quota h**. Future approval must cover each >2 h session and the >10 h cumulative threshold as applicable.
+With current S3 charge and the prior remaining-stage forecasts, the whole sequence would total approximately **10.27–10.87 quota h** before further overhead; that is a planning estimate, not new permission. At S1 pre-push, the account retained **26.125171 quota h**; its current and terminal remaining quota must be read afresh. Future approval must cover each >2 h session and the >10 h cumulative threshold as applicable.
 
 The next scientific question is whether S3 improves correctly timed source-edit decisions without premature `early` edits. Reduced loss cannot answer it. Preserve the own-run control and planned gate rather than jumping to task evals, S3-1k, S4, DPO/RL or extra retraining. All such GPU work remains outside this approval.
 
@@ -443,7 +467,7 @@ The next scientific question is whether S3 improves correctly timed source-edit 
 
 The run used **3.874829 quota h**, leaving **26.125171 h**; notebook logs support **1.937136 h** execution duration, within the approved 3 h budget. E1 is **147/147 episode, 182/182 edit PASS**, with no data changes.
 
-This supports feasibility of the compact-data training recipe, not improved coding-agent behaviour. S1 and the behaviour gate were not run. Monitoring is paused after terminal review; no retry, next-stage launch or configuration change is authorized. Prioritize the separately approved control/gate before any claim of behavioural recovery from Step D.
+This supports feasibility of the compact-data training recipe, not improved coding-agent behaviour. S1 was separately approved and submitted exactly once as version 1; its initial status is RUNNING and no S1 result is claimed yet. The S3 monitor remains paused. The behaviour gate, retries, additional runs and configuration changes remain unauthorized. Prioritize the separately approved control/gate before any claim of behavioural recovery from Step D.
 
 ### Evidence and delivery record
 

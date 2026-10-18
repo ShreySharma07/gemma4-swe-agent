@@ -1,5 +1,11 @@
 # Gemma 4 Developer Agent — HQ
 
+## Atul — one approved S1 Own run submitted, October 18
+
+The user separately authorized exactly one S1 Own training run, unchanged handoff settings (`--budget-h 3`, lr 5e-5, 2 epochs, accumulation 2, save every 9), approved estimate **2.6–2.9 session h / 5.2–5.8 quota h**. S3 version 1 remains COMPLETE and all required S3 local checks rerun PASS. Final pre-push quota/status at **12:20:39 IST**: used **3.874829**, available **26.125171 h**, no reservation or conflicting job; S3+S1 upper forecast **9.674829 h**, below 10. S1 data hash, decoded embedded input, compiled notebook, namespace/model/inputs and read access verify; normalized source **507,049 bytes**. Exact S3-based runtime scenarios finish ~2.43–2.52 h, with final training step below the unchanged 156-min cutoff; forecast only, no guaranteed margin.
+
+One push accepted `atulbaliyan/gemma4-train-s1-own` **version 1**; initial status RUNNING. Expected **33 steps**, validation **20/21** windows; actual losses/exports/runtime/quota pending. Monitor `monitor-approved-s1-own-v1` is ACTIVE and its saved **10-minute cadence** was verified. The [same consolidated report](atul_step1a_1b_step2_gate_report_20261018.md) preserves S3/E1 and records S1 preflight. No retry/config change, additional training, gate, paired eval or leaderboard submission is authorized. Stop after S1 review; **Step 2 needs separate approval**.
+
 ## Atul — S3 Compact v1 COMPLETE / training-export PASS, October 18
 
 The sole approved S3 run completed: **rc 0, 35/35 steps, no budget stop**, validation **0.6089→0.1807**. All step9/18/27/final exports and serving copy pass **410-module / 820 BF16 rank-16** integrity checks. Final/serving SHA-256 `74c041da7cc4540d617463e769173942db80a5d2c60b2ba615c4afc38c616caa`. Exact input hash, 12 downloaded source modules and remote notebook cell sources match submission. Median throughput **299.3 tok/s**, global peak **18.86 GiB**, 1,409,618 input tokens; model load 1,879 s. E1 remains **147/147 episodes, 182/182 edits PASS**. This is training/export success; **behaviour untested**. Validation covers only **4/7 held-out windows** with two measurement points; gradient spikes and non-fatal warnings are documented in the [one consolidated report](atul_step1a_1b_step2_gate_report_20261018.md), including a measured loss figure.
