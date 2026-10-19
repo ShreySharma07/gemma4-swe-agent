@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Atul — v14 new-60 version 3 submitted once, October 19
+
+Latest fetched main `e58197c` already matches the clean feature branch; stashes/recovery/results preserved. One separately authorized `v14_thinking` evaluation pushed successfully to `atulbaliyan/check-l4` **version3**, initially RUNNING, remote cells match immutable source. No LoRA, thinking4096, 8min/28calls/240s commands/80turns, budget7.5h/watchdog nominal7.75h. All inputs accessible; recovered exact v7 baseline **23/60**, same60IDs. Pre-push **21.078186 quota h available**,0reserved; approved4.5–6sessionh/9–12quotah, upper15.5quotah, exception to prior limits. Ledger updated before push. Native monitor ACTIVE/saved15min; notify Atul for manual cancellation if stillRUNNING after22:04UTC. Results pending; no retry/additional GPU/LB work. [Configuration, evidence and pending comparison](atul_v14_new60_report_20261019.md).
+
 ## Atul — Step 2 COMPLETE; both adapters FAIL, October 18
 
 One unchanged `atulbaliyan/gemma4-gate` version 1 completed with **rc 0, serving PASS and 360/360 expected responses**. Both actual copied adapter hashes match the approved training finals; remote source, all 14 modules and frozen prompt/tools/prefixes verify. Base **74/120 (61.67%)**, S1 **63/120 (52.50%)**, S3 **66/120 (55.00%)**; edits at file_in_view **24/32,19/32,21/32**. Both miss both comparative thresholds, despite zero batching/request errors. No missing/extra/invalid report rows; no-call counts 4/1/5. **S1 FAIL; S3 FAIL.**
