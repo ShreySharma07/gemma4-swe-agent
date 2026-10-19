@@ -61,7 +61,9 @@ class ChunkedEvaluation:
         chunk = self.ids[start:start + self.s.chunk_size]
         t = time.time()
         try:
-            res = asyncio.run(Evaluator(self.config(chunk, self.root / f"rep{rep}" / f"chunk_{start:03d}")).run())
+            res = asyncio.run(asyncio.wait_for(
+                Evaluator(self.config(chunk, self.root / f"rep{rep}" / f"chunk_{start:03d}")).run(),
+                timeout=self.s.chunk_timeout_min * 60))
             log(f"rep {rep} chunk {start // self.s.chunk_size}: {repr(res)[:300]} ({(time.time() - t) / 60:.1f} min)")
         except Exception as e:  # noqa: BLE001
             log(f"rep {rep} chunk {start // self.s.chunk_size} FAILED: {type(e).__name__}: {e}")

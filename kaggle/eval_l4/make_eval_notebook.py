@@ -74,14 +74,31 @@ ScorerEnv().prepare(gpus={not a.preflight})"""),
         md("## 5. " + ("Preflight\nGold patches through the official Evaluator with a fake agent (no model)."
                       if a.preflight else
                       "Evaluate\nRuns inside the venv (vLLM + Evaluator); output is streamed here and to `run.log`.")),
-        code(f"""import subprocess
+        code(f"""import subprocess, threading, time, glob
 proc = subprocess.Popen(["/tmp/scorer_host/bin/python", "-m", "evalkit.{step}"], cwd="/kaggle/working",
                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+# hard stop: the in-run budget only stops NEW chunks, so a hang could run to Kaggle's 12 h cap (Oct 18: ~21 quota h lost)
+deadline = EVAL_CFG["t0"] + (EVAL_CFG["session_budget_h"] + 0.25) * 3600
+killed = []
+def _watchdog():
+    while proc.poll() is None:
+        if time.time() > deadline:
+            print("WATCHDOG: session budget exceeded, killing the evaluator", flush=True)
+            killed.append(1)
+            proc.kill()
+            return
+        time.sleep(30)
+threading.Thread(target=_watchdog, daemon=True).start()
 for line in proc.stdout:
     print(line, end="", flush=True)
-print("exit code", proc.wait())"""),
+print("exit code", proc.wait())
+if killed:  # keep whatever finished: traces and results of completed chunks
+    subprocess.run("tar czf /kaggle/working/partial_eval.tgz -C /kaggle/working $(ls -d eval_* 2>/dev/null | grep -v tgz) run.log",
+                   shell=True)"""),
         md("## 6. Results"),
-        code(f"""print(open("/kaggle/working/{result}").read()[:20000])"""),
+        code(f"""import os
+p = "/kaggle/working/{result}"
+print(open(p).read()[:20000] if os.path.exists(p) else "no result file (see WATCHDOG / run.log)")"""),
     ]
 
 
