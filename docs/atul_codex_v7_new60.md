@@ -1,3 +1,5 @@
+> **OBSOLETE (Oct 19, 04:30 UTC): do not run.** The v7 arm on Shrey's account was not hung; it waited ~9.5 h in Kaggle's queue (the S3b arm held the account's 4×L4 slot) and then completed in 2.2 h: **v7 23/60**. Result in `data/runs/eval_v7_new60/`.
+
 Shrey asks you (Atul) to run ONE GPU job: the v7 arm of the Step 3 paired eval. Shrey's quota is used up.
 
 Why: v7 + S3b (`submissions/v12_s3b`) already ran on the 60 new tasks on Shrey's account: **9/60 solved**, 77% empty patches, 23% context overflows, 47% repeated identical calls (`data/runs/eval_s3b_new60/`). The fresh v7 arm on the same 60 tasks hung on Shrey's account: it ran ~10.5 session-h (~21 quota-h) with an empty log, and used up his quota. We need v7's number on the same tasks to judge S3b.
