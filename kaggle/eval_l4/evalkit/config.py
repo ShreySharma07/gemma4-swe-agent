@@ -24,7 +24,7 @@ class Settings:
     max_tasks: int | None = None      # cap the task list (shakedown runs)
     seed: int = 0
     chunk_size: int = 8
-    chunk_timeout_min: float = 60     # a chunk of 8 tasks takes 8-16 min; abandon it after this (hung v7 arm, Oct 18)
+    chunk_timeout_min: float = 60     # floor; the runner raises it to chunk_size x (task max_time + 3 min) (Oct 19)
     session_budget_h: float = 10.5    # stop scheduling chunks after this; the session cap is 12 h
     est_task_min: float = 5.5         # 4.5 min agent budget + setup/verification
     repeats: int = 1                  # >1: run the list again (rep-major) -> pass@k, trajectories for rejection sampling

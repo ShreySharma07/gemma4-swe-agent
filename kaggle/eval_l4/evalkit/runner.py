@@ -56,6 +56,10 @@ class ChunkedEvaluation:
                                                             token_threshold=32768, event_retention_size=5),
             task_ids=chunk, concurrency=1, display_mode="quiet", verbose=False)
 
+    def task_min(self):
+        """The submission's per-task agent time limit (eval_config.yaml max_time_minutes)."""
+        return float(self.budget.get("max_time_minutes") or 4.5)
+
     def run_chunk(self, rep, start):
         from swegemma.evaluate import Evaluator
         chunk = self.ids[start:start + self.s.chunk_size]
@@ -63,7 +67,7 @@ class ChunkedEvaluation:
         try:
             res = asyncio.run(asyncio.wait_for(
                 Evaluator(self.config(chunk, self.root / f"rep{rep}" / f"chunk_{start:03d}")).run(),
-                timeout=self.s.chunk_timeout_min * 60))
+                timeout=max(self.s.chunk_timeout_min, len(chunk) * (self.task_min() + 3)) * 60))
             log(f"rep {rep} chunk {start // self.s.chunk_size}: {repr(res)[:300]} ({(time.time() - t) / 60:.1f} min)")
         except Exception as e:  # noqa: BLE001
             log(f"rep {rep} chunk {start // self.s.chunk_size} FAILED: {type(e).__name__}: {e}")
@@ -89,7 +93,7 @@ class ChunkedEvaluation:
         for rep in range(self.s.repeats):
             for start in range(0, len(self.ids), self.s.chunk_size):
                 n = len(self.ids[start:start + self.s.chunk_size])
-                if self.s.hours_left() < n * self.s.est_task_min / 60:
+                if self.s.hours_left() < n * max(self.s.est_task_min, self.task_min() + 1) / 60:
                     log(f"STOP: {self.s.hours_left():.2f} h left (rep {rep}, task {start})")
                     return
                 self.run_chunk(rep, start)
