@@ -1,8 +1,10 @@
 # Gemma 4 Developer Agent — HQ
 
-## Atul — v14 new-60 version 3 submitted once, October 19
+## Atul — v14 new-60 v3 COMPLETE;30/60 vs v7 23/60, October 19 UTC
 
-Latest fetched main `e58197c` already matches the clean feature branch; stashes/recovery/results preserved. One separately authorized `v14_thinking` evaluation pushed successfully to `atulbaliyan/check-l4` **version3**, initially RUNNING, remote cells match immutable source. No LoRA, thinking4096, 8min/28calls/240s commands/80turns, budget7.5h/watchdog nominal7.75h. All inputs accessible; recovered exact v7 baseline **23/60**, same60IDs. Pre-push **21.078186 quota h available**,0reserved; approved4.5–6sessionh/9–12quotah, upper15.5quotah, exception to prior limits. Ledger updated before push. Native monitor ACTIVE/saved15min; notify Atul for manual cancellation if stillRUNNING after22:04UTC. Results pending; no retry/additional GPU/LB work. [Configuration, evidence and pending comparison](atul_v14_new60_report_20261019.md).
+Exactly one authorized unchanged evaluation completed with **rc0,60/60 tasks,30resolved**. Paired v7: **22both/8v14-only/1v7-only/29neither**, net+7 (+11.67pp), exact McNemar p0.0390625. Source/version3/noLoRA/provenance and all38outputs verified. Empty patches25→8.3%, repeats28.8→6.5%, median calls29→24; overflow3.3→13.3% (8actual context errors). Budget metric0% coexists with10denied tool events across8tasks;4shared wrapt collection failures remain in60denominator. Changes bundle thinking/prompt/budgets; no thinking-only or hidden-LB causal claim.
+
+**4.020013 notebook-log h /8.040502 account quota h**, remaining **13.037684h**. All8chunks complete, no watchdog/timeout; exact backend boundaries unavailable. Saved15min monitor, actual gaps4.949–23.540min; monitor PAUSED after review. [Report, paired IDs, full metrics, warnings and quota ledger](atul_v14_new60_report_20261019.md). Only permitted small results/docs are committed. **STOP: no retry, further evaluation/training or leaderboard work.** Prior S3/S1/gate findings and recovery/stashes preserved.
 
 ## Atul — Step 2 COMPLETE; both adapters FAIL, October 18
 
