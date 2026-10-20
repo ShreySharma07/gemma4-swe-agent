@@ -1,5 +1,11 @@
 # Gemma 4 Developer Agent — HQ
 
+## Atul — v14 new-60 v3 COMPLETE;30/60 vs v7 23/60, October 19 UTC
+
+Exactly one authorized unchanged evaluation completed with **rc0,60/60 tasks,30resolved**. Paired v7: **22both/8v14-only/1v7-only/29neither**, net+7 (+11.67pp), exact McNemar p0.0390625. Source/version3/noLoRA/provenance and all38outputs verified. Empty patches25→8.3%, repeats28.8→6.5%, median calls29→24; overflow3.3→13.3% (8actual context errors). Budget metric0% coexists with10denied tool events across8tasks;4shared wrapt collection failures remain in60denominator. Changes bundle thinking/prompt/budgets; no thinking-only or hidden-LB causal claim.
+
+**4.020013 notebook-log h /8.040502 account quota h**, remaining **13.037684h**. All8chunks complete, no watchdog/timeout; exact backend boundaries unavailable. Saved15min monitor, actual gaps4.949–23.540min; monitor PAUSED after review. [Report, paired IDs, full metrics, warnings and quota ledger](atul_v14_new60_report_20261019.md). Only permitted small results/docs are committed. **STOP: no retry, further evaluation/training or leaderboard work.** Prior S3/S1/gate findings and recovery/stashes preserved.
+
 ## Atul — Step 2 COMPLETE; both adapters FAIL, October 18
 
 One unchanged `atulbaliyan/gemma4-gate` version 1 completed with **rc 0, serving PASS and 360/360 expected responses**. Both actual copied adapter hashes match the approved training finals; remote source, all 14 modules and frozen prompt/tools/prefixes verify. Base **74/120 (61.67%)**, S1 **63/120 (52.50%)**, S3 **66/120 (55.00%)**; edits at file_in_view **24/32,19/32,21/32**. Both miss both comparative thresholds, despite zero batching/request errors. No missing/extra/invalid report rows; no-call counts 4/1/5. **S1 FAIL; S3 FAIL.**
