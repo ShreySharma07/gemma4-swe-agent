@@ -1,3 +1,5 @@
+> **NOT NEEDED (Oct 22):** Shrey is running v16 on his own account (`shreysharma07/gemma4-eval-v16-new60`). Do not run this.
+
 Shrey asks you (Atul) to run ONE GPU job: **v16 on the 60 new tasks**, the same protocol as your v14 run (`docs/atul_v14_new60_report_20261019.md`). (The earlier v15/v15b request is withdrawn: v15b scored 0.08 on the LB vs v14 0.17, so we are not pursuing that prompt.)
 
 Why: v14 (thinking on) is our base (local 30/60, LB 0.17). 8 of its 60 local tasks hit the context limit. In those 8 tasks tool output averaged 47k chars/task vs 20k in the others, and 44% of it was `cat` of whole files (~5k chars each), plus unbounded `grep -r`. `submissions/v16_small_output` = v14 + ONE prompt section, "Keep Tool Output Small": never `cat` source/test files (grep -n | head, then sed -n ≤80 lines), always bound searches with `| head -n 20`, pipe long output through `| tail -n 40`. Sampling (max_output_tokens 8192, thinking 4096), tools and budgets (8 min / 28 calls / 240 s / 80 turns) are identical to v14, so v16 vs v14 on the same 60 tasks measures this one change.
