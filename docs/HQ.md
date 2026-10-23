@@ -370,3 +370,9 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 ### Publication clarification — October 16, 2026
 
 The planning notes above and in the training guide are retained as historical context. The subsequently completed Step D run resolved **0/114 tasks**, with **114 empty patches**. D0 was **not run** because the last measured remaining quota was approximately **2.88 quota-hours**, below its launch gate. The completed diagnosis and research recommendations above supersede earlier pending-evaluation status for this run; they do not authorize another evaluation or training job. This documentation branch preserves Shrey's latest upstream work and leaves the training guide unchanged.
+
+## Literature gap survey — October 22, 2026
+- Four parallel surveys (code-graph construction/embedding, code graphs in SWE agents, LLM graph reasoning, citation audit) → `research_deliverables/gaps_2026-10-22.md`, raw notes in `research_deliverables/surveys_2026-10-22/`.
+- **Citation audit:** `research_deliverables/literature_review.md` + `references.bib` have invented authors on ~20 rows, 6 wrong arXiv IDs, 1 non-existent paper and several unsupported numbers — do not cite until fixed. `docs/literature_2025_2026.md` mostly verified; its Gap 4 evidence (CodeAnchor/SHERLOC) is mischaracterised.
+- SchrödingerRepo (2609.27891): renaming drop vanishes on post-cutoff tasks ⇒ renaming does isolate memorisation; revisit the Oct 7 decision to drop the renamed dev set.
+
