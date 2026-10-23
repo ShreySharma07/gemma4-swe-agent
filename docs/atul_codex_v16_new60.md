@@ -1,4 +1,4 @@
-> **NOT NEEDED (Oct 22):** Shrey is running v16 on his own account (`shreysharma07/gemma4-eval-v16-new60`). Do not run this.
+> **ACTIVE again (Oct 23): please run this.** Shrey's attempt (`shreysharma07/gemma4-eval-v16-new60`, pushed Oct 22 18:12 UTC) ended in ERROR with an empty log before any code ran (likely his GPU quota), so the run moves to your account.
 
 Shrey asks you (Atul) to run ONE GPU job: **v16 on the 60 new tasks**, the same protocol as your v14 run (`docs/atul_v14_new60_report_20261019.md`). (The earlier v15/v15b request is withdrawn: v15b scored 0.08 on the LB vs v14 0.17, so we are not pursuing that prompt.)
 
