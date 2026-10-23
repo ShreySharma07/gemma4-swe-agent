@@ -4,6 +4,13 @@
 
 > **A1 result (Oct 23):** the pre-registered prediction failed. After controlling for gold patch size, "multi-file" is no longer significant (pooled OR 0.32, CI 0.04–2.54, p = 0.21); patch size is (OR 0.47 per log line, p = 0.046). 15/17 multi-file new-60 tasks are in the largest size tercile, so the two are nearly collinear. §3 now frames the gap as **large changes**, with multi-site as one aspect that cannot be separated in these data. A4 (completion counterfactual) is now the analysis that decides whether "not finished" is the right word.
 
+> **A3/A4 result (Oct 23):** the pre-registered predictions failed and the decision rule fired.
+> - **Completion rarely rescues a partial patch.** Adding the gold edits the agent missed resolves 6/26 partial patches (23%), on just 2 of 13 distinct tasks.
+> - **Pure incompleteness is rare.** Only 1/13 tasks fits it (rich_3052). In most partial patches the agent's *own* edits are wrong as well.
+> - **The paper therefore drops "not finished" as the explanation.** Working title becomes ***Found, Not Fixed***: localisation is saturated, failure grows with change size, and neither completion nor structure-derived hints account for it.
+> - **Multi-site fixes are common.** 19/60 new-60 tasks need ≥2 test-necessary function groups.
+> - **Next:** §3 and the claims ledger must be rewritten around "wrong edits at the right site" (cf. 2610.25826: a cause description beats location).
+
 **Constraints:**
 - Kaggle paper track, ≤3,000 words.
 - Experiment freeze Nov 5; due Nov 12.
@@ -186,7 +193,7 @@ The paper may state only claims marked "supported".
 | The agent sees the gold file in nearly all failures | Supported | v14 29/30 |
 | Multi-site tasks resolve far less often | **Raw gap supported; not separable from patch size** (A1) | Raw Fisher p = 0.003 / 0.001; size-controlled OR 0.32 [0.04, 2.54]. Say "large, multi-site changes", never "because multi-site" |
 | Larger gold patches resolve less often | Supported (A1) | Pooled OR 0.47 per log line, p = 0.046 |
-| Failures are incompleteness, not wrong diagnosis | **Plausible, not shown** | A4 (completion counterfactual) decides |
+| Failures are incompleteness, not wrong diagnosis | **Rejected** (A4: completion 6/26 cases, 2/13 tasks) | A4 (completion counterfactual) decides |
 | Thinking does not close the gap | Weakly supported | +5 vs +2, bundled changes; say "did not close", not "cannot" |
 | Necessary co-changes are mostly not call edges | Supported on 7 tasks | Extend with A3/A5 |
 | Structural frontiers do not recover co-changes better than lexical ones | Supported (E0b, pre-registered) | Caveat: co-change label |
@@ -202,8 +209,8 @@ Ordered by priority. CPU = local or Kaggle CPU, no GPU quota. "Local" = runnable
 | ID | Analysis | Why it matters | Data / instrument | Compute | Priority |
 |---|---|---|---|---|---|
 | **A1 ✓ done Oct 23** | Confound control: resolve ~ multi-site + gold size (lines, hunks, functions) + issue length + repo, as a logistic regression with a repo-cluster bootstrap; also matched pairs of single/multi tasks of similar size | Without it, "multi-site is the problem" could just be "big patches are hard" | per_task.jsonl (local); gold patches for new-60 (Kaggle task dataset, download once) | CPU, local, <1 h | **P0** |
-| **A3** | Run the exec-graph instrument (empty / gold / LOO) on **new-60** with the test overlays (`evalkit/overlays.py`) | Test-necessity labels for 60 more tasks; multi-necessary n goes from 7 to ~20; Table 1 last row | `kaggle/exec_graph/build_exec_graphs.py`, extended to the overlay env + new-60 list | Kaggle CPU, ~2–4 h | **P0** |
-| **A4** | Completion counterfactual: for every partial patch (v7, v14, rs ×5), apply agent patch + gold hunks of only the *missed* necessary groups and run fail-to-pass | Turns "partial coverage" into "the agent's part was right; it just didn't finish" (or refutes it) | New mode `agent+missing` in the instrument; agent patches are local | Kaggle CPU, ~1–2 h (same kernel as A3) | **P0** |
+| **A3 ✓ done Oct 23** | Run the exec-graph instrument (empty / gold / LOO) on **new-60** with the test overlays (`evalkit/overlays.py`) | Test-necessity labels for 60 more tasks; multi-necessary n goes from 7 to ~20; Table 1 last row | `kaggle/exec_graph/build_exec_graphs.py`, extended to the overlay env + new-60 list | Kaggle CPU, ~2–4 h | **P0** |
+| **A4 ✓ done Oct 23** | Completion counterfactual: for every partial patch (v7, v14, rs ×5), apply agent patch + gold hunks of only the *missed* necessary groups and run fail-to-pass | Turns "partial coverage" into "the agent's part was right; it just didn't finish" (or refutes it) | New mode `agent+missing` in the instrument; agent patches are local | Kaggle CPU, ~1–2 h (same kernel as A3) | **P0** |
 | **A2** | Funnel at line and function level per stratum (seen lines, seen gold function, edited each necessary group) | Fig. 1 | trace_analyzer fields + necessity labels | CPU, local | P1 |
 | **A6** | For each missed necessary site: did the agent ever view it (grep/sed/cat hits in traces) before submitting? | Splits completion failures into "never looked" (search) vs "looked, didn't edit" (conversion) | Traces in run tgz (local, extract into `data/runs/<id>/`) | CPU, local, ~2 h | P1 |
 | **A7** | Budget at submit for partial patches: calls left, prompt tokens, time; submitted explicitly vs ran out | Premature submit vs budget exhaustion | per_task + traces (local) | CPU, local | P1 |
