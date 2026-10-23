@@ -2,6 +2,8 @@
 
 **Status:** Oct 23, 2026. This outline replaces `paper_outline.md` (EBST). The thesis's method claim (the obligation frontier) failed both pre-registered gates, E0a and E0b, so this paper is the planned fallback in §8 of `thesis_found_not_finished.md`. It is an analysis paper with one pre-registered negative result.
 
+> **A1 result (Oct 23):** the pre-registered prediction failed. After controlling for gold patch size, "multi-file" is no longer significant (pooled OR 0.32, CI 0.04–2.54, p = 0.21); patch size is (OR 0.47 per log line, p = 0.046). 15/17 multi-file new-60 tasks are in the largest size tercile, so the two are nearly collinear. §3 now frames the gap as **large changes**, with multi-site as one aspect that cannot be separated in these data. A4 (completion counterfactual) is now the analysis that decides whether "not finished" is the right word.
+
 **Constraints:**
 - Kaggle paper track, ≤3,000 words.
 - Experiment freeze Nov 5; due Nov 12.
@@ -182,7 +184,8 @@ The paper may state only claims marked "supported".
 | Claim | Status | Evidence / needed |
 |---|---|---|
 | The agent sees the gold file in nearly all failures | Supported | v14 29/30 |
-| Multi-site tasks resolve far less often | Supported, confound open | Fisher p = 0.003 / 0.001; A1 needed before saying "because multi-site" |
+| Multi-site tasks resolve far less often | **Raw gap supported; not separable from patch size** (A1) | Raw Fisher p = 0.003 / 0.001; size-controlled OR 0.32 [0.04, 2.54]. Say "large, multi-site changes", never "because multi-site" |
+| Larger gold patches resolve less often | Supported (A1) | Pooled OR 0.47 per log line, p = 0.046 |
 | Failures are incompleteness, not wrong diagnosis | **Plausible, not shown** | A4 (completion counterfactual) decides |
 | Thinking does not close the gap | Weakly supported | +5 vs +2, bundled changes; say "did not close", not "cannot" |
 | Necessary co-changes are mostly not call edges | Supported on 7 tasks | Extend with A3/A5 |
@@ -198,7 +201,7 @@ Ordered by priority. CPU = local or Kaggle CPU, no GPU quota. "Local" = runnable
 
 | ID | Analysis | Why it matters | Data / instrument | Compute | Priority |
 |---|---|---|---|---|---|
-| **A1** | Confound control: resolve ~ multi-site + gold size (lines, hunks, functions) + issue length + repo, as a logistic regression with a repo-cluster bootstrap; also matched pairs of single/multi tasks of similar size | Without it, "multi-site is the problem" could just be "big patches are hard" | per_task.jsonl (local); gold patches for new-60 (Kaggle task dataset, download once) | CPU, local, <1 h | **P0** |
+| **A1 ✓ done Oct 23** | Confound control: resolve ~ multi-site + gold size (lines, hunks, functions) + issue length + repo, as a logistic regression with a repo-cluster bootstrap; also matched pairs of single/multi tasks of similar size | Without it, "multi-site is the problem" could just be "big patches are hard" | per_task.jsonl (local); gold patches for new-60 (Kaggle task dataset, download once) | CPU, local, <1 h | **P0** |
 | **A3** | Run the exec-graph instrument (empty / gold / LOO) on **new-60** with the test overlays (`evalkit/overlays.py`) | Test-necessity labels for 60 more tasks; multi-necessary n goes from 7 to ~20; Table 1 last row | `kaggle/exec_graph/build_exec_graphs.py`, extended to the overlay env + new-60 list | Kaggle CPU, ~2–4 h | **P0** |
 | **A4** | Completion counterfactual: for every partial patch (v7, v14, rs ×5), apply agent patch + gold hunks of only the *missed* necessary groups and run fail-to-pass | Turns "partial coverage" into "the agent's part was right; it just didn't finish" (or refutes it) | New mode `agent+missing` in the instrument; agent patches are local | Kaggle CPU, ~1–2 h (same kernel as A3) | **P0** |
 | **A2** | Funnel at line and function level per stratum (seen lines, seen gold function, edited each necessary group) | Fig. 1 | trace_analyzer fields + necessity labels | CPU, local | P1 |
