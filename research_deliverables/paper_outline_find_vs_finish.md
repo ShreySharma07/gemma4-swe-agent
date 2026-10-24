@@ -2,6 +2,15 @@
 
 **Status:** Oct 24, 2026. This outline replaces `paper_outline.md` (EBST). It is an analysis paper with pre-registered negative results. The thesis's method claim, the obligation frontier, failed both pre-registered gates (E0a, E0b). The fallback framing "found, not finished" was then tested and rejected by its own pre-registered checks (A1, A4). This version is rewritten around what survived.
 
+**Review edits (Oct 24):**
+- C1 narrowed to *sees* (exposure). 9 of the 30 failures saw a gold file and edited elsewhere, which is a separate finding.
+- C6 narrowed: A4 bounds patching the agent's *final* patch, not every in-run completion aid.
+- A12 hardened against wrong-vs-incompatible (pre-registered in `docs/experiments.md`).
+- Wilson 95% CIs added.
+- Pre-registration commit hashes added (§2).
+- The thinking result (v7 → v14, p = 0.039) is now stated in §3.5.
+- Deadline conflict flagged (§6).
+
 **What changed on Oct 23–24:**
 - **A1:** the multi-file gap is not separable from patch size. Size carries it: OR 0.47 per log line (p = 0.046). For multi-file the OR is 0.32 with CI 0.04–2.54.
 - **A3:** 19/60 new-60 tasks need ≥2 test-necessary function groups.
@@ -9,7 +18,7 @@
 
 **Constraints:**
 - Kaggle paper track, ≤3,000 words.
-- Experiment freeze Nov 5; due Nov 12.
+- Experiment freeze Nov 5; due Nov 12. **Conflict:** Shrey's target is to submit by **Nov 2** (freeze ~Oct 28). See §6.
 - **All remaining analyses run on Kaggle CPU kernels, not locally** (Shrey, Oct 23).
 - Every number names its source. **NEEDED** rows link to §5.
 
@@ -17,14 +26,14 @@
 
 ## 1. Working title and claim
 
-**Title:** *Found, Not Fixed: a small code agent reaches the code it must change, but its edits there are wrong, increasingly so as the change grows. Completing the patch or giving it code structure does not fix that.*
+**Title:** *Found, Not Fixed: a small code agent sees the code it must change, but its edits are wrong, increasingly so as the change grows. Completing its patch or giving it code structure does not fix that.*
 
-**One-sentence claim.** On the competition's own stack (Gemma-4-31B W4A16, 32k context, no compaction), the agent almost always reaches the code that must change. Its resolve rate falls with the size of the required change. When it edits part of a multi-site fix, supplying the missing parts rarely rescues the patch: 2/13 tasks. So the failure is mostly *wrong edits at the right place*, not unfinished ones. Structure-derived hints about co-changes do no better than lexical similarity.
+**One-sentence claim.** On the competition's own stack (Gemma-4-31B W4A16, 32k context, no compaction), the agent almost always *sees* the code that must change (gold-file exposure 98%), yet a third of its failures edit somewhere else. Its resolve rate falls with the size of the required change. When it edits part of a multi-site fix, adding the missing gold edits to its final patch rarely rescues it: 2/13 tasks (95% CI 4–42%). So the failure is mostly *wrong edits at the right place*, not unfinished ones. Structure-derived hints about co-changes do no better than lexical similarity.
 
 **Why it is worth a paper.** On a small open model, with pre-registered tests that were allowed to fail (and several did):
-1. **Localisation is saturated.** This replicates 2610.25826 on a new model and stack.
+1. **Exposure is saturated, editing location is not.** The agent sees a gold file in 29/30 failures (replicating 2610.25826 on a new model and stack), but 9 of those failures edit elsewhere.
 2. **Failure grows with change size, not with the number of sites per se** (A1).
-3. **An oracle completion bound** (A4, new). Even perfectly supplying the edits an agent skipped rescues at most 2/13 of its partial multi-site patches. That caps what any completion or co-change hint, structural or lexical, can buy. It explains why our obligation frontier could not have paid off end to end.
+3. **An oracle completion bound** (A4, new). Adding the correct missing edits to the agent's final partial multi-site patch rescues 2/13 tasks (CI 4–42%). This bounds *post-hoc completion of a frozen patch*. An in-run aid could also change the edits the agent did make, so it is not a bound on every aid. It is still strong evidence that missing sites are not the main failure.
 4. **A pre-registered negative result for structural co-change recovery** (E0a/E0b). Lexical similarity beats typed graph frontiers on 120 external repos.
 
 ---
@@ -54,14 +63,14 @@
 
 ### §2 Setup (250 words)
 
-**Model and serving:** Gemma-4-31B-it QAT W4A16, vLLM 0.19.1 TP=4 on 4×L4, the scorer harness (`run_official_l4.py` / evalkit), 32k context, no compaction.
+**Model and serving:** Gemma-4-31B-it QAT W4A16, vLLM 0.19.1 TP=4 on 4×L4, the scorer harness (`kaggle/eval_l4/evalkit/`), 32k context, no compaction.
 
 **Agents.** Each agent is one config; we describe what it does, not the ablation history:
 
 | Agent | What it is | LB |
 |---|---|---|
 | v7 | `edit_file` removed; edits through Python in `run_command` | 0.15 |
-| v14 | v7 plus thinking and budget changes | 0.17 |
+| v14 | v7 plus thinking (4,096), budgets (8 min / 28 calls / 240 s) and v13's one-line `submit_patch` prompt fix | 0.17 |
 
 **Task sets:**
 
@@ -76,7 +85,17 @@ All are gold-verified (gold passes, empty fails). Public repos are a limitation 
 - **Gold files/functions** from trace_analyzer.
 - **Test-necessary function groups.** Each gold hunk is mapped to its innermost enclosing function. A group is necessary if gold minus that group fails the fail-to-pass tests. Sources: old-54 from the exec-graph instrument, new-60 from A3.
 
-**Pre-registration.** Every analysis in §3–§4 has a pre-registered row in `docs/experiments.md` with a prediction, written before running. We report which predictions failed.
+**Pre-registration.** Every analysis in §3–§4 has a pre-registered row in `docs/experiments.md` with a prediction, written before running. We report which predictions failed. Git evidence:
+
+| Analysis | Pre-registration commit | Result commit | Verifiable from git? |
+|---|---|---|---|
+| A1 | `e7f559f` | `9d99618` | yes |
+| A3/A4 | `62e4068` | `7beef0e` | yes |
+| E0a | `e8e9db3` (same commit as the result) | `e8e9db3` | **no**: disclose |
+| E0b | `672bc30` (same commit as the result) | `672bc30` | **no**: disclose |
+| A12, A13 | to be committed before their kernels run | — | must be yes |
+
+For E0a/E0b, state plainly that the prediction and result were committed together, so the order rests on our word. Do not call them "pre-registered" without that caveat.
 
 ### §3 Found, not fixed (850 words). The core
 
@@ -86,9 +105,10 @@ All are gold-verified (gold passes, empty fails). Public repos are a limitation 
 |---|---|---|
 | Gold-file exposure, all tasks | 98.3% | v14 report |
 | Gold-line exposure, all tasks | 91.7% | v14 report |
-| Failed tasks that saw a gold file | 29/30 | `find_vs_finish.py` |
+| Failed tasks that saw a gold file | 29/30 (CI 83–99%) | `find_vs_finish.py` |
 
 - **Replication:** this matches 2610.25826 (88.6–99.4%). State it as a replication, not a finding.
+- **Wording:** "sees", not "reaches" or "localises". Exposure means a gold file appeared in a tool output, not that the agent acted on it.
 - **How the 30 failures break down:**
 
 | Failure | Tasks |
@@ -98,7 +118,7 @@ All are gold-verified (gold passes, empty fails). Public repos are a limitation 
 | Empty patch | 5 |
 | Covered all gold sites, still wrong | 1 |
 
-These are heuristic labels; §3.3 tests what they mean.
+These are heuristic labels; §3.3 tests what they mean. **The 9 "saw a gold file, edited elsewhere" cases are a finding in their own right:** about a third of failures are wrong-location edits despite exposure. Report them beside the "wrong at the right site" cases (§3.4), not folded into "found".
 
 **§3.2 Not fixed, and worse for larger changes (RQ2, ~250 words).**
 
@@ -138,21 +158,36 @@ These are heuristic labels; §3.3 tests what they mean.
 | Outcome | Cases (of 26) | Distinct tasks (of 13) |
 |---|---|---|
 | (a) agent alone resolves | 0 | 0 |
-| (b) completion resolves | 6 (23%) | 2 |
+| (b) completion resolves | 6 (23%; CI 11–42%) | 2 (CI 4–42%) |
 | (c) missed-only resolves | 3 | 2 |
-| **Pure incompleteness**: (b) passes and (c) fails | 5 (19%) | **1** (rich_3052, all 5 reps) |
+| **Pure incompleteness**: (b) passes and (c) fails | 5 (19%; CI 9–38%) | **1** (rich_3052, all 5 reps; CI 1–33%) |
 
 - **Restricted** to cases that missed a test-necessary group: completion 6/20, pure 5/20.
 - **On 2 tasks (rich_3782, rich_4070) the agent's own edits were not needed:** the missed gold hunks pass alone.
-- **Reading.** Supplying the *correct* missing edits is an upper bound on any completion aid: structural frontier, lexical co-change hint, or a second-pass "check callers" prompt. That bound is 2/13 tasks. The binding failure is the content of the edits the agent did make.
+- **Reading.** Supplying the *correct* missing edits to the agent's final patch is an upper bound on **post-hoc completion** of that patch: 2/13 tasks. It is **not** a bound on in-run aids (a structural frontier, a lexical co-change hint, a "check callers" prompt), because those can also change the edits the agent made. What it does show is that coverage is rarely what separates these patches from passing. The content of the edits the agent did make is the binding failure.
+- **Cases are correlated:** 15 of the 26 come from v7's 5 repeats. Headline the task-level numbers.
 - **Predictions that failed:** completion ≥ 50%, pure ≥ 35%. The pre-registered decision rule fired (completion < 30%).
 
-**§3.4 Wrong at the right site? (RQ3 continued, ~100 words). NEEDED: A12.**
+**§3.4 Wrong at the right site? (RQ3 continued, ~100 words). NEEDED: A12** (pre-registered in `docs/experiments.md`).
 - **Design:** the mirror counterfactual. Take the gold patch, but replace one group's gold hunks with the agent's own edits to that group.
-- **Reading:** if it fails, the agent's edit at that site is wrong even with everything else correct.
-- **What it gives:** per-site "wrong at the right site" rates. This directly tests the paper's claim instead of inferring it from A4.
+- **The trap:** an agent edit that is right *for its own other edits* (a renamed parameter, a helper added elsewhere) can fail next to gold's other hunks without being wrong. So the swap separates three outcomes:
+  - **conflict:** the swap does not apply or does not import;
+  - **coupled:** the agent's edit references names that exist only in its own edits outside the group;
+  - **clean:** neither of those.
+- **Primary claim only on clean swaps** of test-necessary groups. Single-group tasks are the cleanest stratum.
+- **Reading:** a clean swap that fails means the agent's edit at that site is wrong even with everything else correct.
+- **What it gives:** per-site "wrong at the right site" rates, which test the paper's claim directly instead of inferring it from A4.
 
-**§3.5 Reasoning and sampling (RQ4, ~50 words).**
+**§3.5 Reasoning and sampling (RQ4, ~80 words).**
+
+**The one significant positive result:**
+- **Overall:** v7 → v14 (thinking on) on new-60 went **23 → 30/60** (22 both, 8 v14-only, 1 v7-only; exact McNemar **p = 0.039**).
+- **Empty patches:** fell from 25% to 8%.
+- **Wrong fixes:** stayed at 16 in both.
+
+So reasoning helped the agent *commit* to an edit, not get the edit right, consistent with §3.3. Two counterpoints for the same section:
+- **v15b**, a public 0.24-notebook prompt on v14's tools: LB 0.08.
+- **v16**, bounded tool output: 27 vs 30, p = 0.375. Overflows fell from 8 to 5, but no extra solves.
 
 v7 → v14 by size tercile (A1 strata):
 
@@ -196,7 +231,7 @@ v7 → v14 by size tercile (A1 strata):
 - Typing the graph by edge kind hurts in both tests.
 - Lexical similarity wins on external code.
 
-**Tie to §3.3.** Even a perfect co-change oracle is capped at 2/13 tasks end to end. Recall is therefore not the main lever, which is why no closed-loop frontier run was justified. **NEEDED:** A8 (why BM25 wins), A8b (E0a under v2 rules, post hoc).
+**Tie to §3.3.** Post-hoc completion with perfect co-change information rescues 2/13 tasks. Recall is therefore unlikely to be the main lever, which is why no closed-loop frontier run was justified. In-run effects remain untested. **NEEDED:** A8 (why BM25 wins), A8b (E0a under v2 rules, post hoc).
 
 ### §5 What does not help, briefly (250 words)
 
@@ -238,14 +273,16 @@ Only rows marked **Supported** may be stated as findings. "Weak" rows need hedge
 
 | # | Claim | Status | Evidence | Wording / condition |
 |---|---|---|---|---|
-| C1 | The agent reaches the code it must change | **Supported** (replication) | v14: 98.3% gold-file and 91.7% gold-line exposure; 29/30 failures saw a gold file | Cite 2610.25826 as the original finding |
+| C1 | The agent **sees** the code it must change | **Supported** (replication) | v14: 98.3% gold-file and 91.7% gold-line exposure; 29/30 failures saw a gold file (CI 83–99%) | "sees", not "reaches" or "localises"; cite 2610.25826 as the original finding |
+| C1b | Exposure does not mean editing the right place | **Supported** (descriptive) | 9/30 v14 failures saw a gold file and edited elsewhere | Heuristic label; report beside C7 |
 | C2 | Resolve falls with the size of the required change | **Supported** | A1: OR 0.47 per log line, p = 0.046 (pooled); v14 alone OR 0.37, p = 0.025 | Correlational; controls for issue length and repo only |
 | C3 | Multi-site fixes resolve less often *because* they are multi-site | **Not supported** | A1: OR 0.32 [0.04, 2.54] after size; matched gaps n.s.; pre-registered prediction failed | Say "multi-site fixes are mostly large; the two cannot be separated here" |
 | C4 | Multi-site fixes are common | **Supported** | A3: 19/60 new-60 tasks need ≥2 test-necessary groups; 7/54 old-54 | Relative to gold patches |
 | C5 | Failures are mostly unfinished patches | **Rejected** | A4: completion rescues 6/26 cases, 2/13 tasks; pure incompleteness 1/13 | State as a rejected pre-registered hypothesis |
-| C6 | Supplying the correct missing edits rescues at most 2/13 tasks (the oracle completion bound) | **Supported** | A4 with controls (agent-alone 0/26) | It bounds *completion* aids on these 13 tasks; not a bound on all aids |
-| C7 | The agent's edits at the right sites are wrong | **Plausible** | Implied by C5/C6 | **A12 decides**; until then say "the patch content, not its coverage, fails" |
+| C6 | Adding the correct missing edits to the agent's final patch rescues 2/13 tasks (the oracle completion bound) | **Supported** | A4 with controls (agent-alone 0/26); task CI 4–42% | Bounds **post-hoc completion of a frozen patch** on these 13 tasks. **Not** a bound on in-run aids, which can change the agent's own edits too |
+| C7 | The agent's edits at the right sites are wrong | **Plausible** | Implied by C5/C6 | **A12 decides, on clean swaps only** (conflict/coupled swaps reported separately); until then say "the patch content, not its coverage, fails" |
 | C8 | Thinking helps small and mid changes, not large ones | **Weak** | v7 → v14: small +3, mid +2, large +2 (of 18) | Bundled changes, tiny strata; descriptive only |
+| C8b | The v14 bundle (thinking + budgets + submit fix) raises resolve | **Supported** | new-60 23 → 30, exact McNemar p = 0.039; LB 0.15 → 0.17 | Bundle, not thinking alone; one run per arm |
 | C9 | Sampling does not reach large changes | **Weak** | pass@5 0/7 multi-necessary; size-matched controls also ~0 | A13 on new-60 |
 | C10 | Necessary co-changes are mostly not call edges | **Supported on 7 tasks** | Same file 26/28; executed-call 1-hop 4/28 | A5 extends to 19 tasks |
 | C11 | Structural frontiers do not recover co-changes better than lexical ones | **Supported** (pre-registered) | E0b: typed 0.19 vs BM25 0.42; CI excludes 0 | Gold co-change label, not necessity |
@@ -271,12 +308,25 @@ Only rows marked **Supported** may be stated as findings. "Weak" rows need hedge
 
 **Dropped:**
 - **A6** (did the agent look at the missed sites). A4 shows completion is not the lever, so *why* sites were missed matters little.
-- **A10** (lexical co-change hint, GPU). The oracle completion bound (C6) caps any such hint at 2/13 tasks, so there is no case for GPU spend.
+- **A10** (lexical co-change hint, GPU). Dropped for budget. C6 makes a large gain unlikely but does not strictly cap an in-run hint, so say "not tested", not "bounded".
 - **E1–E4** closed-loop frontier runs, renamed-repo runs, and new LB submissions for the paper.
 
 ---
 
 ## 6. Timeline to freeze (Nov 5)
+
+**Decide first: Nov 2 or Nov 12.** If Shrey's Nov 2 target holds, use the compressed plan:
+
+| Date | Work |
+|---|---|
+| Oct 24 | Commit A12 + A13 pre-registrations (before building); build the site-swap mode |
+| Oct 25–26 | A12 + A13 on Kaggle CPU; A5 reading |
+| **Oct 27** | **Freeze.** Drop A7, A8, A8b, A2 (or move them to "future work") |
+| Oct 27–30 | Write (≤3,000 words) and make the tables |
+| Oct 31–Nov 1 | Revise (Atul reviews) |
+| **Nov 2** | Submit |
+
+Otherwise use the original plan:
 
 | Date | Work |
 |---|---|
