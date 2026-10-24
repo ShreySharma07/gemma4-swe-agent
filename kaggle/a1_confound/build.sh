@@ -17,7 +17,8 @@ mkdir -p "$OUT"
     rs_v7_valid/x/eval_v7_noedit/rep2/analysis/per_task.jsonl \
     rs_v7_valid/x/eval_v7_noedit/rep3/analysis/per_task.jsonl \
     rs_v7_valid/x/eval_v7_noedit/rep4/analysis/per_task.jsonl \
-    xg/results.jsonl xg/tasks_meta.jsonl | base64 | tr -d '\n'
+    xg/results.jsonl xg/tasks_meta.jsonl \
+    -C ../../results/runs a3a4/necessity_new60.json | base64 | tr -d '\n'  # A13 (Oct 24)
   printf '"\n'
   cat kaggle/a1_confound/a1_body.py
 } > "$OUT/a1_confound.py"

@@ -267,3 +267,98 @@ for k, rs in list(new60.items()) + [("v7_old54_x5", old)]:
 (WORK / "a1_report.json").write_text(json.dumps(report, indent=1))
 (WORK / "a1_rows.json").write_text(json.dumps(rows))
 print("\nwrote /kaggle/working/a1_report.json and a1_rows.json")
+
+# ---------------------------------------------------------------------------------------------------------------
+# A13 (+ A7, A2), pre-registered Oct 24: the A1 models with the A3 necessity label instead of file count, and two
+# descriptive tables. Runs only when the payload carries a3a4/necessity_new60.json; A1 above is unchanged.
+# ---------------------------------------------------------------------------------------------------------------
+necf = sorted(IN.rglob("necessity_new60.json"))
+if necf:
+    nec = json.loads(necf[0].read_text())
+    for r in rows:
+        if "new60" in r["run"]:
+            d = nec.get(r["task"]) or {}
+            r["n_nec"] = sum(bool(v) for v in d.values())
+            r["multi_nec"] = int(r["n_nec"] >= 2)
+
+    def fisher(a, b, c, d):
+        n, r1, c1 = a + b + c + d, a + b, a + c
+
+        def p(x):
+            return math.comb(r1, x) * math.comb(n - r1, c1 - x) / math.comb(n, c1)
+        p0 = p(a)
+        return sum(p(x) for x in range(max(0, c1 - (n - r1)), min(r1, c1) + 1) if p(x) <= p0 * (1 + 1e-9))
+
+    a13 = {"raw": {}, "models": {}, "matched": {}}
+    for k, rs in list(new60.items()) + [("pooled", pooled)]:
+        if not rs:
+            continue
+        m = [r for r in rs if r["multi_nec"]]
+        s1 = [r for r in rs if not r["multi_nec"]]
+        a, b = sum(r["resolved"] for r in m), len(m) - sum(r["resolved"] for r in m)
+        c, d = sum(r["resolved"] for r in s1), len(s1) - sum(r["resolved"] for r in s1)
+        a13["raw"][k] = {"multi_nec": f"{a}/{len(m)}", "single_or_none": f"{c}/{len(s1)}", "fisher_p": fisher(a, b, c, d)}
+        print(f"\n[A13 raw {k}] >=2 necessary groups {a}/{len(m)} vs others {c}/{len(s1)}; Fisher p={a13['raw'][k]['fisher_p']:.4f}")
+
+    def fit_key(label, rs, key, run_fe=False, cluster_by_task=False):
+        saved = [r["multi_file"] for r in rs]
+        for r in rs:
+            r["multi_file"] = r[key]  # reuse the A1 design with the necessity label in the multi slot
+        try:
+            fit(label, rs, run_fe, cluster_by_task)
+        finally:
+            for r, v in zip(rs, saved):
+                r["multi_file"] = v
+        a13["models"][label] = report["models"].pop(label)
+
+    for k, rs in new60.items():
+        if rs:
+            fit_key(f"A13_{k}", rs, "multi_nec")
+    if pooled:
+        fit_key("A13_pooled_runFE_taskcluster", pooled, "multi_nec", run_fe=True, cluster_by_task=True)
+    for k, rs in new60.items():
+        matched(f"A13_{k}_multi_necessary", rs, "n_nec")
+        a13["matched"][k] = report["matched"].pop(f"A13_{k}_multi_necessary", None)
+    report["A13"] = a13
+
+    # A7 / A2: descriptive, from the per-task rows of the two new-60 runs
+    size_of = {}
+    for k, rs in new60.items():
+        ls = sorted(r["lines"] for r in rs)
+        q1, q2 = ls[len(ls) // 3], ls[2 * len(ls) // 3]
+        for r in rs:
+            size_of[(k, r["task"])] = "small" if r["lines"] <= q1 else ("mid" if r["lines"] <= q2 else "large")
+    a7, a2 = {}, {}
+    for k in new60:
+        pt = [json.loads(l) for l in open(RUNS[k])]
+        for x in pt:
+            sz = size_of.get((k, x["instance_id"]))
+            if sz is None:
+                continue
+            f = a2.setdefault(k, {}).setdefault(sz, {"n": 0, "saw_file": 0, "saw_lines": 0, "saw_func": 0,
+                                                      "edited_gold_file": 0, "resolved": 0})
+            f["n"] += 1
+            f["saw_file"] += x.get("step_first_gold_file") is not None
+            f["saw_lines"] += x.get("step_first_gold_lines") is not None
+            f["saw_func"] += x.get("step_first_gold_func") is not None
+            f["edited_gold_file"] += bool(x.get("patch_touches_gold"))
+            f["resolved"] += bool(x.get("resolved"))
+            if x.get("resolved") or x.get("patch_empty"):
+                continue
+            e = a7.setdefault(k, {}).setdefault(sz, {"n": 0, "explicit_submit": 0, "budget_denial_terminal": 0,
+                                                      "context_overflow": 0, "calls": [], "max_prompt_tokens": []})
+            e["n"] += 1
+            e["explicit_submit"] += bool(x.get("submitted_explicitly"))
+            e["budget_denial_terminal"] += bool(x.get("budget_exhausted"))
+            e["context_overflow"] += bool(x.get("overflow"))
+            e["calls"].append(x.get("n_tool_calls") or 0)
+            e["max_prompt_tokens"].append(x.get("max_prompt_tokens") or 0)
+    for k, by in a7.items():
+        for sz, e in by.items():
+            e["calls_median"] = float(np.median(e.pop("calls"))) if e["n"] else None
+            e["max_prompt_median"] = float(np.median(e.pop("max_prompt_tokens"))) if e["n"] else None
+    report["A7"], report["A2"] = a7, a2
+    print("\n[A7] unresolved non-empty patches by size:", json.dumps(a7, indent=1))
+    print("\n[A2] exposure funnel by size:", json.dumps(a2, indent=1))
+    (WORK / "a1_report.json").write_text(json.dumps(report, indent=1))
+    print("\nwrote A13/A7/A2 into /kaggle/working/a1_report.json")
