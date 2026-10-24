@@ -93,7 +93,7 @@ All are gold-verified (gold passes, empty fails). Public repos are a limitation 
 | A3/A4 | `62e4068` | `7beef0e` | yes |
 | E0a | `e8e9db3` (same commit as the result) | `e8e9db3` | **no**: disclose |
 | E0b | `672bc30` (same commit as the result) | `672bc30` | **no**: disclose |
-| A12, A13 | to be committed before their kernels run | — | must be yes |
+| A12, A13 | `92dabb6` (committed before any kernel was built) | — | yes, if results land in a later commit |
 
 For E0a/E0b, state plainly that the prediction and result were committed together, so the order rests on our word. Do not call them "pre-registered" without that caveat.
 
