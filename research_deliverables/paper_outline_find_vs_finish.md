@@ -9,7 +9,7 @@
 - Wilson 95% CIs added.
 - Pre-registration commit hashes added (§2).
 - The thinking result (v7 → v14, p = 0.039) is now stated in §3.5.
-- Deadline conflict flagged (§6).
+- Deadline confirmed as Nov 12 (§6).
 
 **What changed on Oct 23–24:**
 - **A1:** the multi-file gap is not separable from patch size. Size carries it: OR 0.47 per log line (p = 0.046). For multi-file the OR is 0.32 with CI 0.04–2.54.
@@ -18,7 +18,7 @@
 
 **Constraints:**
 - Kaggle paper track, ≤3,000 words.
-- Experiment freeze Nov 5; due Nov 12. **Conflict:** Shrey's target is to submit by **Nov 2** (freeze ~Oct 28). See §6.
+- Experiment freeze Nov 5; due **Nov 12** (confirmed by Shrey, Oct 24).
 - **All remaining analyses run on Kaggle CPU kernels, not locally** (Shrey, Oct 23).
 - Every number names its source. **NEEDED** rows link to §5.
 
@@ -315,7 +315,7 @@ Only rows marked **Supported** may be stated as findings. "Weak" rows need hedge
 
 ## 6. Timeline to freeze (Nov 5)
 
-**Decide first: Nov 2 or Nov 12.** If Shrey's Nov 2 target holds, use the compressed plan:
+**Decided Oct 24: Nov 12.** The compressed Nov 2 plan below is kept for reference only:
 
 | Date | Work |
 |---|---|
@@ -326,7 +326,7 @@ Only rows marked **Supported** may be stated as findings. "Weak" rows need hedge
 | Oct 31–Nov 1 | Revise (Atul reviews) |
 | **Nov 2** | Submit |
 
-Otherwise use the original plan:
+**Plan in use:**
 
 | Date | Work |
 |---|---|
