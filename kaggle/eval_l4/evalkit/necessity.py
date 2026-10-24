@@ -436,20 +436,35 @@ def span_of(text, qual):
     return None
 
 
-def defined_names(text):
+def defined_names(text, skip=()):
+    """Names a file defines OUTSIDE the line spans in `skip`: module- and class-level defs, imports and assignments,
+    plus attributes assigned on self/cls anywhere (a field set in __init__ couples the methods that read it)."""
     out = set()
     try:
         tree = ast.parse(text or "")
     except (SyntaxError, ValueError):
         return out
+
+    def inside(n):
+        return any(a <= getattr(n, "lineno", -1) <= b for a, b in skip)
+
+    def scope(body):
+        for n in body:
+            if inside(n):
+                continue
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                out.add(n.name)
+                if isinstance(n, ast.ClassDef):
+                    scope(n.body)
+            elif isinstance(n, (ast.Import, ast.ImportFrom)):
+                out.update((a.asname or a.name).split(".")[0] for a in n.names)
+            elif isinstance(n, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                for t in (n.targets if isinstance(n, ast.Assign) else [n.target]):
+                    out.update(x.id for x in ast.walk(t) if isinstance(x, ast.Name))
+    scope(tree.body)
     for n in ast.walk(tree):
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            out.add(n.name)
-        elif isinstance(n, (ast.Import, ast.ImportFrom)):
-            out |= {(a.asname or a.name).split(".")[0] for a in n.names}
-        elif isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
-            out.add(n.id)
-        elif isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store):
+        if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store) and isinstance(n.value, ast.Name) \
+                and n.value.id in ("self", "cls") and not inside(n):
             out.add(n.attr)
     return out
 
@@ -504,8 +519,9 @@ def build_swap(root, gold_t, agent_t, base_t, group_key):
     if same:
         return "identical", None, ""
     agent_new = set()
-    for p, t in agent_t.items():
-        agent_new |= defined_names(t) - defined_names(base_t.get(p))
+    for p, t in agent_t.items():  # defined by the agent's edits OUTSIDE g
+        skip = [span_of(t, q) for q in by_path.get(p, [])]
+        agent_new |= defined_names(t, [x for x in skip if x]) - defined_names(base_t.get(p))
     gold_def = set().union(*(defined_names(t) for t in gold_t.values() if t)) if gold_t else set()
     refs = set().union(*(referenced_names(s_) for s_ in segs)) if segs else set()
     missing = sorted((refs & agent_new) - gold_def)
@@ -703,6 +719,16 @@ def main_siteswap():
                         "direct_call_edge": sum(any(t in ("CALLER", "CALLEE", "FWD", "FWDDOWN", "INST") for t in r_["direct_edge_types"]) for r_ in rows5),
                         "two_hop": sum(r_["two_hop"] for r_ in rows5),
                         "shared_edited_identifier": sum(bool(r_["shared_edited_identifiers"]) for r_ in rows5)}
+        per = {}
+        for r_ in rows5:
+            per.setdefault(r_["task"], []).append(r_)
+        macro = {}
+        for key in ("same_file", "same_class", "two_hop"):
+            macro[key] = round(sum(sum(bool(r_[key]) for r_ in v) / len(v) for v in per.values()) / len(per), 3)
+        macro["direct_any_edge"] = round(sum(sum(bool(r_["direct_edge_types"]) for r_ in v) / len(v) for v in per.values()) / len(per), 3)
+        macro["shared_edited_identifier"] = round(sum(sum(bool(r_["shared_edited_identifiers"]) for r_ in v) / len(v) for v in per.values()) / len(per), 3)
+        report["A5"]["task_macro"] = macro
+        report["A5"]["pairs_per_task"] = {t: len(v) for t, v in sorted(per.items(), key=lambda kv: -len(kv[1]))}
     except Exception as e:  # noqa: BLE001
         report["A5_error"] = f"{type(e).__name__}: {e}"
     report["hours"] = round((time.time() - t0) / 3600, 2)
