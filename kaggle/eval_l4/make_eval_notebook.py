@@ -33,11 +33,12 @@ VALID = REPO / "data" / "runs" / "eval_sweep_v2" / "valid_tasks.json"     # 114 
 PRE_OVERLAY_VALID = REPO / "data" / "runs" / "eval_sweep" / "valid_tasks.json"  # 54 without them: decides which tasks get pins
 OVL_DIR = REPO / "kaggle" / "eval_l4" / "overlays_kernel"
 NEC_DIR = REPO / "kaggle" / "eval_l4" / "necessity_kernel"
+SWAP_DIR = REPO / "kaggle" / "eval_l4" / "siteswap_kernel"  # A12 site-swap + A5 typology (--siteswap)
 # A3/A4 (--necessity): agent patches + per-task rows of these runs, and the old-54 LOO results (exec-graph run)
 NEC_RUNS = ["eval_v7_new60/x/eval_v7_noedit/rep0", "eval_v14_new60_peek/x/eval_v14_thinking/rep0"] + \
     [f"rs_v7_valid/x/eval_v7_noedit/rep{i}" for i in range(5)]
 MODULES = ["__init__", "config", "util", "envsetup", "inputs", "submission", "compat", "server", "runner", "report",
-           "preflight", "overlays", "gate", "necessity", "main"]
+           "preflight", "overlays", "gate", "necessity", "siteswap", "main"]
 GATE_PREFIXES = REPO / "data" / "runs" / "gate" / "prefixes.json"
 SOURCE_MAX_BYTES = 1_000_000  # Kaggle rejects notebook source above ~1 MB (HTTP 400; found by Atul, Oct 15)
 
@@ -107,7 +108,7 @@ print(open(p).read()[:20000] if os.path.exists(p) else "no result file (see WATC
 
 
 def build(a):
-    a.preflight = a.preflight or a.sweep or a.overlays or a.necessity
+    a.preflight = a.preflight or a.sweep or a.overlays or a.necessity or a.siteswap
     settings = {"name": a.name, "max_tasks": a.max_tasks, "repeats": a.repeats, "devset": a.devset,
                 "session_budget_h": a.budget_h, "sweep": a.sweep, "valid_only": a.valid_only}
     gate_b64 = system_b64 = tools_b64 = ""
@@ -121,9 +122,9 @@ def build(a):
         tools_b64 = base64.b64encode(json.dumps(render_atif.declared_tools(
             REPO / "submissions" / "v7_noedit" / "agent.yaml")).encode()).decode()
     valid = pathlib.Path(a.valid_file) if a.valid_file else PRE_OVERLAY_VALID if a.overlays else VALID
-    valid_b64 = base64.b64encode(valid.read_bytes()).decode() if (a.valid_only or a.overlays or a.necessity) else ""
+    valid_b64 = base64.b64encode(valid.read_bytes()).decode() if (a.valid_only or a.overlays or a.necessity or a.siteswap) else ""
     nec_b64 = ""
-    if a.necessity:
+    if a.necessity or a.siteswap:
         import tarfile
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tf:
@@ -134,6 +135,9 @@ def build(a):
                     tf.add(pt, arcname=f"{r}/merged/patches/{pt.name}")
             for f in ("results.jsonl", "tasks_meta.jsonl"):
                 tf.add(REPO / "data" / "runs" / "xg" / f, arcname=f"xg/{f}")
+            if a.siteswap:  # A3 necessity labels (new-60) and oblig.py (A5 typology)
+                tf.add(REPO / "results" / "runs" / "a3a4" / "necessity_new60.json", arcname="a3/necessity_new60.json")
+                tf.add(REPO / "tools" / "oblig.py", arcname="tools/oblig.py")
         nec_b64 = base64.b64encode(buf.getvalue()).decode()
     assert valid.exists() or not (a.valid_only or a.overlays), f"needs {valid} (run --sweep first)"
     cells = [
@@ -173,6 +177,7 @@ print("submission zip", len(base64.b64decode(SUBMISSION_B64)), "bytes")"""),
         cells.append(md(f"### `evalkit/{m}.py`\n{module_doc(m)}"))
         cells.append(code(f"%%writefile /kaggle/working/evalkit/{m}.py\n" + (KIT / f"{m}.py").read_text()))
     step, result = (("gate", "gate_report.json") if a.gate else ("necessity", "necessity_report.json") if a.necessity
+                    else ("siteswap", "siteswap_report.json") if a.siteswap
                     else ("preflight", "preflight.json") if a.preflight
                     else ("main", "summary.json"))
     if a.overlays:  # CPU + Internet: build extras + per-task pins with the notebook's own Python 3.13 (no venv)
@@ -200,10 +205,10 @@ print("exit code", proc.wait())"""),
           "nbformat": 4, "nbformat_minor": 4}
     wire = len(json.dumps({**nb, "cells": [{**c, "source": "".join(c["source"])} for c in cells]}).encode())
     assert wire < SOURCE_MAX_BYTES, f"notebook source {wire:,} bytes >= {SOURCE_MAX_BYTES:,}: move inputs to a dataset"
-    out_dir = GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else CPU_DIR if a.preflight else GPU_DIR
+    out_dir = GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     nb_name = ("gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
-               "gemma4-a3a4-necessity.ipynb" if a.necessity else
+               "gemma4-a3a4-necessity.ipynb" if a.necessity else "gemma4-a12-siteswap.ipynb" if a.siteswap else
                "gemma4-eval-preflight.ipynb" if a.preflight else "check-l4.ipynb")
     (out_dir / nb_name).write_text(json.dumps(nb, indent=1))
 
@@ -228,6 +233,8 @@ print("exit code", proc.wait())"""),
     if a.overlays:  # PyPI downloads; inputs = tasks + scorer site only
         meta.update(id=mine("gemma4-test-overlays"), title="gemma4-test-overlays", code_file=nb_name,
                     enable_internet=True, dataset_sources=[], kernel_sources=[shared("gemma4-devset-build")])
+    if a.siteswap:  # CPU, offline, same inputs as A3/A4
+        meta.update(id=mine("gemma4-a12-siteswap"), title="gemma4-a12-siteswap", code_file=nb_name)
     if a.necessity:  # CPU, offline, same inputs as the preflight sweep + overlays
         meta.update(id=mine("gemma4-a3a4-necessity"), title="gemma4-a3a4-necessity", code_file=nb_name)
     if a.gate:  # GPU (L4 via the competition source), no task sandboxes needed
@@ -256,6 +263,7 @@ if __name__ == "__main__":
     ap.add_argument("--adapter-from", action="append", default=None,
                     help="kernel whose output holds adapters/<name>/ (repeatable; e.g. <owner>/gemma4-train-s3-compact)")
     ap.add_argument("--gate", action="store_true", help="GPU behaviour gate: base vs adapters at fixed decision points")
+    ap.add_argument("--siteswap", action="store_true", help="CPU kernel: A12 site-swap counterfactual + A5 typology")
     ap.add_argument("--necessity", action="store_true", help="CPU kernel: A3 LOO necessity on new-60 + A4 completion counterfactual")
     ap.add_argument("--gate-adapters", default="", help="comma-separated adapter names for --gate")
     ap.add_argument("--gate-samples", type=int, default=4)
