@@ -1,3 +1,5 @@
+> **WITHDRAWN Oct 22:** do not run. v15b scored 0.08 on the LB; run `docs/atul_codex_v16_new60.md` instead.
+
 > **Updated Oct 21:** run **v15b_spec8k**, not v15_spec (v15 errored on the LB).
 
 Shrey asks you (Atul) to run ONE GPU job: **v15b on the 60 new tasks**, the same protocol as your v14 run (`docs/atul_v14_new60_report_20261019.md`).
