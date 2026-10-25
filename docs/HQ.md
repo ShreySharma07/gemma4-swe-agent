@@ -385,3 +385,11 @@ The planning notes above and in the training guide are retained as historical co
 - **Oct 23 — Paper direction locked: "Found, Not Finished" analysis paper.** Outline: `research_deliverables/paper_outline_find_vs_finish.md` (supersedes EBST `paper_outline.md`). P0 analyses before the Nov 5 freeze, all CPU: A1 confound control (multi-site vs patch size), A3 exec-graph LOO on new-60, A4 completion counterfactual (agent patch + missed gold sites). Optional A10 (lexical co-change hint, ~4 quota-h) only if P0 is done by Oct 30.
 - **Oct 23 — A1 (pre-registered, Kaggle CPU) prediction FAILED.** After controlling for gold patch size, issue length and repo, multi-file is no longer significant (pooled new-60 OR 0.32 [0.04, 2.54], p = 0.21); patch size is (OR 0.47 per log line, p = 0.046). 15/17 multi-file tasks are in the largest size tercile, so the two are nearly collinear (low power). Paper §3 reframed: "large changes", not "multi-site". `results/runs/a1/a1_report.json`.
 - **Oct 23 — A3/A4 (pre-registered, Kaggle CPU) predictions FAILED; decision rule triggered.** A3: 19/60 new-60 tasks have ≥2 test-necessary groups. A4: adding the missed gold sites to the agent's partial patch resolves 6/26 cases (23%; 2/13 distinct tasks); pure incompleteness in 5/26 (1/13 tasks, rich_3052). Agent-alone control 0/26. **The paper drops "not finished": the agent's own edits are mostly wrong too.** `results/runs/a3a4/`.
+- **Oct 25 — All remaining paper analyses done (Kaggle CPU).**
+  - **A12 site-swap: C7 Supported.** 52/71 clean necessary swaps fail (73%), on 19/20 tasks.
+  - **A13:** the necessity gap vanishes after size (OR 1.68).
+  - **A7:** wrong patches are submitted voluntarily; v14 large changes overflow (6/14).
+  - **A5:** co-changes are plumbing or repeated edits; 95% share an edited identifier.
+  - **A8:** BM25 wins via code similarity (prediction failed).
+  - **A8b:** v2 rules give 0.63 on E0a, ties untyped.
+  - Outline and claims ledger updated; next is writing.
