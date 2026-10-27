@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — v17 new-60 pushed; v14 failure split; fine-tuning strategy v2, October 27
+
+Pushed `shreysharma07/gemma4-eval-v17-new60` v1 (v17_superagent, new-60, --budget-h 5, ~9 quota-h, user-approved). A12v kernel is still RUNNING (the handoff said COMPLETE). **v14 failure split:** tractable tasks (1 file, ≤3 gold funcs) 26/41, large 4/19. Of the 15 tractable failures, 12 hit the 28-call cap (≥27 calls; failure median 28 vs 22 for resolved; time not binding, 249 s vs 480 s cap), 4 are empty, and 9 carry stray repro files (stray-file tasks resolve 1/11). Verification is nearly absent (tests after last edit 3.3%). Plan: `docs/strategy_20261027.md` (calls 28→40 probe; stray-file CPU re-grade; SWE-smith-lite task factory on installed libraries; concurrency-8 on-policy rollouts; verifier adapter + low-dose thinking-ON RFT with prefix-cached truncated backprop past 8k).
+
 ## Atul — v14 new-60 v3 COMPLETE;30/60 vs v7 23/60, October 19 UTC
 
 Exactly one authorized unchanged evaluation completed with **rc0,60/60 tasks,30resolved**. Paired v7: **22both/8v14-only/1v7-only/29neither**, net+7 (+11.67pp), exact McNemar p0.0390625. Source/version3/noLoRA/provenance and all38outputs verified. Empty patches25→8.3%, repeats28.8→6.5%, median calls29→24; overflow3.3→13.3% (8actual context errors). Budget metric0% coexists with10denied tool events across8tasks;4shared wrapt collection failures remain in60denominator. Changes bundle thinking/prompt/budgets; no thinking-only or hidden-LB causal claim.
