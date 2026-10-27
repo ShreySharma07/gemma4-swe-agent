@@ -1077,6 +1077,11 @@ def main_siteswap_v2():
             if v:
                 x.update({"resolved": v["resolved"], "exit": v["exit"], "tail": v["tail"], "error": v["error"]})
                 x["failure_type"] = failure_type(x)
+                # POST HOC (added after the smoke run, not used by the decision rule): the hybrid fails because gold's
+                # other sites expect an attribute/parameter the agent's version does not provide (reverse coupling)
+                x["posthoc_reverse_coupling"] = bool(re.search(
+                    r"AttributeError: .* has no attribute|TypeError: .*(unexpected keyword|missing \d+ required|"
+                    r"takes \d+ positional|got an unexpected)", x.get("tail") or ""))
         if not r:
             break
         todo, k = rest, k + 1
@@ -1125,6 +1130,9 @@ def main_siteswap_v2():
         "primary_failure_types": ftypes,
         "primary_other_as_behavioural": rates(prim, True),
         "primary_other_as_not": rates(prim, False),
+        "POSTHOC_primary_excluding_reverse_coupling": rates([x for x in prim if not x.get("posthoc_reverse_coupling")], True),
+        "POSTHOC_reverse_coupling_failures_in_primary": sum(bool(x.get("posthoc_reverse_coupling")) and not x["resolved"]
+                                                            for x in prim),
     }
     # A5 v2: shared edited identifiers without keywords/builtins/self/cls, uncapped, micro and macro
     try:
