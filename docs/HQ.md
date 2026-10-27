@@ -397,3 +397,8 @@ The planning notes above and in the training guide are retained as historical co
   - **A8:** BM25 wins via code similarity (prediction failed).
   - **A8b:** v2 rules give 0.63 on E0a, ties untyped.
   - Outline and claims ledger updated; next is writing.
+- **Oct 27 — Atul's audit applied; A12v (pre-registered, Kaggle CPU) validates C7.**
+  - Ledger fixes: C7 made conditional, then validated; C14 withdrawn; A13 pooled Fisher withdrawn (task-level p ≈ 0.048); A4 is no longer called an "upper bound"; A5 keyword caveat added; v16 included.
+  - A12v (namespace/attribute/interface checks, decorators, identity controls, kept hybrids and tails): validated-clean 61/128; **43/51 compatible necessary hybrids fail behaviourally (84%), 18/19 tasks, CI 0.63–1.00**; 10/10 tails confirmed by hand.
+  - **C7 Supported (validated).** A5 keyword-free shared identifier: 0.65 micro / 0.89 macro.
+  - Atul second-read pending.
