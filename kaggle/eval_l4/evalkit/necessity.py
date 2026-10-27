@@ -735,3 +735,430 @@ def main_siteswap():
     (WORK / "siteswap_report.json").write_text(json.dumps(report, indent=1))
     log("A12:", json.dumps({k_: report[k_] for k_ in ("classes", "conflict_plus_coupled_share", "primary_clean_necessary", "task_level")}))
     log("A5:", json.dumps(report.get("A5") or report.get("A5_error")))
+
+
+# ================================================================== A12v validated site-swap, pre-registered Oct 27
+# Fixes the A12 construct problems found in Atul's audit: decorators are part of the function span; names the agent's
+# version of g loads must resolve in the SAME file of the gold tree; attributes the agent added elsewhere in the class
+# are flagged; signature changes are their own class. Identity controls (gold->gold, agent->agent), every hybrid patch
+# and 4,000 chars of test output are kept, and failures are typed from the output by a rule fixed in the registration.
+SWAP2_OUT = WORK / "siteswap2"
+CLASS_ORDER = ["conflict", "namespace-incompatible", "attribute-incompatible", "interface-changed", "identical",
+               "unknown", "validated-clean"]
+
+
+def func_nodes(text):
+    """{qual: (first line incl. decorators, last line, node)} with the exec-graph qualname rule."""
+    out = {}
+    try:
+        tree = ast.parse(text or "")
+    except (SyntaxError, ValueError):
+        return out
+
+    def walk(node, stack):
+        for c in ast.iter_child_nodes(node):
+            if isinstance(c, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                q = ".".join(stack + [c.name])
+                start = min([c.lineno] + [d.lineno for d in c.decorator_list])
+                out[q] = (start, c.end_lineno or c.lineno, c)
+                walk(c, stack + [c.name, "<locals>"])
+            elif isinstance(c, ast.ClassDef):
+                walk(c, stack + [c.name])
+            else:
+                walk(c, stack)
+    walk(tree, [])
+    return out
+
+
+def module_names(text):
+    """Names bound at module level (descending into if/try/with/for, not into defs) and whether `import *` occurs."""
+    names, star = set(), False
+    try:
+        tree = ast.parse(text or "")
+    except (SyntaxError, ValueError):
+        return names, star
+
+    def scope(body):
+        nonlocal star
+        for n in body:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                names.add(n.name)
+            elif isinstance(n, (ast.Import, ast.ImportFrom)):
+                for a in n.names:
+                    if a.name == "*":
+                        star = True
+                    else:
+                        names.add((a.asname or a.name).split(".")[0])
+            elif isinstance(n, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                for t in (n.targets if isinstance(n, ast.Assign) else [n.target]):
+                    names.update(x.id for x in ast.walk(t) if isinstance(x, ast.Name))
+            elif isinstance(n, (ast.For, ast.AsyncFor)):
+                names.update(x.id for x in ast.walk(n.target) if isinstance(x, ast.Name))
+            for field in ("body", "orelse", "finalbody", "handlers"):
+                sub = getattr(n, field, None)
+                if isinstance(sub, list) and not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    scope([x for x in sub if isinstance(x, ast.stmt)] + [y for h in sub if isinstance(h, ast.ExceptHandler)
+                                                                         for y in h.body])
+            if isinstance(n, ast.With):
+                for it in n.items:
+                    if it.optional_vars is not None:
+                        names.update(x.id for x in ast.walk(it.optional_vars) if isinstance(x, ast.Name))
+    scope(tree.body)
+    return names, star
+
+
+def bound_in(fn):
+    out = set()
+    for n in ast.walk(fn):
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            a = n.args
+            out.update(x.arg for x in a.posonlyargs + a.args + a.kwonlyargs)
+            out.update(x.arg for x in (a.vararg, a.kwarg) if x)
+            if not isinstance(n, ast.Lambda):
+                out.add(n.name)
+        elif isinstance(n, ast.ClassDef):
+            out.add(n.name)
+        elif isinstance(n, ast.Name) and isinstance(n.ctx, (ast.Store, ast.Del)):
+            out.add(n.id)
+        elif isinstance(n, (ast.Import, ast.ImportFrom)):
+            out.update((a.asname or a.name).split(".")[0] for a in n.names)
+        elif isinstance(n, ast.ExceptHandler) and n.name:
+            out.add(n.name)
+        elif hasattr(ast, "MatchAs") and isinstance(n, (ast.MatchAs, ast.MatchStar)) and getattr(n, "name", None):
+            out.add(n.name)
+        elif isinstance(n, (ast.Global, ast.Nonlocal)):
+            out.update(n.names)
+    return out
+
+
+def loaded_names(fn):
+    return {n.id for n in ast.walk(fn) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+
+
+def class_attrs(text, cls_qual):
+    """Attributes set on self/cls in any method of the class, plus class-level names; cls_qual like 'A' or 'A.B'."""
+    out = set()
+    try:
+        tree = ast.parse(text or "")
+    except (SyntaxError, ValueError):
+        return out
+    node, parts = tree, cls_qual.split(".")
+    for p_ in parts:
+        node = next((c for c in ast.iter_child_nodes(node) if isinstance(c, ast.ClassDef) and c.name == p_), None)
+        if node is None:
+            return out
+    for st in node.body:
+        if isinstance(st, (ast.Assign, ast.AnnAssign)):
+            for t in (st.targets if isinstance(st, ast.Assign) else [st.target]):
+                out.update(x.id for x in ast.walk(t) if isinstance(x, ast.Name))
+        elif isinstance(st, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            out.add(st.name)
+    for n in ast.walk(node):
+        if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store) and isinstance(n.value, ast.Name) \
+                and n.value.id in ("self", "cls"):
+            out.add(n.attr)
+    return out
+
+
+def signature(fn):
+    a = fn.args
+    return ([x.arg for x in a.posonlyargs], [x.arg for x in a.args], bool(a.vararg), [x.arg for x in a.kwonlyargs],
+            bool(a.kwarg), len(a.defaults), sum(d is not None for d in a.kw_defaults))
+
+
+def build_swap_v2(gold_t, agent_t, group_key):
+    """-> (class, swapped texts or None, detail). Classes as in CLASS_ORDER (worst wins across the group's functions)."""
+    import builtins
+    BUILTIN = set(dir(builtins)) | {"__name__", "__file__", "__doc__", "__class__", "__spec__", "__package__"}
+    funcs = group_key.split(" | ")
+    funcs = [f for f in funcs if not any(f != o and f.startswith(o + ".") for o in funcs)]
+    by_path = {}
+    for f in funcs:
+        path, qual = f.split("::", 1)
+        by_path.setdefault(path, []).append(qual)
+    texts, worst, details, all_same = dict(gold_t), "validated-clean", [], True
+
+    def bump(c, d):
+        nonlocal worst
+        if CLASS_ORDER.index(c) < CLASS_ORDER.index(worst):
+            worst = c
+        details.append(d)
+    for path, quals in by_path.items():
+        g_text, a_text = gold_t.get(path), agent_t.get(path)
+        if g_text is None or a_text is None:
+            return "conflict", None, f"file missing in {'gold' if g_text is None else 'agent'} tree: {path}"
+        gn, an = func_nodes(g_text), func_nodes(a_text)
+        g_lines, a_lines = g_text.splitlines(keepends=True), a_text.splitlines(keepends=True)
+        mod, star = module_names(g_text)
+        repl = []
+        for q in quals:
+            if q not in gn or q not in an:
+                return "conflict", None, f"function {q} missing in {'gold' if q not in gn else 'agent'} tree"
+            gs, ge, gnode = gn[q]
+            as_, ae, anode = an[q]
+            same = ast.dump(gnode, include_attributes=False) == ast.dump(anode, include_attributes=False)
+            all_same &= same
+            repl.append(((gs, ge), a_lines[as_ - 1:ae]))
+            if same:
+                continue
+            missing = sorted(loaded_names(anode) - bound_in(anode) - BUILTIN - mod)
+            if missing:
+                if star:
+                    bump("unknown", f"{q}: star import; unresolved {missing[:4]}")
+                else:
+                    bump("namespace-incompatible", f"{q}: unresolved in gold {path}: {missing[:4]}")
+            cls_q = q.rsplit(".", 1)[0] if "." in q and "<locals>" not in q else None
+            if cls_q:
+                added = class_attrs(a_text, cls_q) - class_attrs(g_text, cls_q)
+                reads = {n.attr for n in ast.walk(anode) if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Load)
+                         and isinstance(n.value, ast.Name) and n.value.id in ("self", "cls")}
+                # attributes the agent set only inside g itself are fine
+                inside = {n.attr for n in ast.walk(anode) if isinstance(n, ast.Attribute) and isinstance(n.ctx, ast.Store)}
+                bad = sorted((reads & added) - inside)
+                if bad:
+                    bump("attribute-incompatible", f"{q}: reads agent-added attrs {bad[:4]}")
+            if signature(anode) != signature(gnode):
+                bump("interface-changed", f"{q}: signature differs")
+        for (s0, e0), new in sorted(repl, key=lambda x: -x[0][0]):
+            g_lines[s0 - 1:e0] = new
+        texts[path] = "".join(g_lines)
+        try:
+            compile(texts[path], path, "exec")
+        except SyntaxError as e:
+            return "conflict", None, f"py_compile: {e.msg} line {e.lineno}"
+    if all_same:
+        return "identical", texts, ""
+    return worst, texts, "; ".join(details)[:300]
+
+
+def identity_swap(t_texts, group_key):
+    """Replace each function of the group with its own source in the same tree; returns True if the text is unchanged."""
+    for f in group_key.split(" | "):
+        path, qual = f.split("::", 1)
+        t = t_texts.get(path)
+        if t is None:
+            return False
+        nodes = func_nodes(t)
+        if qual not in nodes:
+            return False
+        s0, e0, _ = nodes[qual]
+        lines = t.splitlines(keepends=True)
+        if "".join(lines[:s0 - 1] + lines[s0 - 1:e0] + lines[e0:]) != t:
+            return False
+    return True
+
+
+def failure_type(row):
+    if row.get("resolved"):
+        return "pass"
+    out = (row.get("tail") or "") + " " + str(row.get("error") or "")
+    if row.get("exit") == 124 or "timed out" in out.lower():
+        return "timeout"
+    comp = re.search(r"NameError|ImportError|ModuleNotFoundError|SyntaxError|error collecting|errors during collection", out)
+    assertion = re.search(r"AssertionError|\bassert\b|^FAILED ", out, re.M)
+    if comp and not assertion:
+        return "composition"
+    if re.search(r"^FAILED |\d+ failed", out, re.M):
+        return "behavioural"
+    return "other"
+
+
+def verify_full(inp, patches, label):
+    """As preflight.verify, but keeps 4,000 chars of test output."""
+    from adk_eval_core.tracing import SessionTrace
+    from adk_submission import ModelRegistry
+    from swegemma.config import EvalConfig
+    from swegemma.evaluate import Evaluator
+    import asyncio
+
+    async def fake_agent(self, task, snapshot_path, task_index, total_tasks, **kw):
+        return patches[task.instance_id], None, SessionTrace()
+
+    Evaluator._run_agent_sandbox = fake_agent
+    dummy = WORK / "preflight_submission"
+    dummy.mkdir(exist_ok=True)
+    cfg = EvalConfig(tasks_path=inp.tasks_path, snapshots_dir=inp.snapshots, results_dir=WORK / f"v2_{label}",
+                     submission_dir=dummy, models=ModelRegistry(), sandbox="subprocess", wheels_dir=inp.data / "wheels",
+                     graph_dir=str(inp.data / "graphs"), embeddings_dir=str(inp.data / "embeddings"),
+                     task_ids=sorted(patches), concurrency=4, display_mode="quiet", max_time_minutes=30,
+                     timeout_seconds=600)
+    res = asyncio.run(Evaluator(cfg).run())
+    return {r.instance_id: {"resolved": bool(r.resolved), "exit": r.test_exit_code, "error": r.error,
+                            "tail": (r.test_output or "")[-4000:]} for r in res.task_results}
+
+
+def main_siteswap_v2():
+    import keyword
+    import random as _r
+    t0 = time.time()
+    s = Settings.load()
+    set_scorer_env()
+    patch_sandbox_venv()
+    inp = Inputs.locate(False, need_model=False)
+    use_scorer_sandbox(inp.data)
+    make_sandbox_offline()
+    (SWAP2_OUT / "patches").mkdir(parents=True, exist_ok=True)
+    gold = gold_patches(inp)
+    tasks = {t["instance_id"]: t for t in inp.load_tasks()}
+    valid = set(json.loads(VALID_TASKS.read_text()))
+    runs, old_loo = runs_from_payload()
+    nec_new = json.loads((IN / "a3" / "necessity_new60.json").read_text())
+    v1 = {(x["run"], x["task"], x["group"]): x for x in json.loads((IN / "a12" / "swaps.json").read_text())}
+    cand = sorted({t for (_, t, _) in v1} & valid)
+    if s.max_tasks:
+        cand = cand[: s.max_tasks]
+    groups = {}
+    for iid in sorted(set(cand) | {i for i, d in nec_new.items() if sum(d.values()) >= 2} & valid):
+        try:
+            root = materialise(inp, tasks[iid])
+            groups[iid] = (root,) + gold_groups(gold[iid], root)
+        except Exception as e:  # noqa: BLE001
+            log("materialise/groups failed", iid, type(e).__name__, str(e)[:200])
+    log(f"A12v: {len(cand)} tasks, groups for {len(groups)} in {(time.time() - t0) / 60:.1f} min")
+
+    swaps, gold_cache = [], {}
+    for (rname, iid, g), x1 in sorted(v1.items()):
+        if iid not in cand or iid not in groups:
+            continue
+        root = groups[iid][0]
+        apatch = runs.get(rname, {}).get(iid, (None, ""))[1]
+        if iid not in gold_cache:
+            gold_cache[iid] = patched_texts(root, [gold[iid]])
+        gold_t, agent_t = gold_cache[iid], (patched_texts(root, [apatch]) if apatch.strip() else None)
+        rec = {"run": rname, "task": iid, "group": g, "necessary": x1.get("necessary"), "v1_class": x1["class"],
+               "v1_resolved": x1.get("resolved")}
+        if gold_t is None or agent_t is None:
+            rec.update({"class": "conflict", "detail": "patch does not apply"})
+            swaps.append(rec)
+            continue
+        paths = {f.split("::")[0] for f in g.split(" | ")} | set(agent_t)
+        base_t = {p: ((root / p).read_text(errors="replace") if (root / p).is_file() else None) for p in paths}
+        full_gold = {**{p: base_t.get(p) for p in paths}, **gold_t}
+        full_agent = {**{p: base_t.get(p) for p in paths}, **agent_t}
+        try:
+            cls_, texts, det = build_swap_v2(full_gold, full_agent, g)
+        except Exception as e:  # noqa: BLE001
+            cls_, texts, det = "conflict", None, f"{type(e).__name__}: {str(e)[:120]}"
+        rec.update({"class": cls_, "detail": det,
+                    "self_swap_identical": identity_swap(full_gold, g),
+                    "agent_roundtrip_identical": identity_swap(full_agent, g)})
+        if texts is not None and cls_ not in ("conflict", "identical"):
+            patch = diff_from_texts(root, texts)
+            k = len(swaps)
+            (SWAP2_OUT / "patches" / f"{k:03d}_{rname}_{iid}.patch").write_text(patch)
+            rec["patch_file"] = f"{k:03d}_{rname}_{iid}.patch"
+            rec["_patch"] = patch
+        swaps.append(rec)
+    log("A12v classes:", json.dumps({c: sum(x["class"] == c for x in swaps) for c in CLASS_ORDER}))
+
+    out_rows = []
+
+    def run(label, patches):
+        if not patches or s.hours_left() < 0.3:
+            return {}
+        t = time.time()
+        r = verify_full(inp, patches, label)
+        for iid, v in r.items():
+            out_rows.append({"task": iid, "mode": label, **v})
+        (SWAP2_OUT / "results.jsonl").write_text("".join(json.dumps(x) + "\n" for x in out_rows))
+        log(f"{label}: {sum(v['resolved'] for v in r.values())}/{len(r)} resolved in {(time.time() - t) / 60:.1f} min")
+        return r
+
+    gold_ok = run("gold_rerun", {i: gold[i] for i in sorted({x["task"] for x in swaps})})
+    todo = [x for x in swaps if "_patch" in x and gold_ok.get(x["task"], {}).get("resolved")]
+    k = 0
+    while todo:
+        batch, rest = {}, []
+        for x in todo:
+            (rest.append(x) if x["task"] in batch else batch.__setitem__(x["task"], x))
+        r = run(f"swap{k}", {t: x["_patch"] for t, x in batch.items()})
+        for t, x in batch.items():
+            v = r.get(t)
+            if v:
+                x.update({"resolved": v["resolved"], "exit": v["exit"], "tail": v["tail"], "error": v["error"]})
+                x["failure_type"] = failure_type(x)
+        if not r:
+            break
+        todo, k = rest, k + 1
+    for x in swaps:
+        x["gold_ok"] = bool(gold_ok.get(x["task"], {}).get("resolved"))
+        x["self_swap_pass"] = x.get("self_swap_identical") is True and x["gold_ok"]
+    (SWAP2_OUT / "swaps_v2.json").write_text(json.dumps([{k_: v for k_, v in x.items() if k_ != "_patch"} for x in swaps],
+                                                        indent=1))
+
+    prim = [x for x in swaps if x["class"] == "validated-clean" and x.get("necessary") and x["self_swap_pass"]
+            and x.get("resolved") is not None]
+
+    def rates(xs, other_as_behav):
+        bad = [x for x in xs if not x["resolved"] and (x["failure_type"] == "behavioural"
+                                                      or (other_as_behav and x["failure_type"] == "other"))]
+        by = {}
+        for x in xs:
+            by.setdefault(x["task"], []).append(x in bad)
+        macro = sum(sum(v) / len(v) for v in by.values()) / len(by) if by else None
+        rnd = _r.Random(0)
+        ts = list(by)
+        boots = []
+        for _ in range(10000):
+            smp = [rnd.choice(ts) for _ in ts] if ts else []
+            vals = [b for t in smp for b in by[t]]
+            boots.append(sum(vals) / len(vals) if vals else 0)
+        boots.sort()
+        return {"behavioural": len(bad), "n": len(xs), "rate": round(len(bad) / len(xs), 3) if xs else None,
+                "task_macro": round(macro, 3) if macro is not None else None, "tasks": len(by),
+                "tasks_with_behavioural_failure": sum(any(v) for v in by.values()),
+                "ci95_task_bootstrap": [round(boots[250], 3), round(boots[9750], 3)] if ts else None}
+
+    ftypes = {}
+    for x in prim:
+        ftypes[x.get("failure_type", "?")] = ftypes.get(x.get("failure_type", "?"), 0) + 1
+    report = {
+        "swaps": len(swaps),
+        "classes_v2": {c: sum(x["class"] == c for x in swaps) for c in CLASS_ORDER},
+        "v1_to_v2": {f"{a}->{b}": n for (a, b), n in sorted(
+            {(x["v1_class"], x["class"]): sum(1 for y in swaps if (y["v1_class"], y["class"]) == (x["v1_class"], x["class"]))
+             for x in swaps}.items())},
+        "v1_primary_n": sum(1 for x in swaps if x["v1_class"] == "clean" and x.get("necessary")),
+        "self_swap_identical": sum(bool(x.get("self_swap_identical")) for x in swaps),
+        "agent_roundtrip_identical": sum(bool(x.get("agent_roundtrip_identical")) for x in swaps),
+        "gold_rerun_failed": sorted(t for t, v in gold_ok.items() if not v.get("resolved")),
+        "primary_failure_types": ftypes,
+        "primary_other_as_behavioural": rates(prim, True),
+        "primary_other_as_not": rates(prim, False),
+    }
+    # A5 v2: shared edited identifiers without keywords/builtins/self/cls, uncapped, micro and macro
+    try:
+        import builtins
+        stop = set(keyword.kwlist) | set(dir(builtins)) | {"self", "cls"}
+        micro_n = micro_hit = 0
+        per = {}
+        for iid, labs in nec_new.items():
+            necs = [g for g, v in labs.items() if v]
+            if len(necs) < 2 or iid not in groups:
+                continue
+            _, files, gmap, _ = groups[iid]
+
+            def idents(g):
+                toks = set()
+                for fi, hi in gmap.get(g, []):
+                    for line in files[fi][1][hi][2][1:]:
+                        if line[:1] in "+-":
+                            toks |= set(re.findall(r"[A-Za-z_][A-Za-z0-9_]{2,}", line[1:]))
+                return toks - stop
+            for a in necs:
+                for b in necs:
+                    if a != b:
+                        hit = bool(idents(a) & idents(b))
+                        micro_n += 1
+                        micro_hit += hit
+                        per.setdefault(iid, []).append(hit)
+        report["A5_v2_shared_identifier"] = {"pairs": micro_n, "micro": round(micro_hit / max(1, micro_n), 3),
+                                             "macro": round(sum(sum(v) / len(v) for v in per.values()) / max(1, len(per)), 3),
+                                             "tasks": len(per)}
+    except Exception as e:  # noqa: BLE001
+        report["A5_v2_error"] = f"{type(e).__name__}: {e}"
+    report["hours"] = round((time.time() - t0) / 3600, 2)
+    (WORK / "siteswap2_report.json").write_text(json.dumps(report, indent=1))
+    log("A12v:", json.dumps({k_: report[k_] for k_ in ("classes_v2", "primary_failure_types",
+                                                        "primary_other_as_behavioural", "primary_other_as_not")}))
+    log("A5v2:", json.dumps(report.get("A5_v2_shared_identifier") or report.get("A5_v2_error")))
