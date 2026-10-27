@@ -12,7 +12,7 @@
 - Deadline confirmed as Nov 12 (§6).
 
 **Oct 25: all remaining analyses done** (Kaggle CPU; rows in `docs/experiments.md`):
-- **A12:** 52/71 protocol-labelled clean necessary swaps fail; 19/20 tasks. **Downgraded on Oct 27 to conditional** after Atul's audit found a namespace flaw in the clean label (see C7); validation A12v is pre-registered.
+- **A12 → A12v:** A12's 52/71 used a flawed "clean" label (audit). The pre-registered validation A12v keeps only compatible hybrids: **43/51 fail behaviourally (84%), 18/19 tasks**. **C7 is Supported (validated).**
 - **A13:** with necessity labels there is a raw gap (task-level permutation p ≈ 0.048). After size the OR is 1.68, CI 0.45–6.33: too wide to separate size from multiplicity. The pooled Fisher test was withdrawn because it treated the two runs as independent.
 - **A7:** **C14 withdrawn** (audit). Four failed v14 runs hit BudgetExceeded and then submitted; A7 only counted budget errors that ended a run. Still standing: v14 large changes overflow the context (6/14).
 - **A5:** necessary co-changes are parameter plumbing (7/19) or the same edit repeated across siblings (7/19). Shared edited identifiers: 95% macro / 78% micro, inflated by keywords (keyword-free ≈ 89% macro, audit). Direct graph links: 35% macro / 16% micro.
@@ -182,7 +182,7 @@ These are heuristic labels; §3.3 tests what they mean. **The 9 "saw a gold file
 - **Composition modes:** 13 cases applied cleanly with git, 8 needed fuzzy patching and 5 needed the no-module fallback. Completion exit codes were six 0, fourteen 1 and six 2; exit 2 may be collection/usage failures, and no output tails were kept (audit).
 - **Predictions that failed:** completion ≥ 50%, pure ≥ 35%. The pre-registered decision rule fired (completion < 30%).
 
-**§3.4 Wrong at the right site? (RQ3 continued, ~150 words). A12, pre-registered; validation A12v pending.**
+**§3.4 Wrong at the right site (RQ3 continued, ~150 words). A12 + validation A12v, both pre-registered.**
 - **Design:** the mirror of A4. Start from the gold-patched tree and replace one gold function group with the agent's own version of that function (AST segment). Before any test runs, each swap is classed:
   - *identical:* the agent's version equals gold;
   - *conflict:* the swap does not build or compile;
@@ -200,9 +200,34 @@ These are heuristic labels; §3.3 tests what they mean. **The 9 "saw a gold file
   Conflict plus coupled is 29%, within the ≤30% the swap needed to be informative. The gold re-run control passed on 29/29 tasks.
 - **Result (protocol-labelled):** among clean swaps of test-necessary groups, **52/71 hybrids fail the target tests** (task-bootstrap CI 45–100%). 19/20 tasks have at least one failing hybrid. Breakdown of the 52: 49 exit 1, 2 exit 2 (`fastapi_14978`), 1 exit 124 (`rich_4006`); excluding these gives 49/68. `rich_3052` contributes 15 primary swaps, all passing. Only 6 v14 tasks are in the primary subset.
 - **Secondary:** all clean swaps 54/85 (64%); coupled swaps 18/20 (reported separately).
-- **Predictions held arithmetically:** failure rate ≥ 60%, conflict + coupled ≤ 30%. **But the "clean" label is not a valid compatibility check** (audit). It resolves names against all gold files at once, so a helper named the same in another file counts as visible. It also ignores decorators, and the hybrid patches and test output were not saved. **C7 is therefore conditional until A12v**: namespace-aware compatibility, gold→gold and agent→agent identity controls, retained hybrids and output, and failure-type classification.
-- **Disclosure:** a coupling-rule bug (local variables counted as outside definitions) was found in a 4-task smoke run and fixed before the full run. Those 4 tasks are in the final set.
-- **Reading, provisional:** with §3.3, the data point toward wrong edits more than missing ones. Whether the hybrids fail for behavioural or compositional reasons is exactly what A12v decides.
+- **Predictions held arithmetically**, but Atul's audit showed the "clean" label was not a valid compatibility check. It resolved names against all gold files at once and ignored decorators, and no hybrids or output tails were kept.
+- **A12v (pre-registered validation, Oct 27).** Same 128 swaps, rebuilt with:
+  - namespace-aware name resolution in the same file;
+  - checks for attributes the agent added elsewhere in the class;
+  - a separate *interface-changed* class for changed signatures;
+  - decorators included in the function span;
+  - gold→gold self-swap and agent→agent round-trip controls;
+  - every hybrid patch and 4,000 chars of test output kept;
+  - failure typing by a rule fixed in advance.
+
+| A12v class | Swaps |
+|---|---|
+| validated-clean | 61 |
+| namespace-incompatible | 24 |
+| interface-changed | 15 |
+| attribute-incompatible | 5 |
+| conflict | 17 |
+| identical | 6 |
+
+  25 of A12's 85 "clean" swaps were incompatible. Controls: self-swap identical 125/128, the 3 others being conflicts; gold re-run 29/29.
+- **Result:** among compatible hybrids of test-necessary groups, **43/51 fail the target behaviour (84%; task-macro 0.90; 18/19 tasks; task-bootstrap CI 0.63–1.00)**. 7 pass and 1 times out; none are ambiguous. A post-hoc exclusion of reverse coupling gives 42/50. A manual read of 10 random tails found real behaviour failures: assertion mismatches, and errors raised inside the agent's own function.
+- **Predictions held and the decision rule fired: C7 is Supported (validated).**
+- **Disclosures:**
+  - a coupling-rule bug in A12's smoke run (fixed then);
+  - the post-hoc reverse-coupling flag was added after A12v's smoke run and is not used by the decision;
+  - one reader so far (Atul second-read pending);
+  - the population is A12's selected cases, and 16 swaps are v7 ×5 repeats.
+- **Reading, with §3.3:** with every other site correct, the agent's own edit to a site the tests need usually fails the target behaviour. Supplying its missing sites rarely helps. The binding failure is what the agent writes, not where or how much.
 
 **§3.5 Reasoning and sampling (RQ4, ~80 words).**
 
@@ -259,7 +284,7 @@ v7 → v14 by size tercile (A1 strata):
 | Direct `oblig.py` edge, any type | — | 35% |
 | Executed-call 1-hop | 4 | — |
 | Two-hop | — | 51% |
-| Share an edited identifier | — | 95% macro / 78% micro (keyword-inflated; ≈ 89% macro without keywords) |
+| Share an edited identifier (keyword-free, A12v) | — | 89% macro / 65% micro (with keywords: 95% / 78%) |
 
 The shared identifier is typically the plumbed parameter or the repeated token. The pilot's same-file share did not replicate (61% vs 26/28): new-60 co-changes cross files more often.
 
@@ -287,7 +312,7 @@ The shared identifier is typically the plumbed parameter or the repeated token. 
 - In a logistic regression, BM25 hits are driven mostly by **identifier overlap of the existing code** (coef 21.9, p < 0.001), more than by a shared edit (0.73).
 - **Reading (associational):** co-changed functions tend to look alike, consistent with A5's shared-identifier rate (78–95%, keyword-inflated; see C10). The A8 logit is pair-level and unclustered, so it is not a mechanism.
 
-**Tie to §3.3–§3.4.** Gold completion rescues 2/13 tasks, and most protocol-clean site hybrids fail (validity pending A12v). Recall of co-changes therefore looks like a secondary lever, which is why no closed-loop frontier run was justified. In-run effects remain untested.
+**Tie to §3.3–§3.4.** Gold completion rescues 2/13 tasks, and compatible site hybrids fail behaviourally in 43/51 swaps. Recall of co-changes is therefore a secondary lever, which is why no closed-loop frontier run was justified. In-run effects remain untested.
 
 ### §5 What does not help, briefly (250 words)
 
@@ -336,11 +361,11 @@ Only rows marked **Supported** may be stated as findings. "Weak" rows need hedge
 | C4 | Multi-site fixes are common | **Supported** | A3: 19/60 new-60 tasks need ≥2 test-necessary groups; 7/54 old-54 | Relative to gold patches |
 | C5 | Failures are mostly unfinished patches | **Rejected** | A4: completion rescues 6/26 cases, 2/13 tasks; pure incompleteness 1/13 | State as a rejected pre-registered hypothesis |
 | C6 | Adding the missing gold edits to the agent's final patch rescues few partial repairs | **Supported, as an observed rate** | A4: 6/26 cases on 2/13 tasks (task CI 4–42%); agent-alone 0/26. Five of the six successes are repeats of rich_3052. On rich_4070, adding the agent's edits turns a passing missed-only patch into a failure | "Observed gold-completion rescue rate under the specified protocol". **Not** an upper bound: composition is non-monotonic and other completions may behave differently |
-| C7 | The agent's edits at the right sites are wrong | **Conditional; validation pending (A12v)** | A12: 52/71 protocol-labelled clean necessary swaps fail; 19/20 tasks. Excluding exit 2/124 gives 49/68. But `build_swap` checks names against the union of all gold files, so a hybrid can be labelled clean and still fail with `NameError` (audit construct check). Decorators are outside AST spans; hybrid patches and test output were not kept | Until A12v: say only "52/71 protocol-labelled clean hybrids fail the target tests". Do not say "73% of local edits are wrong" |
+| C7 | The agent's edits at the right sites are wrong | **Supported (validated, A12v)** | Compatible hybrids only (namespace, attribute and interface checks; decorators; gold→gold self-swap control): **43/51 fail the target behaviour (84%; 18/19 tasks; task CI 0.63–1.00)**. 10/10 random tails confirmed by hand. Original A12: 52/71 protocol-labelled; 25 of its "clean" swaps were in fact incompatible | Word it as "with every other site gold, the agent's version of a test-necessary function fails the target behaviour in 43/51 compatible swaps (18/19 tasks)". The population is A12's selected cases; 16 swaps are v7 ×5 repeats; Atul second-read pending |
 | C8 | Thinking helps small and mid changes, not large ones | **Weak** | v7 → v14: small +3, mid +2, large +2 (of 18) | Bundled changes, tiny strata; descriptive only |
 | C8b | The v14 bundle (thinking + budgets + submit fix) raises resolve | **Supported** | new-60 23 → 30, exact McNemar p = 0.039; LB 0.15 → 0.17 | Bundle, not thinking alone; one run per arm |
 | C9 | Sampling does not reach large changes | **Weak** | pass@5 0/7 multi-necessary on old-54; size-matched controls also ~0 | Old-54 only (no new-60 repeats); descriptive |
-| C10 | Necessary co-changes are mostly not direct structural edges and often share an edited identifier | **Supported, aggregation-dependent** | Pilot: executed-call 1-hop 4/28. A5 (new-60): direct edge 35% task-macro, 16% pair-micro. Shared edited identifier 95% macro and 78% micro, but the token extractor kept keywords (`self`, `None`, `return`). Keyword-free sensitivity: 89% macro (audit). Same file 61% macro, 33% micro | Report macro and micro side by side; the A5 rerun in A12v recomputes shared identifiers without keywords. One refactor task holds 306/596 pairs |
+| C10 | Necessary co-changes are mostly not direct structural edges and often share an edited identifier | **Supported, aggregation-dependent** | Pilot: executed-call 1-hop 4/28. A5 (new-60): direct edge 35% task-macro, 16% pair-micro. Shared edited identifier 95% macro and 78% micro, but the token extractor kept keywords (`self`, `None`, `return`). Keyword-free (A12v): 89% macro, 65% micro. Same file 61% macro, 33% micro | Report macro and micro side by side; headline the keyword-free values (89% macro / 65% micro). One refactor task holds 306/596 pairs |
 | C11 | Structural frontiers do not recover co-changes better than lexical ones | **Supported** | E0b: typed 0.19 vs BM25 0.42; CI excludes 0. A8b: v2 rules reach 0.63 on E0a's necessity pairs but only tie untyped | Gold co-change label, not necessity; E0a/E0b prediction and result share a commit, so disclose that |
 | C11b | Co-changed functions are found lexically because they already look alike | **Weak** (A8; its prediction failed) | BM25 hit associated with identifier overlap of existing code (coef 21.9); gap 0.16 even without a shared edit | Pair-level logit without task clustering, on unstandardised predictors with oracle gold-edit features. Associational only; no mechanism claim |
 | C14 | Wrong patches are submitted voluntarily, not cut off by the budget | **Withdrawn** | A7 counted only budget errors that *ended* a run. Four unresolved non-empty v14 runs hit BudgetExceeded and then submitted (`fastapi_11355`, `fastapi_14246`, `fastapi_14266`, `rich_3782`). v14 overall: 10 BudgetExceeded events in 8 tasks. v7 traces are not available to check | Keep only: v14 large changes ended in 6/14 context overflows. Event-level run-ending analysis is future work |
