@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — FS1 factory rollout smoke pushed, October 28
+
+Pushed `shreysharma07/gemma4-factory-smoke` v1 (GPU, offline, `--budget-h 2.75`, expected ~4–5 quota-h, hard max ~6). 60 factory-v0 tasks (20 per library, 11 two-bug, seed 0). Gemma (thinking off) first rewrites the template issues into user-style reports with a reproducer taken from the hidden tests; rewrites that quote a gold added line or name a test fall back to the template. Then v14 unchanged runs 6 tasks at concurrency 1 (baseline) and 54 at concurrency 6. Pre-registered as FS1 in `docs/experiments.md` (prediction 45–75% solved, ≥3× tasks/h at c=6). New code: `evalkit/factory_smoke.py`; `Settings.concurrency` (default 1, so scorer-faithful runs are unchanged); builder flag `--factory-smoke`. Graph tools return nothing on factory repos (no graphs); v14 rarely calls them.
+
 ## Shrey/Claude — factory v0 VERIFIED: 269 tasks, October 28
 
 Kernel `gemma4-task-factory-verify` v3 (46 min, CPU): **gold 269/278, empty 0/278**. Verified set: more-itertools 49 (15 two-bug), sqlparse 105 (13), boltons 115 (14); hidden tests per task 1–10 (101 with one). Operators are spread evenly: const_shift 56, cmp_swap 47, drop_not 41, arg_swap 39, arith_swap 36, drop_guard 33, boolop_swap 32, drop_update 22, exc_swap 5. The 9 rejects are F2P names colliding with xfailed sqlparse tests, which the v1 build check prevents. Empty 0/278 means no library copy installed in the scorer site shadows the workspace copy (more-itertools/sqlparse are in the Kaggle image too). Private dataset `gemma4-factory-v0` now has `tasks.jsonl` (verified) + snapshots, ready for on-policy rollouts. Issues are template text (v0); a model rewrite is still to do. Summary: `results/runs/factory_v0/`.

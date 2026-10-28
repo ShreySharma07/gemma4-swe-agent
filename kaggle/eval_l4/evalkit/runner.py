@@ -54,7 +54,7 @@ class ChunkedEvaluation:
             context_cache_config=ContextCacheConfig(min_tokens=2048, ttl_seconds=1800, cache_intervals=10),
             events_compaction_config=EventsCompactionConfig(compaction_interval=15, overlap_size=2,
                                                             token_threshold=32768, event_retention_size=5),
-            task_ids=chunk, concurrency=1, display_mode="quiet", verbose=False)
+            task_ids=chunk, concurrency=self.s.concurrency, display_mode="quiet", verbose=False)
 
     def task_min(self):
         """The submission's per-task agent time limit (eval_config.yaml max_time_minutes)."""
@@ -93,7 +93,7 @@ class ChunkedEvaluation:
         for rep in range(self.s.repeats):
             for start in range(0, len(self.ids), self.s.chunk_size):
                 n = len(self.ids[start:start + self.s.chunk_size])
-                if self.s.hours_left() < n * max(self.s.est_task_min, self.task_min() + 1) / 60:
+                if self.s.hours_left() < n * max(self.s.est_task_min, self.task_min() + 1) / 60 / self.s.concurrency:
                     log(f"STOP: {self.s.hours_left():.2f} h left (rep {rep}, task {start})")
                     return
                 self.run_chunk(rep, start)
