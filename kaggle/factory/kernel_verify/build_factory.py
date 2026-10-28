@@ -683,6 +683,7 @@ def run_library(lib, root, out_snap_dir, n_try=300, n_pairs=15, seed=0, log=prin
     return tasks, rep
 
 
+VERIFY_ONLY = True
 # ------------------------------------------------------------------ factory v0 driver (Kaggle CPU, Internet ON)
 # Output: /kaggle/working/factory/ = tasks.jsonl (verified only), tasks_all.jsonl, snapshots/<id>.tgz, task_meta.jsonl,
 # verify_{gold,empty}.jsonl, factory_report.json. Same task format as the competition data, so the eval runner can
@@ -700,7 +701,12 @@ comp_row = json.loads(open(tasks_path).readline())
 log("competition task keys:", {k: type(v).__name__ for k, v in comp_row.items()})
 
 # REUSE: verify an earlier run's tasks (attached as a kernel source) instead of rebuilding them (v0 hit the 12 h cap)
-PRIOR = sorted(glob.glob("/kaggle/input/**/factory/tasks_all.jsonl", recursive=True))
+for arc in glob.glob("/kaggle/input/**/factory.tar", recursive=True):  # a dataset uploaded with --dir-mode tar
+    os.makedirs("/tmp/prior", exist_ok=True)
+    subprocess.run(["tar", "-xf", arc, "-C", "/tmp/prior"])
+PRIOR = sorted(glob.glob("/kaggle/input/**/factory/tasks_all.jsonl", recursive=True) +
+               glob.glob("/tmp/prior/**/tasks_all.jsonl", recursive=True))
+assert PRIOR or not VERIFY_ONLY, "verify-only kernel but no prior factory build attached; refusing to rebuild"
 tasks, lib_reports = [], []
 if PRIOR:
     src = pathlib.Path(PRIOR[0]).parent

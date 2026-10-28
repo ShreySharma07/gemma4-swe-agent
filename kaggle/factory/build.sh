@@ -3,8 +3,8 @@
 # Then: .venv/bin/kaggle kernels push -p kaggle/factory/kernel
 #   sh build.sh --verify   -> kernel_verify/: same script, attached to the build kernel's output, so it only verifies
 set -e
-DIR=kernel; ID=gemma4-task-factory; SRC=""
-if [ "$1" = "--verify" ]; then DIR=kernel_verify; ID=gemma4-task-factory-verify; SRC='"shreysharma07/gemma4-task-factory"'; fi
+DIR=kernel; ID=gemma4-task-factory; SRC=""; DS=""
+if [ "$1" = "--verify" ]; then DIR=kernel_verify; ID=gemma4-task-factory-verify; SRC=""; DS=', "shreysharma07/gemma4-factory-v0"'; fi
 cd "$(dirname "$0")"
 mkdir -p $DIR
 {
@@ -19,6 +19,7 @@ print("# " + "-" * 66 + " factory_core.py")
 print("".join(body))
 EOF
   echo
+  if [ "$DIR" = kernel_verify ]; then echo "VERIFY_ONLY = True"; else echo "VERIFY_ONLY = False"; fi
   cat factory_main.py
 } > $DIR/build_factory.py
 python3 -c "import ast; ast.parse(open('$DIR/build_factory.py').read())"
@@ -33,7 +34,7 @@ cat > $DIR/kernel-metadata.json <<EOF
   "enable_gpu": false,
   "enable_internet": true,
   "competition_sources": ["gemma-4-developer-agent"],
-  "dataset_sources": ["metric/gemma-4-developer-agent-wheelhouse", "shreysharma07/test-deps-wheels"],
+  "dataset_sources": ["metric/gemma-4-developer-agent-wheelhouse", "shreysharma07/test-deps-wheels"$DS],
   "model_sources": [],
   "kernel_sources": [$SRC]
 }
