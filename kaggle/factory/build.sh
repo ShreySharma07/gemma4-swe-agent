@@ -3,7 +3,7 @@
 # Then: .venv/bin/kaggle kernels push -p kaggle/factory/kernel
 #   sh build.sh --verify   -> kernel_verify/: same script, attached to the build kernel's output, so it only verifies
 set -e
-DIR=kernel; ID=gemma4-task-factory; SRC=""; DS=""
+DIR=kernel; ID=gemma4-task-factory-v1; SRC=""; DS=""
 if [ "$1" = "--verify" ]; then DIR=kernel_verify; ID=gemma4-task-factory-verify; SRC=""; DS=', "shreysharma07/gemma4-factory-v0"'; fi
 cd "$(dirname "$0")"
 mkdir -p $DIR

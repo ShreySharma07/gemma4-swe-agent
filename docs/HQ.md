@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — factory v1 pushed (harder, faster, 17 libraries), October 28
+
+Pushed `shreysharma07/gemma4-task-factory-v1` v1 (CPU, Internet). Pre-registered as F1. Speed: baseline run records per-test line coverage; each mutant runs only the test files that execute its lines, on 4 parallel repo copies. Harder: 20 hard-operator-first singles + up to 30 multi-site tasks (pairs and triples, each fix needed) per library. Libraries: 14 new + the v0 three; building stops early to keep verification inside 12 h. Checked end-to-end on a synthetic toy library on the Mac (3 s, 6 singles + 6 multis). Output will become dataset `gemma4-factory-v1`.
+
 ## Shrey/Claude — FS1 factory rollout smoke DONE: 45/60, 2.65× at concurrency 6, October 28
 
 Kernel `gemma4-factory-smoke` v1 COMPLETE (1.2 h, ~2.5 quota-h). Gemma rewrote all 60 issues (0 fallbacks, 1.3 min). v14 solved **45/60 (75%)**: singles 41/49, **pairs 4/11**; boltons 19/20, more-itertools 15/20, sqlparse 11/20; cmp_swap 3/10, const_shift 4/10. 11 of 14 failures are wrong fixes never tested, the same failure as on new-60. **Concurrency 6 gives 2.65× tasks/h** (67 vs 25); 4 runs at c=6 hit the 8-min cap with only 19–27 calls (contention). Decision (pre-registered >70% rule): factory v1 must make harder tasks (multi-site bugs, harder ops). Rollouts at c=6 with a longer time cap. Results: `results/runs/fs1/`. (First output download was silently incomplete; re-download with `--force` got everything.)

@@ -1,15 +1,16 @@
-# ------------------------------------------------------------------ factory v0 driver (Kaggle CPU, Internet ON)
+# ------------------------------------------------------------------ factory driver (Kaggle CPU, Internet ON)
 # Output: /kaggle/working/factory/ = tasks.jsonl (verified only), tasks_all.jsonl, snapshots/<id>.tgz, task_meta.jsonl,
 # verify_{gold,empty}.jsonl, factory_report.json. Same task format as the competition data, so the eval runner can
 # point EvalConfig.tasks_path / snapshots_dir here for on-policy rollouts.
-CFG = {"N_TRY": 250, "N_PAIRS": 15, "WANT_LIBS": 3, "MIN_TASKS_PER_LIB": 10, "CONCURRENCY": 4}
+CFG = {"N_TRY": 300, "N_SINGLE": 20, "N_MULTI": 30, "WANT_LIBS": len(LIBS), "MIN_TASKS_PER_LIB": 10, "CONCURRENCY": 4,
+       "SESSION_H": 11.0, "VERIFY_SEC_PER_TASK": 15}  # v0 verify: 278 tasks x (gold + empty) in 46 min at concurrency 4
 OUT = pathlib.Path("/kaggle/working/factory")
 ROOT = pathlib.Path("/tmp/factory")
 T0 = time.time()
 shutil.rmtree(OUT, ignore_errors=True)
 (OUT / "snapshots").mkdir(parents=True)
 ROOT.mkdir(parents=True, exist_ok=True)
-subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pytest", "pytest-timeout"])
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pytest", "pytest-timeout", "pytest-cov", "coverage"])
 
 comp_row = json.loads(open(tasks_path).readline())
 log("competition task keys:", {k: type(v).__name__ for k, v in comp_row.items()})
@@ -34,9 +35,15 @@ if PRIOR:
 for lib in ([] if PRIOR else LIBS):
     if sum(r.get("tasks", 0) >= CFG["MIN_TASKS_PER_LIB"] for r in lib_reports) >= CFG["WANT_LIBS"]:
         break
+    # leave time to verify what was built (+1 h for this library) inside the 12 h CPU session
+    need_h = (time.time() - T0) / 3600 + 1.0 + len(tasks) * CFG["VERIFY_SEC_PER_TASK"] / 3600
+    if need_h > CFG["SESSION_H"]:
+        log(f"STOP building before {lib['name']}: {need_h:.1f} h needed > {CFG['SESSION_H']} h")
+        break
     t = time.time()
     try:
-        lt, rep = run_library(lib, ROOT, OUT / "snapshots", n_try=CFG["N_TRY"], n_pairs=CFG["N_PAIRS"], log=log)
+        lt, rep = run_library(lib, ROOT, OUT / "snapshots", n_try=CFG["N_TRY"], n_single=CFG["N_SINGLE"],
+                              n_multi=CFG["N_MULTI"], log=log)
     except Exception as e:  # noqa: BLE001  one bad library must not stop the others
         lt, rep = [], {"lib": lib["name"], "error": f"{type(e).__name__}: {e}"[:400]}
     rep["minutes"] = round((time.time() - t) / 60, 1)
@@ -117,10 +124,11 @@ report = {
     "config": CFG, "libs": lib_reports, "shadowed_by_scorer_site": shadow,
     "built": len(tasks), "verified": len(keep),
     "by_lib": {lib: {"built": sum(lib_of(i) == lib for i in meta), "verified": sum(lib_of(i) == lib for i in kept_ids),
-                     "pairs_verified": sum(lib_of(i) == lib and meta[i]["kind"] == "pair" for i in kept_ids)}
+                     "multi_verified": sum(lib_of(i) == lib and meta[i]["kind"] != "single" for i in kept_ids)}
                for lib in sorted({lib_of(i) for i in meta})},
     "gold_fail": sorted(i for i, v in verified.items() if not v["gold"]),
     "empty_pass": sorted(i for i, v in verified.items() if v["empty"]),
+    "kinds_verified": {k: sum(meta[i]["kind"] == k for i in kept_ids) for k in ("single", "pair", "triple")},
     "f2p_sizes": sorted(len(t["FAIL_TO_PASS"] if isinstance(t["FAIL_TO_PASS"], list) else json.loads(t["FAIL_TO_PASS"]))
                         for t in keep),
     "ops_verified": {o: sum(o in meta[i]["ops"] for i in kept_ids) for o in sorted({o for m in meta.values() for o in m["ops"]})},
