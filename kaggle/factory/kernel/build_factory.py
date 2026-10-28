@@ -534,6 +534,11 @@ def file_clean(base, test_file):
 
 def build_task(repo, lib, tid, edits, f2p, messages, base, files_text, out_snap_dir, lib_defs):
     """Snapshot with mutation applied and F2P tests removed; gold = revert; test_patch = restore. -> task row."""
+    for n in f2p:  # the verifier matches required names by prefix: a skipped/xfailed sibling would fail the task
+        path, _, name = split_nodeid(n)
+        if any(v == "skipped" and split_nodeid(k)[0] == path and re.match(re.escape(name) + r"($|[_\[\d])", split_nodeid(k)[2])
+               for k, v in base.items()):
+            return None
     work = repo.parent / f"task_{tid}"
     shutil.rmtree(work, ignore_errors=True)
     shutil.copytree(repo, work, ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache"))
@@ -565,11 +570,12 @@ def build_task(repo, lib, tid, edits, f2p, messages, base, files_text, out_snap_
     snap = out_snap_dir / f"{tid}.tgz"
     sh(["tar", "-czf", str(snap), "-C", str(work), "."])
     shutil.rmtree(work, ignore_errors=True)
-    p2p = sorted(k for k, v in base.items() if v == "passed" and split_nodeid(k)[0] in by_file and k not in f2p)
+    # PASS_TO_PASS stays empty: the verifier already runs the whole test files and needs 0 failures, and listing
+    # every passing node trips its prefix matching on xfailed tests (sqlparse test_python vs test_python_*, v0 run)
     return {"instance_id": tid, "repo": f"{lib['gh']}", "base_commit": base_commit,
             "problem_statement": make_issue(lib, f2p, messages, test_sources, lib_defs),
             "patch": gold, "test_patch": test_patch, "hints_text": "", "created_at": "2026-10-28T00:00:00Z",
-            "FAIL_TO_PASS": json.dumps(f2p), "PASS_TO_PASS": json.dumps(p2p), "environment_setup_commit": base_commit}
+            "FAIL_TO_PASS": json.dumps(f2p), "PASS_TO_PASS": "[]", "environment_setup_commit": base_commit}
 
 
 def run_library(lib, root, out_snap_dir, n_try=300, n_pairs=15, seed=0, log=print):
@@ -693,8 +699,22 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pytest", "pytest-
 comp_row = json.loads(open(tasks_path).readline())
 log("competition task keys:", {k: type(v).__name__ for k, v in comp_row.items()})
 
+# REUSE: verify an earlier run's tasks (attached as a kernel source) instead of rebuilding them (v0 hit the 12 h cap)
+PRIOR = sorted(glob.glob("/kaggle/input/**/factory/tasks_all.jsonl", recursive=True))
 tasks, lib_reports = [], []
-for lib in LIBS:
+if PRIOR:
+    src = pathlib.Path(PRIOR[0]).parent
+    log("REUSE prior build:", src)
+    meta = {json.loads(l)["id"]: json.loads(l) for l in open(src / "task_meta.jsonl")} if (src / "task_meta.jsonl").exists() else {}
+    for l in open(src / "tasks_all.jsonl"):
+        t = json.loads(l)
+        t["PASS_TO_PASS"] = [] if isinstance(t.get("PASS_TO_PASS"), list) else "[]"  # see build_task
+        t["_meta"] = {k: v for k, v in meta.get(t["instance_id"], {"kind": "?", "ops": []}).items() if k != "id"}
+        shutil.copy(src / "snapshots" / f"{t['instance_id']}.tgz", OUT / "snapshots")
+        tasks.append(t)
+    prior_rep = src / "factory_report.json"
+    lib_reports = json.loads(prior_rep.read_text())["libs"] if prior_rep.exists() else []
+for lib in ([] if PRIOR else LIBS):
     if sum(r.get("tasks", 0) >= CFG["MIN_TASKS_PER_LIB"] for r in lib_reports) >= CFG["WANT_LIBS"]:
         break
     t = time.time()

@@ -1,9 +1,12 @@
 #!/bin/sh
 # Assemble the factory kernel script: shared harness header + core + driver -> kernel/build_factory.py.
 # Then: .venv/bin/kaggle kernels push -p kaggle/factory/kernel
+#   sh build.sh --verify   -> kernel_verify/: same script, attached to the build kernel's output, so it only verifies
 set -e
+DIR=kernel; ID=gemma4-task-factory; SRC=""
+if [ "$1" = "--verify" ]; then DIR=kernel_verify; ID=gemma4-task-factory-verify; SRC='"shreysharma07/gemma4-task-factory"'; fi
 cd "$(dirname "$0")"
-mkdir -p kernel
+mkdir -p $DIR
 {
   cat harness_common.py
   echo
@@ -17,12 +20,12 @@ print("".join(body))
 EOF
   echo
   cat factory_main.py
-} > kernel/build_factory.py
-python3 -c "import ast; ast.parse(open('kernel/build_factory.py').read())"
-cat > kernel/kernel-metadata.json <<'EOF'
+} > $DIR/build_factory.py
+python3 -c "import ast; ast.parse(open('$DIR/build_factory.py').read())"
+cat > $DIR/kernel-metadata.json <<EOF
 {
-  "id": "shreysharma07/gemma4-task-factory",
-  "title": "gemma4-task-factory",
+  "id": "shreysharma07/$ID",
+  "title": "$ID",
   "code_file": "build_factory.py",
   "language": "python",
   "kernel_type": "script",
@@ -32,7 +35,7 @@ cat > kernel/kernel-metadata.json <<'EOF'
   "competition_sources": ["gemma-4-developer-agent"],
   "dataset_sources": ["metric/gemma-4-developer-agent-wheelhouse", "shreysharma07/test-deps-wheels"],
   "model_sources": [],
-  "kernel_sources": []
+  "kernel_sources": [$SRC]
 }
 EOF
-echo "wrote kernel/build_factory.py ($(wc -l < kernel/build_factory.py) lines)"
+echo "wrote $DIR/build_factory.py ($(wc -l < $DIR/build_factory.py) lines)"

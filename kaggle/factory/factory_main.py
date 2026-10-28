@@ -14,8 +14,22 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pytest", "pytest-
 comp_row = json.loads(open(tasks_path).readline())
 log("competition task keys:", {k: type(v).__name__ for k, v in comp_row.items()})
 
+# REUSE: verify an earlier run's tasks (attached as a kernel source) instead of rebuilding them (v0 hit the 12 h cap)
+PRIOR = sorted(glob.glob("/kaggle/input/**/factory/tasks_all.jsonl", recursive=True))
 tasks, lib_reports = [], []
-for lib in LIBS:
+if PRIOR:
+    src = pathlib.Path(PRIOR[0]).parent
+    log("REUSE prior build:", src)
+    meta = {json.loads(l)["id"]: json.loads(l) for l in open(src / "task_meta.jsonl")} if (src / "task_meta.jsonl").exists() else {}
+    for l in open(src / "tasks_all.jsonl"):
+        t = json.loads(l)
+        t["PASS_TO_PASS"] = [] if isinstance(t.get("PASS_TO_PASS"), list) else "[]"  # see build_task
+        t["_meta"] = {k: v for k, v in meta.get(t["instance_id"], {"kind": "?", "ops": []}).items() if k != "id"}
+        shutil.copy(src / "snapshots" / f"{t['instance_id']}.tgz", OUT / "snapshots")
+        tasks.append(t)
+    prior_rep = src / "factory_report.json"
+    lib_reports = json.loads(prior_rep.read_text())["libs"] if prior_rep.exists() else []
+for lib in ([] if PRIOR else LIBS):
     if sum(r.get("tasks", 0) >= CFG["MIN_TASKS_PER_LIB"] for r in lib_reports) >= CFG["WANT_LIBS"]:
         break
     t = time.time()
