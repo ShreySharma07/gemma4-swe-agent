@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — FS1 factory rollout smoke DONE: 45/60, 2.65× at concurrency 6, October 28
+
+Kernel `gemma4-factory-smoke` v1 COMPLETE (1.2 h, ~2.5 quota-h). Gemma rewrote all 60 issues (0 fallbacks, 1.3 min). v14 solved **45/60 (75%)**: singles 41/49, **pairs 4/11**; boltons 19/20, more-itertools 15/20, sqlparse 11/20; cmp_swap 3/10, const_shift 4/10. 11 of 14 failures are wrong fixes never tested, the same failure as on new-60. **Concurrency 6 gives 2.65× tasks/h** (67 vs 25); 4 runs at c=6 hit the 8-min cap with only 19–27 calls (contention). Decision (pre-registered >70% rule): factory v1 must make harder tasks (multi-site bugs, harder ops). Rollouts at c=6 with a longer time cap. Results: `results/runs/fs1/`. (First output download was silently incomplete; re-download with `--force` got everything.)
+
 ## Shrey/Claude — FS1 factory rollout smoke pushed, October 28
 
 Pushed `shreysharma07/gemma4-factory-smoke` v1 (GPU, offline, `--budget-h 2.75`, expected ~4–5 quota-h, hard max ~6). 60 factory-v0 tasks (20 per library, 11 two-bug, seed 0). Gemma (thinking off) first rewrites the template issues into user-style reports with a reproducer taken from the hidden tests; rewrites that quote a gold added line or name a test fall back to the template. Then v14 unchanged runs 6 tasks at concurrency 1 (baseline) and 54 at concurrency 6. Pre-registered as FS1 in `docs/experiments.md` (prediction 45–75% solved, ≥3× tasks/h at c=6). New code: `evalkit/factory_smoke.py`; `Settings.concurrency` (default 1, so scorer-faithful runs are unchanged); builder flag `--factory-smoke`. Graph tools return nothing on factory repos (no graphs); v14 rarely calls them.
