@@ -260,7 +260,7 @@ print("exit code", proc.wait())"""),
     if a.factory_rollout:  # GPU, offline; both factory datasets (fac_* + f1_*), one kernel per shard
         meta.update(id=mine(f"gemma4-factory-rollout-s{a.shard}"), title=f"gemma4-factory-rollout-s{a.shard}",
                     code_file=nb_name)
-        meta["dataset_sources"] += [mine("gemma4-factory-v0"), mine("gemma4-factory-v1")]
+        meta["dataset_sources"] += [shared("gemma4-factory-v0"), shared("gemma4-factory-v1")]  # owned by the source account
     if a.preflight:
         meta.pop("machine_shape", None)
     else:

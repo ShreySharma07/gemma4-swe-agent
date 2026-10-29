@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — R2 shard 0 pushed (Shrey), shard 1 prepared for Atul, October 29
+
+Pushed `shreysharma07/gemma4-factory-rollout-s0` v1 (301 tasks, budget 7 h, ≤14.5 quota-h). Shard 1 (300 tasks) is built as `atulbaliyan/gemma4-factory-rollout-s1` in `kaggle/eval_l4/factory_rollout_kernel_s1/` (built with `KAGGLE_OWNER=atulbaliyan`; inputs stay on shreysharma07). Atul pushes it from his own login: `kaggle kernels push -p kaggle/eval_l4/factory_rollout_kernel_s1`. Needs datasets `gemma4-factory-v0` and `gemma4-factory-v1` shared with Atul first. Builder fix: factory datasets now use the source owner, not the pushing account.
+
 ## Shrey/Claude — R2 factory rollouts built (601 tasks, 2 shards), October 29
 
 New `evalkit/factory_rollout.py` + builder flag `--factory-rollout --shard k --n-shards 2 --max-time-min 12`. Loads every verified task from both factory datasets (symlinked snapshots), seed-0 shuffle, runs tasks[shard::2]: FS1 issue rewrite, then v14 at concurrency 6 with the per-task cap raised 8 → 12 min (`Settings.max_time_minutes`, applied in `ChunkedEvaluation`; default None so scorer-faithful runs are unchanged). Shards: s0 301 tasks, s1 300. Budget 7 h each (≤14.5 quota-h per shard, ~29 for both, about one week's quota), so the shards run one after the other. Pre-registered as R2 in `docs/experiments.md`.
