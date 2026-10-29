@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — R2 shard 0 DONE: 176/301 (58%), every prediction held, October 30
+
+`gemma4-factory-rollout-s0` v1, 5.8 h (~11.6 quota-h), 54.3 tasks/h at concurrency 6, all 301 done. Singles 75%, pairs 33%, triples 23%; v0 tasks 75%, v1 tasks 44%. 12-min cap hits 4.3%, call-cap hits 68, overflow 8.3%, rewrite fallbacks 7. 176 resolved trajectories ≥ the 150 decision bar → training set next (drop stray-file patches: 32% of tasks). Shard 1 waits on Atul (datasets must be shared with him). `results/runs/r2_s0/`; traces in `data/runs/r2_s0/`.
+
 ## Shrey/Claude — R2 shard 0 pushed (Shrey), shard 1 prepared for Atul, October 29
 
 Pushed `shreysharma07/gemma4-factory-rollout-s0` v1 (301 tasks, budget 7 h, ≤14.5 quota-h). Shard 1 (300 tasks) is built as `atulbaliyan/gemma4-factory-rollout-s1` in `kaggle/eval_l4/factory_rollout_kernel_s1/` (built with `KAGGLE_OWNER=atulbaliyan`; inputs stay on shreysharma07). Atul pushes it from his own login: `kaggle kernels push -p kaggle/eval_l4/factory_rollout_kernel_s1`. Needs datasets `gemma4-factory-v0` and `gemma4-factory-v1` shared with Atul first. Builder fix: factory datasets now use the source owner, not the pushing account.
