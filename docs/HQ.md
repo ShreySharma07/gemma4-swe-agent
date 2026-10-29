@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — factory v1 DONE: 332 verified tasks, 57% multi-site, October 29
+
+Kernel `gemma4-task-factory-v1` (6.5 h CPU): built 425, **verified 332** (gold 78%, empty 0%): 143 singles, 132 pairs, 57 triples, 9 libraries with ≥10 tasks. Mutant runs ~2–7 s vs v0's ~54 s. Lost: marshmallow (simplejson not in scorer site), 5 libraries whose test deps are missing on the build host, and more-itertools (coverage tracing broke 7 baseline tests → 0 tasks in 213 min). Fixed after the run: plain baseline for outcomes + test-level targets (toy-checked, not re-run on Kaggle). Private dataset `gemma4-factory-v1` uploaded with ids renamed `f1_*` (v0 uses `fac_*`, so the two sets combine without collisions): 601 verified tasks in total. Details: F1 row in `docs/experiments.md`, `results/runs/factory_v1/`.
+
 ## Shrey/Claude — factory v1 pushed (harder, faster, 17 libraries), October 28
 
 Pushed `shreysharma07/gemma4-task-factory-v1` v1 (CPU, Internet). Pre-registered as F1. Speed: baseline run records per-test line coverage; each mutant runs only the test files that execute its lines, on 4 parallel repo copies. Harder: 20 hard-operator-first singles + up to 30 multi-site tasks (pairs and triples, each fix needed) per library. Libraries: 14 new + the v0 three; building stops early to keep verification inside 12 h. Checked end-to-end on a synthetic toy library on the Mac (3 s, 6 singles + 6 multis). Output will become dataset `gemma4-factory-v1`.

@@ -164,7 +164,7 @@ def source_files(repo, lib):
 
 
 def coverage_map(repo, cov_file):
-    """-> {(rel_source_file, lineno): {test files whose tests executed that line}} from the baseline run."""
+    """-> {(rel_source_file, lineno): {test functions (node ids without parameters) that executed that line}}."""
     from coverage import CoverageData
     data = CoverageData(basename=str(cov_file))
     data.read()
@@ -175,16 +175,25 @@ def coverage_map(repo, cov_file):
         except ValueError:
             continue
         for ln, ctxs in data.contexts_by_lineno(f).items():
-            files = {c.split("::", 1)[0] for c in ctxs if "::" in c}
-            if files:
-                out[(rel, ln)] = files
+            nodes = {c.rsplit("|", 1)[0].split("[", 1)[0] for c in ctxs if "::" in c}
+            if nodes:
+                out[(rel, ln)] = nodes
     return out
 
 
+MAX_TARGET_NODES = 200  # above this, run the covering test files whole (keeps the pytest command line short)
+
+
 def targets_for(cov, rel, span):
-    """Test files covering the mutated lines (a deletion span covers its first line)."""
+    """Tests that execute the mutated lines: a test that never runs a line cannot be broken by changing it. Node-level
+    (v1 ran whole files: more-itertools' single huge test file made every mutant ~43 s)."""
     lines = range(span[0], (span[1] if len(span) == 2 else span[0]) + 1)
-    return sorted(set().union(*[cov.get((rel, ln), set()) for ln in lines]))
+    return compact_targets(set().union(*[cov.get((rel, ln), set()) for ln in lines]))
+
+
+def compact_targets(nodes):
+    nodes = sorted(nodes)
+    return nodes if len(nodes) <= MAX_TARGET_NODES else sorted({n.split("::", 1)[0] for n in nodes})
 
 
 # ------------------------------------------------------------------ mutations (one site inside one function)
@@ -554,7 +563,11 @@ def run_library(lib, root, out_snap_dir, n_try=300, n_single=20, n_multi=30, see
     plugin_dir = root / "_plugin"
     write_plugin(plugin_dir)
     cov_file = root / f"{lib['name']}.coverage"
-    base_res = run_tests(repo, lib, plugin_dir, root / f"{lib['name']}_base.json", timeout=1800, cov_file=cov_file)
+    # outcomes from a plain run: coverage tracing itself fails some tests (v1: 7 in more-itertools, which made its
+    # main test file look unclean and dropped every mutant); a second run records coverage for the target map only
+    base_res = run_tests(repo, lib, plugin_dir, root / f"{lib['name']}_base.json", timeout=1800)
+    if base_res is not None:
+        run_tests(repo, lib, plugin_dir, root / f"{lib['name']}_cov.json", timeout=1800, cov_file=cov_file)
     rep = {"lib": lib["name"], "tag": lib["tag"], "tests_dir": tests_dir(repo, lib)}
     if base_res is None:
         return [], dict(rep, error="baseline timeout")
@@ -628,7 +641,7 @@ def run_library(lib, root, out_snap_dir, n_try=300, n_single=20, n_multi=30, see
         mrows = evaluate_mutants(
             repos, lib, base,
             [({"parts": [r["func"] for r in parts],
-               "targets": sorted(set().union(*[r["targets"] for r in parts]) | {split_nodeid(x)[0] for x in union})},
+               "targets": compact_targets(set().union(*[r["targets"] for r in parts]))},
               edits) for parts, edits, union in multis],
             plugin_dir, files_text, log=log, max_f2p=MAX_F2P_MULTI, max_files=MAX_TEST_FILES_MULTI)
         rep["multi_status"] = {s: sum(r["status"] == s for r in mrows) for s in sorted({r["status"] for r in mrows})}
