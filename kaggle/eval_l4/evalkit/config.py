@@ -28,6 +28,9 @@ class Settings:
     session_budget_h: float = 10.5    # stop scheduling chunks after this; the session cap is 12 h
     est_task_min: float = 5.5         # 4.5 min agent budget + setup/verification
     concurrency: int = 1              # tasks in flight per Evaluator call (1 = scorer; >1 only for data generation)
+    max_time_minutes: float | None = None  # override the submission's per-task agent time cap (data generation only)
+    shard: int = 0                    # factory rollouts: this kernel runs tasks[shard::n_shards]
+    n_shards: int = 1
     repeats: int = 1                  # >1: run the list again (rep-major) -> pass@k, trajectories for rejection sampling
     devset: bool = False              # True -> renamed dev set (kernel output gemma4-devset-build)
     valid_only: bool = False          # True -> only tasks in valid_tasks.json (gold passes, empty fails; preflight sweep)

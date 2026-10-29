@@ -128,8 +128,8 @@ def rewrite_all(server, tasks):
     return stats
 
 
-def phase(s, inp, sub, models, adapters, label, ids, conc):
-    ps = replace(s, name=label, task_ids=ids, concurrency=conc, chunk_size=len(ids) if conc == 1 else 18,
+def phase(s, inp, sub, models, adapters, label, ids, conc, chunk=18):
+    ps = replace(s, name=label, task_ids=ids, concurrency=conc, chunk_size=len(ids) if conc == 1 else chunk,
                  max_tasks=None, repeats=1)
     t = time.time()
     ChunkedEvaluation(ps, inp, sub, models, adapters).run()
@@ -148,7 +148,7 @@ def phase(s, inp, sub, models, adapters, label, ids, conc):
 
 def breakdown(rows, meta, budget):
     by = {}
-    cap = (budget.get("max_time_minutes") or 8) * 60
+    cap = (budget.get("max_time_minutes") or 8) * 60  # pass the effective budget (rollouts override the cap)
     for r in rows:
         m = meta.get(r["instance_id"], {})
         for key in (f"lib:{lib_of(r['instance_id'])}", f"kind:{m.get('kind')}", *(f"op:{o}" for o in m.get("ops", []))):

@@ -31,6 +31,8 @@ class ChunkedEvaluation:
         self.s, self.inp, self.sub = settings, inputs, submission
         self.models, self.adapters = models, adapters
         self.budget = submission.eval_budget()
+        if settings.max_time_minutes:  # rollouts only: a longer cap than the submission's (concurrency slows tasks)
+            self.budget["max_time_minutes"] = settings.max_time_minutes
         self.root = WORK / settings.label
         ids = list(settings.task_ids) if settings.task_ids else stratified_order(inputs.load_tasks(), settings.seed)
         if settings.valid_only:  # tasks the scorer env can verify (gold passes, empty fails): see preflight sweep

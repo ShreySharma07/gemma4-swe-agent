@@ -37,11 +37,12 @@ SWAP_DIR = REPO / "kaggle" / "eval_l4" / "siteswap_kernel"  # A12 site-swap + A5
 SWAP2_DIR = REPO / "kaggle" / "eval_l4" / "siteswap2_kernel"  # A12v validated site-swap (--siteswap2)
 REGRADE_DIR = REPO / "kaggle" / "eval_l4" / "regrade_kernel"  # R1 stray-file re-grade (--regrade)
 FSMOKE_DIR = REPO / "kaggle" / "eval_l4" / "factory_smoke_kernel"  # FS1 factory rollout smoke (--factory-smoke, GPU)
+ROLLOUT_DIR = REPO / "kaggle" / "eval_l4" / "factory_rollout_kernel"  # R2 rollouts: <dir>_s<shard> (--factory-rollout, GPU)
 # A3/A4 (--necessity): agent patches + per-task rows of these runs, and the old-54 LOO results (exec-graph run)
 NEC_RUNS = ["eval_v7_new60/x/eval_v7_noedit/rep0", "eval_v14_new60_peek/x/eval_v14_thinking/rep0"] + \
     [f"rs_v7_valid/x/eval_v7_noedit/rep{i}" for i in range(5)]
 MODULES = ["__init__", "config", "util", "envsetup", "inputs", "submission", "compat", "server", "runner", "report",
-           "preflight", "overlays", "gate", "necessity", "siteswap", "siteswap2", "regrade", "factory_smoke", "main"]
+           "preflight", "overlays", "gate", "necessity", "siteswap", "siteswap2", "regrade", "factory_smoke", "factory_rollout", "main"]
 GATE_PREFIXES = REPO / "data" / "runs" / "gate" / "prefixes.json"
 SOURCE_MAX_BYTES = 1_000_000  # Kaggle rejects notebook source above ~1 MB (HTTP 400; found by Atul, Oct 15)
 
@@ -115,6 +116,8 @@ def build(a):
     a.preflight = a.preflight or a.sweep or a.overlays or a.necessity or a.siteswap or a.regrade
     settings = {"name": a.name, "max_tasks": a.max_tasks, "repeats": a.repeats, "devset": a.devset,
                 "session_budget_h": a.budget_h, "sweep": a.sweep, "valid_only": a.valid_only}
+    if a.factory_rollout:
+        settings.update(shard=a.shard, n_shards=a.n_shards, max_time_minutes=a.max_time_min)
     gate_b64 = system_b64 = tools_b64 = ""
     if a.gate:  # behaviour gate: prefixes + v7's exact system prompt and declared tools
         import gzip
@@ -182,7 +185,7 @@ print("submission zip", len(base64.b64decode(SUBMISSION_B64)), "bytes")"""),
     for m in MODULES:
         cells.append(md(f"### `evalkit/{m}.py`\n{module_doc(m)}"))
         cells.append(code(f"%%writefile /kaggle/working/evalkit/{m}.py\n" + (KIT / f"{m}.py").read_text()))
-    step, result = (("gate", "gate_report.json") if a.gate else ("factory_smoke", "factory_smoke_report.json") if a.factory_smoke else ("necessity", "necessity_report.json") if a.necessity
+    step, result = (("gate", "gate_report.json") if a.gate else ("factory_rollout", "factory_rollout_report.json") if a.factory_rollout else ("factory_smoke", "factory_smoke_report.json") if a.factory_smoke else ("necessity", "necessity_report.json") if a.necessity
                     else ("regrade", "regrade_report.json") if a.regrade
                     else ("siteswap2", "siteswap2_report.json") if a.siteswap2
                     else ("siteswap", "siteswap_report.json") if a.siteswap
@@ -213,9 +216,9 @@ print("exit code", proc.wait())"""),
           "nbformat": 4, "nbformat_minor": 4}
     wire = len(json.dumps({**nb, "cells": [{**c, "source": "".join(c["source"])} for c in cells]}).encode())
     assert wire < SOURCE_MAX_BYTES, f"notebook source {wire:,} bytes >= {SOURCE_MAX_BYTES:,}: move inputs to a dataset"
-    out_dir = FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
+    out_dir = ROLLOUT_DIR.with_name(f"{ROLLOUT_DIR.name}_s{a.shard}") if a.factory_rollout else FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
-    nb_name = ("gemma4-factory-smoke.ipynb" if a.factory_smoke else "gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
+    nb_name = (f"gemma4-factory-rollout-s{a.shard}.ipynb" if a.factory_rollout else "gemma4-factory-smoke.ipynb" if a.factory_smoke else "gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
                "gemma4-a3a4-necessity.ipynb" if a.necessity else "gemma4-r1-regrade.ipynb" if a.regrade else "gemma4-a12v-validate.ipynb" if a.siteswap2 else "gemma4-a12-siteswap.ipynb" if a.siteswap else
                "gemma4-eval-preflight.ipynb" if a.preflight else "check-l4.ipynb")
     (out_dir / nb_name).write_text(json.dumps(nb, indent=1))
@@ -254,6 +257,10 @@ print("exit code", proc.wait())"""),
     if a.factory_smoke:  # GPU, offline; factory tasks + snapshots from the private dataset
         meta.update(id=mine("gemma4-factory-smoke"), title="gemma4-factory-smoke", code_file=nb_name)
         meta["dataset_sources"].append(mine("gemma4-factory-v0"))
+    if a.factory_rollout:  # GPU, offline; both factory datasets (fac_* + f1_*), one kernel per shard
+        meta.update(id=mine(f"gemma4-factory-rollout-s{a.shard}"), title=f"gemma4-factory-rollout-s{a.shard}",
+                    code_file=nb_name)
+        meta["dataset_sources"] += [mine("gemma4-factory-v0"), mine("gemma4-factory-v1")]
     if a.preflight:
         meta.pop("machine_shape", None)
     else:
@@ -283,6 +290,10 @@ if __name__ == "__main__":
     ap.add_argument("--regrade", action="store_true", help="CPU kernel: R1 stray-file re-grade (orig vs stripped patches)")
     ap.add_argument("--necessity", action="store_true", help="CPU kernel: A3 LOO necessity on new-60 + A4 completion counterfactual")
     ap.add_argument("--factory-smoke", action="store_true", help="GPU kernel: FS1 issue rewrite + rollouts on factory v0")
+    ap.add_argument("--factory-rollout", action="store_true", help="GPU kernel: R2 rollouts on factory v0+v1, one shard")
+    ap.add_argument("--shard", type=int, default=0)
+    ap.add_argument("--n-shards", type=int, default=2)
+    ap.add_argument("--max-time-min", type=float, default=12, help="--factory-rollout: per-task agent time cap")
     ap.add_argument("--gate-adapters", default="", help="comma-separated adapter names for --gate")
     ap.add_argument("--gate-samples", type=int, default=4)
     build(ap.parse_args())

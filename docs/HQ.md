@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — R2 factory rollouts built (601 tasks, 2 shards), October 29
+
+New `evalkit/factory_rollout.py` + builder flag `--factory-rollout --shard k --n-shards 2 --max-time-min 12`. Loads every verified task from both factory datasets (symlinked snapshots), seed-0 shuffle, runs tasks[shard::2]: FS1 issue rewrite, then v14 at concurrency 6 with the per-task cap raised 8 → 12 min (`Settings.max_time_minutes`, applied in `ChunkedEvaluation`; default None so scorer-faithful runs are unchanged). Shards: s0 301 tasks, s1 300. Budget 7 h each (≤14.5 quota-h per shard, ~29 for both, about one week's quota), so the shards run one after the other. Pre-registered as R2 in `docs/experiments.md`.
+
 ## Shrey/Claude — factory v1 DONE: 332 verified tasks, 57% multi-site, October 29
 
 Kernel `gemma4-task-factory-v1` (6.5 h CPU): built 425, **verified 332** (gold 78%, empty 0%): 143 singles, 132 pairs, 57 triples, 9 libraries with ≥10 tasks. Mutant runs ~2–7 s vs v0's ~54 s. Lost: marshmallow (simplejson not in scorer site), 5 libraries whose test deps are missing on the build host, and more-itertools (coverage tracing broke 7 baseline tests → 0 tasks in 213 min). Fixed after the run: plain baseline for outcomes + test-level targets (toy-checked, not re-run on Kaggle). Private dataset `gemma4-factory-v1` uploaded with ids renamed `f1_*` (v0 uses `fac_*`, so the two sets combine without collisions): 601 verified tasks in total. Details: F1 row in `docs/experiments.md`, `results/runs/factory_v1/`.
