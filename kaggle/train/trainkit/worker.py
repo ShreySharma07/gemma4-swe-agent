@@ -152,6 +152,11 @@ def main():
     s = TrainSettings.load()
     tr = Trainer(s, sys.argv[1])
     tr.build()
+    if s.prefix_probe:
+        from .prefix import probe
+        probe(tr, s.smoke)
+        tr.close()
+        return
     data = TrainData(sys.argv[2], s.max_windows, vocab=tr.vocab if s.smoke else None, seed=s.seed)
     tr.run(data)
     tr.close()

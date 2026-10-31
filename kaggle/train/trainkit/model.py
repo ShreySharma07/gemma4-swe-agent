@@ -81,9 +81,15 @@ class LossWrap(nn.Module):
         super().__init__()
         self.m, self.cap = m, cap
 
-    def forward(self, ids, labels):
+    def forward(self, ids, labels, prefix=0):
+        """prefix > 0: ids[:, :prefix] only feed a frozen KV cache (no grad); labels cover ids[:, prefix + 1:]."""
         base = self.m.base_model.model  # PeftModel -> LoraModel -> Gemma4ForConditionalGeneration
-        h = base.model.language_model(input_ids=ids, use_cache=False).last_hidden_state[0]
+        lm = base.model.language_model
+        if prefix:
+            from .prefix import suffix_hidden
+            h = suffix_hidden(lm, ids, prefix)
+        else:
+            h = lm(input_ids=ids, use_cache=False).last_hidden_state[0]
         return MaskedCE.apply(h[:-1], base.get_output_embeddings().weight, labels, self.cap)
 
 

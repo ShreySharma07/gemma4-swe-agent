@@ -29,6 +29,7 @@ class TrainSettings:
     budget_h: float = 10.5            # stop taking steps after this, then export (session cap 12 h)
     seed: int = 0
     smoke: bool = False               # CPU, gloo, 2 ranks, tiny random model
+    prefix_probe: bool = False        # PA1: run trainkit.prefix.probe instead of training (no data needed)
     t0: float = field(default_factory=time.time)
 
     def hours_left(self):
