@@ -21,7 +21,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 
-from . import fix_attention
+from . import fix_attention, fix_head
 from .config import LC, OUT_DIR
 from .data import IGNORE, TrainData
 from .fix_head import StreamCE, reference_ce
@@ -41,12 +41,13 @@ def _key(n):
     return n.replace("_fsdp_wrapped_module.", "").removeprefix("m.").replace(".default.", ".")
 
 
-def _randomize(named):
-    """Same deterministic values for the same LoRA tensor in any model (PEFT's B = 0 init gives A no gradient)."""
+def _randomize(named, std=0.05, only="lora_"):
+    """Same deterministic values for the same LoRA tensor in any model and on every rank (PEFT's B = 0 init gives A
+    no gradient and leaves the forward untouched by LoRA)."""
     for n, p in named:
-        if "lora_" in n:
+        if only in n:
             g = torch.Generator().manual_seed(zlib.crc32(_key(n).encode()))
-            p.data.copy_((torch.randn(p.shape, generator=g) * 0.05).to(p.dtype))
+            p.data.copy_((torch.randn(p.shape, generator=g) * std).to(p.dtype))
 
 
 # ------------------------------------------------------------------ inputs
@@ -182,7 +183,17 @@ def probe(tr, smoke):
         save()
         return
 
-    # A. StreamCE exactness on real hidden states
+    # LoRA B ~ N(0, 1e-3) (A keeps PEFT's kaiming init, identical on all ranks): BA*alpha/r ~ 1e-4 per weight entry,
+    # ~0.5% of the base weights, so LoRA shapes the forward and both A and B get gradients
+    _randomize(tr.fm.named_parameters(), std=1e-3, only="lora_B")
+
+    def save_rank(key, row):  # every rank keeps its own copy: an OOM on rank r > 0 can hang rank 0 before it saves
+        (OUT_DIR / f"lc_probe_rank{tr.rank}.json").write_text(json.dumps({**rank_rows, key: row}, indent=1))
+        rank_rows[key] = row
+    rank_rows = {}
+
+    # A. StreamCE exactness on real hidden states; P_CHUNK 512 so the position chunks are exercised too (the CPU smoke
+    # had one vocab tile and one chunk). Reference: full-logit autograd 512 positions at a time (2 GB fp32 per chunk)
     reset()
     ids, lab, wts = _seq(2049, tr.rank, dev)
     set_flags(tr.fm, **{k: True for k in FLAGS})
@@ -193,13 +204,19 @@ def probe(tr, smoke):
     head, cap = tr.fm.module.head[0], tr.fm.module.cap
     norm = float(wts.sum())
     hr = h.detach().clone().requires_grad_(True)
+    chunk0, fix_head.P_CHUNK = fix_head.P_CHUNK, 512
     ls = StreamCE.apply(hr, head, lab.clamp(min=0), wts, cap, norm)
+    fix_head.P_CHUNK = chunk0
     ls.backward()
     hf = h.detach().clone().requires_grad_(True)
-    lf = reference_ce(hf, head.to(dev), lab.clamp(min=0), wts, cap, norm)
-    lf.backward()
-    out["A_streamce"] = {"loss_stream": round(float(ls), 6), "loss_ref": round(float(lf), 6),
-                         "abs_diff": round(abs(float(ls) - float(lf)), 7), **_compare([hr.grad.float()], [hf.grad.float()]),
+    wg, lf = head.to(dev), 0.0
+    for a in range(0, hf.shape[0], 512):
+        part = reference_ce(hf[a:a + 512], wg, lab[a:a + 512].clamp(min=0), wts[a:a + 512], cap, norm)
+        part.backward()
+        lf += float(part)
+    del wg
+    out["A_streamce"] = {"loss_stream": round(float(ls), 6), "loss_ref": round(lf, 6),
+                         "abs_diff": round(abs(float(ls) - lf), 7), "peak_gb": peak(), **_compare([hr.grad.float()], [hf.grad.float()]),
                          "n_trained": int((wts > 0).sum())}
     tr.log(event="lc_A", **out["A_streamce"])
     del h, hr, hf, ls, lf
@@ -223,6 +240,7 @@ def probe(tr, smoke):
         else:
             row.update(_compare(g, ref), loss_abs_diff=round(abs(loss - ref_loss), 7))
         out["B_grad"].append(row)
+        save_rank(f"B_{name}", row)
         tr.log(event="lc_B", **row)
         save()
     del ref, g
@@ -257,6 +275,7 @@ def probe(tr, smoke):
         row["any_rank_failed"] = bool(float(flag))
         row["host_pinned_peak_gb"] = round(torch.cuda.memory_stats().get("host_alloc_bytes.all.peak", 0) / 2 ** 30, 2)
         out["C_scan"].append(row)
+        save_rank(f"C_{T}", row)
         tr.log(event="lc_C", **{k: v for k, v in row.items() if k != "breakdown"})
         save()
         if row["any_rank_failed"]:
