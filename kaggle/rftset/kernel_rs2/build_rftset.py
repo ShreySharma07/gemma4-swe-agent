@@ -273,7 +273,7 @@ import re
 import numpy as np
 
 HOLDOUT = ("toolz", "pathspec")
-LIB_CAP = {"boltons": 30, "sqlparse": 30}
+LIB_CAP = {"boltons": 50, "sqlparse": 50}  # ~20% of train each (v1 used 30: train fell to 163)
 CHUNK, CHUNK_MIN, CHUNK_MAX, MAX_PREFIX = 4096, 3072, 5120, 24576
 W_KEY, W_OTHER, W_MULTI, W_PYTEST_EP, W_STRAY_EP, W_CAP = 1.0, 0.5, 3.0, 2.0, 0.5, 3.0
 WRAPT = re.compile(r"Error in sitecustomize; set PYTHONVERBOSE for traceback:\\n|ModuleNotFoundError: No module named 'wrapt'\\n|"
@@ -311,8 +311,8 @@ def tag_step(name, args, stray):
 
 
 def step_weights(msgs, kind, stray, ep_w):
-    """Per assistant message: (tag, weight). Masks and weights as in the module docstring."""
-    steps = [m for m in msgs if m["role"] == "assistant"]
+    """Per assistant message WITH a tool call: (tag, weight). Masks and weights as in the module docstring."""
+    steps = [m for m in msgs if m["role"] == "assistant" and m.get("tool_calls")]
     calls = [((m.get("tool_calls") or [{}])[0].get("function") or {}) for m in steps]
     tags = [tag_step(c.get("name"), c.get("arguments"), stray) if c else "other" for c in calls]
     edits = [i for i, t in enumerate(tags) if t == "edit"]
@@ -423,10 +423,16 @@ def main_rs2(submission_dir, tools_base):
         ep_w = (W_PYTEST_EP if e["pytest_after_last_edit"] else 1.0) * (W_STRAY_EP if e["stray"] else 1.0)
         sw, _ = step_weights(e["msgs"], e["kind"], set(e["stray"]), ep_w)
         text = g.render(e["msgs"], tools)
+        # the whole run is one model turn; each span split at tool responses ends in its step's tool call, so tool-call
+        # spans map in order onto tool-call steps; text-only spans (assistant text without a call) get W_OTHER
         spans = model_spans(text)
-        if len(spans) != len(sw):  # one span per assistant step expected; else weight every span at W_OTHER
+        has_call = ["<|tool_call>" in text[a:b] for a, b in spans]
+        if sum(has_call) != len(sw):
             n_mismatch += 1
             sw = [("other", W_OTHER * ep_w)] * len(spans)
+        else:
+            it = iter(sw)
+            sw = [next(it) if c else ("text", W_OTHER * ep_w) for c in has_call]
         enc = g.tok.encode(text, add_special_tokens=False)
         ids, offs = enc.ids, enc.offsets
         w = np.zeros(len(ids), dtype=np.float32)
