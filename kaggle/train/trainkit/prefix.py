@@ -35,16 +35,24 @@ def freeze_cache(cache):
     return cache
 
 
+def windowed_cache(cfg):
+    """DynamicCache with a window-bounded layer for every sliding layer. transformers 5.13's default (and
+    DynamicCache(config=...)) gave plain DynamicLayers that keep the whole prefix: ~16 KB/token x 50 layers."""
+    from transformers.cache_utils import DynamicCache, DynamicLayer, DynamicSlidingWindowLayer
+    cache = DynamicCache()
+    cache.layers = [DynamicSlidingWindowLayer(sliding_window=cfg.sliding_window) if t == "sliding_attention" else DynamicLayer()
+                    for t in cfg.layer_types]
+    if hasattr(cache, "layer_class_to_replicate"):
+        cache.layer_class_to_replicate = None  # layers are fixed; never append
+    return cache
+
+
 def prefix_cache(lm, ids, chunk=PREFILL_CHUNK):
     """No-grad chunked prefill of ids [1, P] into the model's own cache (sliding layers keep only their window)."""
     t = time.perf_counter()
     was = lm.training
     lm.eval()  # HF turns use_cache off under gradient checkpointing in train mode
-    from transformers import DynamicCache
-    try:  # sliding layers then keep only their window (the model's own default may not)
-        cache = DynamicCache(config=lm.config)
-    except TypeError:
-        cache = None
+    cache = windowed_cache(lm.config)
     with torch.no_grad():
         for a in range(0, ids.shape[1], chunk):
             pos = torch.arange(a, min(a + chunk, ids.shape[1]), device=ids.device)
