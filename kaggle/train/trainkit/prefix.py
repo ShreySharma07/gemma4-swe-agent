@@ -8,11 +8,14 @@ for the 10 global layers (4 KV heads x 512).
 probe(): correctness (cache path loss == full-sequence loss on the same targets), a short overfit run, and peak
 memory / time over a (P, S) grid on random tokens. Rank 0 writes OUT_DIR/prefix_probe.json after every test.
 """
+import contextlib
+import functools
 import json
 import time
 import types
 
 import torch
+import torch.nn as nn
 
 from .config import OUT_DIR
 from .data import IGNORE
@@ -45,12 +48,31 @@ def prefix_cache(lm, ids, chunk=PREFILL_CHUNK):
     return freeze_cache(cache)
 
 
+@contextlib.contextmanager
+def checkpoint_keeps_cache():
+    """HF's GradientCheckpointingLayer sets past_key_values=None in train mode (a cache that grows would be appended
+    twice by the recompute). Ours is frozen, so recompute is safe: checkpoint the layer with its kwargs unchanged."""
+    from transformers.modeling_layers import GradientCheckpointingLayer
+    orig = GradientCheckpointingLayer.__call__
+
+    def call(self, *args, **kwargs):
+        if self.gradient_checkpointing and self.training:
+            return self._gradient_checkpointing_func(functools.partial(nn.Module.__call__, self, **kwargs), *args)
+        return nn.Module.__call__(self, *args, **kwargs)
+    GradientCheckpointingLayer.__call__ = call
+    try:
+        yield
+    finally:
+        GradientCheckpointingLayer.__call__ = orig
+
+
 def suffix_hidden(lm, ids, prefix):
     """Hidden states of ids[:, prefix:] attending to a frozen cache of ids[:, :prefix]."""
     cache = prefix_cache(lm, ids[:, :prefix])
     pos = torch.arange(prefix, ids.shape[1], device=ids.device)
-    return lm(input_ids=ids[:, prefix:], past_key_values=cache, use_cache=False, cache_position=pos,
-              position_ids=pos.unsqueeze(0)).last_hidden_state[0]
+    with checkpoint_keeps_cache():
+        return lm(input_ids=ids[:, prefix:], past_key_values=cache, use_cache=False, cache_position=pos,
+                  position_ids=pos.unsqueeze(0)).last_hidden_state[0]
 
 
 # ------------------------------------------------------------------ probe
@@ -89,8 +111,10 @@ def probe(tr, smoke):
         with torch.no_grad():
             lf = float(fm(ids, full_lab))
             lp = float(fm(ids, suf_lab, prefix=P))
-        fm.train()
-        corr.append({"P": P, "S": S, "loss_full": round(lf, 5), "loss_prefix": round(lp, 5), "abs_diff": round(abs(lf - lp), 5)})
+        fm.train()  # train mode = the gradient-checkpointing path (v1 smoke crashed only here)
+        lt = float(fm(ids, suf_lab, prefix=P))
+        corr.append({"P": P, "S": S, "loss_full": round(lf, 5), "loss_prefix": round(lp, 5), "abs_diff": round(abs(lf - lp), 5),
+                     "loss_prefix_train": round(lt, 5), "abs_diff_train": round(abs(lf - lt), 5)})
         log(event="prefix_correct", **corr[-1])
     out["correctness"] = corr
     save()
