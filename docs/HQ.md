@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — RS2 max-context set built (v2): 203 train / 40 val episodes, 590 + 143 chunks, October 31
+
+`gemma4-rftset-rs2` v2 (CPU). Heredoc-aware tagger finds an edit in every episode (old analyzer: 31/261) and 79 train episodes that ran pytest after the last edit. Masks/weights applied per tool-call step (v1 collapsed to flat weights: span mapping bug, fixed). Cap 50 per boltons/sqlparse (v1's 30 left only 163 train). Chunks ~4k with full prefixes (P ≤ 22.3k); prefill buckets 169/378/166/20 → the trainer must group steps by prefill-call count (FSDP). Data: kernel output `shreysharma07/gemma4-rftset-rs2`. Open: `trace_analyzer.py` still misses heredoc edits (fix before citing failure stages); trainer support for rs2.npz (chunks + float weights + bucketing) not written yet; PA1 L4 result pending.
+
 ## Shrey/Claude — PA1 CPU smoke passes (v3), L4 probe ready, October 31
 
 `gemma4-prefix-probe-smoke` v1 found the train-mode bug (HF GradientCheckpointingLayer drops past_key_values); v2 fixed it (checkpoint with kwargs kept; the cache is frozen so recompute is safe). v3 (red-team additions), tiny Gemma-4, window 16: cache path = full forward exactly (0.0) in eval and train mode; suffix-only control differs (0.006–0.052); 4 steps lower loss 6.22 → 5.90; unequal prefixes across ranks run; attn_logit_softcapping is null (no vLLM mismatch). Gradient cosine truncated vs full = 0.65 at P=S=32 on the random tiny model (not representative; the L4 run measures P=S=4k; red-team bar ≥0.9 = negligible bias). L4 `gemma4-prefix-probe` built, waiting for a quota check (~1.5 quota-h, hard cap ~3).
