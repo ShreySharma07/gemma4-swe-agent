@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LC1 L4 v5: host OOM explained: model was in eval mode, so no gradient checkpointing, October 31
+
+`gemma4-lc-probe` v5 (D+A retry with the host watch; ~0.25 h ≈ 0.5 quota-h; LC1 total ≈ 4.3). After load RSS 5.2 GB/rank (malloc_trim freed nothing: load-time RSS 58.8 GB was the mmapped shards), node 165 GB free. During the first 4k fwd of test D, RSS rose 5 → 43 GB per rank at ~1 GB/s until a rank was killed (node free 12 GB). **Cause:** the trainer never called `fm.train()`; `from_pretrained` returns eval mode, where HF's GradientCheckpointingLayer does not checkpoint, so save_on_cpu offloaded every layer's saved tensors (incl. dequantized weights). v2/v3 escaped because test A toggled eval→train before the 4k tests; real training escaped because `validate("start")` ends with `train()`. The CPU smoke exactness tests also ran without checkpointing (L4 v2/v3 B covered the checkpointed paths: bit-identical). Fix: `self.fm.train()` right after wrapping.
+
 ## Shrey/Claude — LC1 L4 v4 (rounding control): rank 1 SIGKILLed for host RAM 50 s after load, no results, October 31
 
 `gemma4-lc-probe` v4 (tests D+A; ~0.25 h session ≈ 0.5 quota-h; LC1 total ≈ 3.8). Load 450 s, 4.16 GB/rank GPU; rank 1 SIGKILL (host OOM) ~50 s later, during the first 4k fwd+bwd of test D; no test finished. v3 ran the same 4k step (pageable offload) fine after other tests, so host RAM right after load is the unknown. Fix: `gc` + `malloc_trim(0)` after building the model (freed load-time heap back to the OS), RSS before/after trim and node MemAvailable logged in the model event, and a 5 s per-rank host watch written to `train_out/host_rank{r}.json` (survives SIGKILL). The trainer gets the same, since a real run would hit this too.
