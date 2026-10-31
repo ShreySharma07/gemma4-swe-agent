@@ -20,7 +20,7 @@ import torch.nn as nn
 from .config import OUT_DIR
 from .data import IGNORE
 
-PREFILL_CHUNK = 8192
+PREFILL_CHUNK = 4096  # L4 v1: 8192-token no-grad chunks + a full-length cache OOMed at P=9216
 TIMING = {}  # last prefill wall time (probe: prefill vs trained tokens/s)
 
 
@@ -40,7 +40,11 @@ def prefix_cache(lm, ids, chunk=PREFILL_CHUNK):
     t = time.perf_counter()
     was = lm.training
     lm.eval()  # HF turns use_cache off under gradient checkpointing in train mode
-    cache = None
+    from transformers import DynamicCache
+    try:  # sliding layers then keep only their window (the model's own default may not)
+        cache = DynamicCache(config=lm.config)
+    except TypeError:
+        cache = None
     with torch.no_grad():
         for a in range(0, ids.shape[1], chunk):
             pos = torch.arange(a, min(a + chunk, ids.shape[1]), device=ids.device)
@@ -50,6 +54,8 @@ def prefix_cache(lm, ids, chunk=PREFILL_CHUNK):
     if ids.is_cuda:
         torch.cuda.synchronize()
     TIMING["prefill_s"] = time.perf_counter() - t
+    TIMING["cache_gb"] = sum(x.numel() * x.element_size() for layer in cache.layers for x in (layer.keys, layer.values)) / 2 ** 30
+    TIMING["cache_layers"] = {k: sum(type(l).__name__ == k for l in cache.layers) for k in {type(l).__name__ for l in cache.layers}}
     return freeze_cache(cache)
 
 
@@ -116,13 +122,17 @@ def probe(tr, smoke):
         with torch.no_grad():
             lf = float(fm(ids, full_lab))
             lp = float(fm(ids, suf_lab, prefix=P))
-        fm.train()  # train mode = the gradient-checkpointing path (v1 smoke crashed only here)
-        lt = float(fm(ids, suf_lab, prefix=P))
+        fm.train()  # train mode = the gradient-checkpointing path (v1 smoke crashed only here); no_grad: a forward without
+        with torch.no_grad():  # backward would leave FSDP's root unsharded and its graph alive (L4 v1 OOM)
+            lt = float(fm(ids, suf_lab, prefix=P))
+        cache_info = {"cache_gb": round(TIMING["cache_gb"], 3), "cache_layers": TIMING["cache_layers"]}
         with torch.no_grad():  # negative control: same targets with no prefix at all must differ from full
             ls = float(fm(ids[:, P:], suf_lab))
         corr.append({"P": P, "S": S, "loss_full": round(lf, 5), "loss_prefix": round(lp, 5), "abs_diff": round(abs(lf - lp), 5),
                      "loss_prefix_train": round(lt, 5), "abs_diff_train": round(abs(lf - lt), 5),
-                     "loss_suffix_only": round(ls, 5), "abs_diff_suffix_only": round(abs(lf - ls), 5)})
+                     "loss_suffix_only": round(ls, 5), "abs_diff_suffix_only": round(abs(lf - ls), 5), **cache_info,
+                     "peak_gb": peak()})
+        reset()
         log(event="prefix_correct", **corr[-1])
     out["correctness"] = corr
     cfg = fm.module.m.config.get_text_config()
@@ -193,6 +203,7 @@ def probe(tr, smoke):
             sec = time.perf_counter() - t
             pre = TIMING.get("prefill_s", 0.0) if P else 0.0
             row.update(ok=True, sec=round(sec, 1), prefill_s=round(pre, 1), peak_gb=peak(), loss=round(float(loss), 4),
+                       cache_gb=round(TIMING.get("cache_gb", 0.0), 3) if P else 0.0,
                        prefill_tok_s=round(P / pre, 1) if P and pre else None,
                        trained_tok_s=round(S / max(1e-6, sec - pre), 1), host_pinned_gb=None if smoke else
                        round(torch.cuda.memory_stats().get("host_alloc_bytes.all.peak", 0) / 2 ** 30, 2))
