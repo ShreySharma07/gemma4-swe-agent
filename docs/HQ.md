@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — RS1 training set built: 350 thinking-ON episodes, 261 core, October 31
+
+Rule from Shrey: nothing heavy on the 8 GB MacBook; data builds run as Kaggle kernels (saved in memory). CPU kernel `gemma4-rftset` (`kaggle/rftset/`) rendered R2's 350 resolved runs with thinking as `reasoning_content`, matching vLLM's logged prompt sizes within a constant 29 tokens (system/tool prefix). core 261 (no stray files, no drift, main agent only). Median 13.1k tokens; 84% exceed 8k (925 windows). Core is 82% single-bug; only 22 core runs test after their last edit. Files live in the kernel output (attach `shreysharma07/gemma4-rftset` as a kernel source to train). Report `results/runs/rs1/`.
+
 ## Shrey/Claude — R2 DONE: 350/601 factory rollouts resolved (58%), October 31
 
 Shard 1 (`atulbaliyan/gemma4-factory-rollout-s1`, 5.7 h on Atul's quota): 174/300, 55.3 tasks/h, output shared with Shrey and downloaded to `data/runs/r2_s1/`. Combined, disjoint, all 601 tasks once: **350 resolved**; singles 75%, pairs 37%, triples 14%; v0 74%, v1 46%. Every R2 prediction held. Failure pressure: call cap (124 tasks used ≥27 of 28 calls) > overflow (44) > time cap (28). Behaviour to filter in training data: stray files in ~32% of patches, tests after last edit in ~5%. Next: build the training set from the 350 resolved trajectories.
