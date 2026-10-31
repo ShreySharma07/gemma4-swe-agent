@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — PA1 L4 v1: correctness OK at 3k, OOM at P=9216 during prefill, October 31
+
+`gemma4-prefix-probe` v1 (4×L4, ~0.3 h session ≈ 0.6 quota-h; model load 10 min, 4.64 GB/rank after load). (P=3072, S=2048): cache-path loss 18.052 vs full 18.040 (Δ 0.012; prediction ≤0.01), suffix-only control 19.412 (Δ 1.37), so the cache is used and nearly exact (bf16 noise). Next point (P=9216, S=2048) OOMed on all ranks in the train-mode check's no-grad prefill (19.67 GB allocated). Likely causes: a forward without backward leaves FSDP's root (2.8 GB embedding) unsharded with its graph alive, and the cache may be full-length for sliding layers (~8 GB at 9k vs ~1 GB windowed). v2: explicit `DynamicCache(config=...)`, 4k prefill chunks, train-mode check under no_grad, cache GB + layer types logged. CPU smoke v4 first, then L4 v2.
+
 ## Shrey/Claude — RS2 max-context set built (v2): 203 train / 40 val episodes, 590 + 143 chunks, October 31
 
 `gemma4-rftset-rs2` v2 (CPU). Heredoc-aware tagger finds an edit in every episode (old analyzer: 31/261) and 79 train episodes that ran pytest after the last edit. Masks/weights applied per tool-call step (v1 collapsed to flat weights: span mapping bug, fixed). Cap 50 per boltons/sqlparse (v1's 30 left only 163 train). Chunks ~4k with full prefixes (P ≤ 22.3k); prefill buckets 169/378/166/20 → the trainer must group steps by prefill-call count (FSDP). Data: kernel output `shreysharma07/gemma4-rftset-rs2`. Open: `trace_analyzer.py` still misses heredoc edits (fix before citing failure stages); trainer support for rs2.npz (chunks + float weights + bucketing) not written yet; PA1 L4 result pending.
