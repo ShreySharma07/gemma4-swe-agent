@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LC1 L4 v1 crashed at the first forward (embed_scale left on GPU), October 31
+
+`gemma4-lc-probe` v1: model load 453 s, 410 LoRA modules / 122.4M LoRA params, **4.16 GB/rank after load** (was 4.64: the tied head now lives in host RAM). First forward failed in `HostEmbedding`: `embed_scale` is a GPU buffer, the lookup is on the CPU (the CPU smoke could not see this). ~0.2 h session ≈ 0.4 quota-h. Fix: keep the scale on the CPU; v2 pushed.
+
 ## Shrey/Claude — LC1 long-context fixes built; CPU smoke passes (v2), L4 probe ready, October 31
 
 Built per the 4-agent plan, each fix its own module and notebook cell: `trainkit/fix_attention.py` (block-local sliding attention + per-KV-group global attention, no dense masks; unused full-length K/V store off), `fix_mlp.py` (4096-token tiles, each a checkpoint), `fix_norm.py` (checkpointed RMSNorm), `fix_head.py` (tied embedding/lm_head in pinned host RAM, two-pass streamed softcapped CE), `fix_lora.py` (LoRA FSDP-ignored + replicated, fp32-master ShardedAdamW, loss ÷ the step's total weight). Trainer: `data.py` reads rs2.npz float weights (were collapsed to 0/1), drops episodes > max_len 28672, length-bucketed step plan; export reads the replicated LoRA directly. Probe `trainkit/lcprobe.py`, pre-registered as LC1 in experiments.md.

@@ -23,7 +23,7 @@ class HostEmbedding(nn.Module):
         super().__init__()
         w = emb.weight.detach().to("cpu")
         self.w = w.pin_memory() if device.type == "cuda" else w
-        self.scale = emb.embed_scale.to(w.dtype)  # HF: lookup * embed_scale cast to the weight dtype
+        self.scale = emb.embed_scale.detach().to("cpu", w.dtype)  # HF: lookup * embed_scale in the weight dtype (L4 v1: was left on the GPU)
         self.device = device
 
     def forward(self, input_ids):
