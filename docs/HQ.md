@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — PA1 L4 v2: windowed cache works (1.0/1.5 GB at P=3k/9k); drift on random tokens; leak found, October 31
+
+`gemma4-prefix-probe` v2 (~1 quota-h). Cache now 50 DynamicSlidingWindowLayer + 10 DynamicLayer: 1.02 GB at P=3072, 1.48 GB at P=9216 (vs ~8 GB unwindowed). Correctness on random tokens: |Δloss| 0.021 (P=3k) and 0.176 (P=9k) vs suffix-only control 1.37 / 2.64; random-token losses are ~16–18 (near the 30 softcap), where bf16 differences are amplified, so this cannot separate error from noise. OOM (20.2 GB) at the gradient-fidelity step: my freeze_cache bound each layer's update as a method (layer ↔ method cycle), so every previous prefix cache stayed alive until a GC cycle. v4: plain closure, gc + empty_cache between tests, correctness on real RS2 tokens (kernel source gemma4-rftset-rs2). PA1 L4 total so far ≈ 1.6 quota-h.
+
 ## Shrey/Claude — PA1 L4 v1: correctness OK at 3k, OOM at P=9216 during prefill, October 31
 
 `gemma4-prefix-probe` v1 (4×L4, ~0.3 h session ≈ 0.6 quota-h; model load 10 min, 4.64 GB/rank after load). (P=3072, S=2048): cache-path loss 18.052 vs full 18.040 (Δ 0.012; prediction ≤0.01), suffix-only control 19.412 (Δ 1.37), so the cache is used and nearly exact (bf16 noise). Next point (P=9216, S=2048) OOMed on all ranks in the train-mode check's no-grad prefill (19.67 GB allocated). Likely causes: a forward without backward leaves FSDP's root (2.8 GB embedding) unsharded with its graph alive, and the cache may be full-length for sliding layers (~8 GB at 9k vs ~1 GB windowed). v2: explicit `DynamicCache(config=...)`, 4k prefill chunks, train-mode check under no_grad, cache GB + layer types logged. CPU smoke v4 first, then L4 v2.
