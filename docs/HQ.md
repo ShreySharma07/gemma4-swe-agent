@@ -1,5 +1,10 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LC1 L4 v3: 28k and 32k fit; attention kernels exact in isolation but the model still differs with the attn fix, October 31
+
+`gemma4-lc-probe` v3 (rc 0, ~0.7 h session ≈ 1.4 quota-h; LC1 total ≈ 3.3). **Memory (all fixes, real tokens, pageable offload): T=28k peak 16.63 GiB (reserved 21.59), 72.3 tok/s/rank; T=32k peak 18.30 GiB (reserved 21.63), 68.4 tok/s/rank**; node MemAvailable after forward 90.7 / 79.6 GB (host OOM fixed). ShardedAdamW step after 32k: 0.38 s. Prediction (≤20 GiB at 28k, 32k may fit) held.
+**Attention unit test (no model, real head shapes, bf16 on the mem-efficient kernel vs fp32):** lc bias-mask, lc bool-mask and HF dense-mask give identical errors (fwd rel 0.0034, q/k/v grad cosine 0.99999) at T 4096 and 4100, sliding and global. So the kernels and mask alignment are fine. **Yet in the model at 4k: attn on vs off LoRA-grad cosine 0.097, loss +5.9e-4** (other fixes exact again: 0.99991–0.99995 vs noise 0.9999). HF's sliding rule is the same as ours (q−W < k ≤ q, masking_utils.py:99). The difference must be in what the model hands attention in the two modes → free CPU diagnostic next (3-layer real-width model, both modes, per-layer diffs + captured attention arguments). StreamCE test still vacuous on rank 0 (episode tail all context).
+
 ## Shrey/Claude — LC1 L4 v2: 24k fits at 14.95 GiB and runs faster than 8k; attention fix NOT exact; host OOM at 28k, October 31
 
 `gemma4-lc-probe` v2 (~0.75 h session ≈ 1.5 quota-h; LC1 total ≈ 1.9). Load 518 s, 4.44 GiB/rank after wrap.

@@ -22,6 +22,7 @@ NO_MASKS = {"full_attention": None, "sliding_attention": None}
 MASK = "bias"  # "bias": additive mask in q's dtype, row stride padded to 16 (L4 v2: the bool-mask variant's gradient
                # had cosine 0.55 vs HF's dense-mask path at 4k); "bool": the v2 variant, kept for the probe's unit test
 _HF_SDPA = None
+CAPTURE = None  # probe only: a list -> every call appends its arguments (lcprobe._real_width_diag)
 
 
 def _grouped_causal(q, k, v, scale):
@@ -55,6 +56,11 @@ def _ckpt(fn, *args):
 
 def lc_attention(module, query, key, value, attention_mask, dropout=0.0, scaling=None, is_causal=None, **kwargs):
     T, Tk = query.shape[2], key.shape[2]
+    if CAPTURE is not None:
+        CAPTURE.append({"layer": getattr(module, "layer_idx", None), "T": T, "Tk": Tk, "q": query, "k": key, "v": value,
+                        "mask": attention_mask, "dropout": dropout, "scaling": scaling, "is_causal": is_causal,
+                        "kwargs": {k: (v if isinstance(v, (int, float, str, bool, type(None))) else type(v).__name__)
+                                   for k, v in kwargs.items()}})
     if (not LC["attn"] or attention_mask is not None or T != Tk or T == 1 or dropout
             or not getattr(module, "is_causal", True)):
         return _HF_SDPA(module, query, key, value, attention_mask, dropout=dropout, scaling=scaling, is_causal=is_causal,

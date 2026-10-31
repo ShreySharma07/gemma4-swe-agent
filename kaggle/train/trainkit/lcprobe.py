@@ -123,6 +123,77 @@ def _fwd_bwd(tr, ids, lab, wts, norm, smoke):
     return float(loss)
 
 
+# ------------------------------------------------------------------ real-width diagnostic (CPU, no checkpoint)
+def _real_width_diag(tr, T=2100):
+    """L4 v2/v3: every attention path matched an fp32 reference in isolation, yet the model's loss/grads differ between
+    attn off (HF masks) and on (NO_MASKS). A 3-layer Gemma-4 at the real width and config (2 sliding + 1 full layer,
+    random init, fp32, CPU math kernel) run both ways: per-layer output difference, what each attention call receives,
+    and HF's attention re-run vs lc_attention on the very tensors the model passed."""
+    from transformers import AutoConfig, AutoModelForImageTextToText
+    from .config import SMOKE_CONFIG
+    real = json.loads(SMOKE_CONFIG.read_text())
+    tc = real["text_config"]
+    tc.update(num_hidden_layers=3, layer_types=["sliding_attention", "sliding_attention", "full_attention"],
+              vocab_size=1024, vocab_size_per_layer_input=1024)
+    real["vision_config"].update(hidden_size=32, intermediate_size=64, num_hidden_layers=1, num_attention_heads=2,
+                                 num_key_value_heads=2, head_dim=16, global_head_dim=16)
+    torch.manual_seed(0)
+    cfg = AutoConfig.for_model(**{k: v for k, v in real.items() if k != "transformers_version"})
+    m = AutoModelForImageTextToText.from_config(cfg, attn_implementation="sdpa").eval()
+    fix_attention.install(m)
+    lm = m.model.language_model
+    ids = torch.randint(10, 1000, (1, T), generator=torch.Generator().manual_seed(5))
+    res = {"T": T, "text_config": {k: tc.get(k) for k in ("hidden_size", "num_attention_heads", "num_key_value_heads",
+                                                          "num_global_key_value_heads", "head_dim", "global_head_dim",
+                                                          "sliding_window", "attention_k_eq_v", "use_bidirectional_attention")}}
+    outs = {}
+    hooks = [layer.register_forward_hook(lambda mod, a, o, i=i: outs.setdefault(mode, {}).__setitem__(i, o.detach().clone()))
+             for i, layer in enumerate(lm.layers)]
+    calls = {}
+    with torch.no_grad():
+        for mode in ("off", "on"):
+            LC["attn"] = mode == "on"
+            fix_attention.CAPTURE = []
+            h = lm(input_ids=ids, attention_mask=fix_attention.NO_MASKS if mode == "on" else None, use_cache=False).last_hidden_state
+            outs.setdefault(mode, {})["final"] = h.clone()
+            calls[mode] = fix_attention.CAPTURE
+            fix_attention.CAPTURE = None
+    for hk in hooks:
+        hk.remove()
+    res["layer_rel_diff"] = {str(k): round(float((outs["on"][k] - outs["off"][k]).norm() / outs["off"][k].norm()), 8)
+                             for k in outs["off"]}
+    i, j = torch.arange(T)[:, None], torch.arange(T)[None, :]
+    res["calls"] = []
+    for c_off, c_on in zip(calls["off"], calls["on"]):
+        row = {"layer": c_off["layer"], "T": c_off["T"], "Tk": c_off["Tk"], "q_shape": list(c_off["q"].shape),
+               "k_shape": list(c_off["k"].shape), "q_contig": c_off["q"].is_contiguous(), "q_stride": list(c_off["q"].stride()),
+               "dropout": c_off["dropout"], "scaling": c_off["scaling"], "is_causal": c_off["is_causal"],
+               "kwargs": c_off["kwargs"], "mask_off": None if c_off["mask"] is None else
+               {"dtype": str(c_off["mask"].dtype), "shape": list(c_off["mask"].shape)},
+               "mask_on": None if c_on["mask"] is None else str(type(c_on["mask"])),
+               "inputs_equal_off_on": all(torch.equal(c_off[x], c_on[x]) for x in "qkv")}
+        mk = c_off["mask"]
+        if mk is not None:
+            W = c_off["kwargs"].get("sliding_window")
+            allowed = mk[0, 0] if mk.dtype == torch.bool else mk[0, 0] == 0
+            rule = (j <= i) & (j > i - W) if W else (j <= i)
+            row["mask_disagree_vs_rule"] = int((allowed != rule).sum())
+        mod = lm.layers[c_off["layer"]].self_attn
+        LC["attn"] = False
+        o_hf, _ = fix_attention._HF_SDPA(mod, c_off["q"], c_off["k"], c_off["v"], c_off["mask"], dropout=0.0,
+                                         scaling=c_off["scaling"], **{k: v for k, v in c_off["kwargs"].items()
+                                                                      if k == "sliding_window"})
+        LC["attn"] = True
+        o_lc, _ = fix_attention.lc_attention(mod, c_off["q"], c_off["k"], c_off["v"], None, scaling=c_off["scaling"],
+                                             **{k: v for k, v in c_off["kwargs"].items() if k == "sliding_window"})
+        row["attn_out_rel_diff_same_inputs"] = round(float((o_lc - o_hf).norm() / o_hf.norm()), 8)
+        res["calls"].append(row)
+    del m, outs, calls
+    gc.collect()
+    tr.log(event="lc_R", layer_rel_diff=res["layer_rel_diff"])
+    return res
+
+
 # ------------------------------------------------------------------ attention unit test (no model)
 def _attn_unit(dev, smoke):
     """lc_attention (bias mask, bool mask) and HF's sdpa path with its dense mask, each vs an fp32 reference, at the
@@ -229,6 +300,8 @@ def probe(tr, smoke):
         return 0 if smoke else round(torch.cuda.max_memory_allocated() / 2 ** 30, 2)
 
     if smoke:
+        out["R_real_width"] = _real_width_diag(tr)
+        save()
         out["U_attention"] = _attn_unit(dev, True)
         save()
         _smoke(tr, out, save)
