@@ -121,7 +121,8 @@ print("exit code", proc.wait())"""),
     meta = {"id": mine(slug), "title": slug, "code_file": f"{slug}.ipynb", "language": "python",
             "kernel_type": "notebook", "is_private": True, "enable_gpu": not a.smoke, "enable_internet": False,
             "dataset_sources": ["metric/gemma-4-developer-agent-wheelhouse"] + ([a.dataset] if a.dataset else []),
-            "kernel_sources": [shared("gemma4-scorer-env"), shared("gemma4-train-wheels")],
+            "kernel_sources": [shared("gemma4-scorer-env"), shared("gemma4-train-wheels")] +
+                              ([shared("gemma4-rftset-rs2")] if a.prefix_probe and not a.smoke else []),  # real tokens
             "model_sources": [] if a.smoke else ["google/gemma-4/Transformers/gemma-4-31b-it-qat-q4_0-unquantized/2"],
             "competition_sources": [] if a.smoke else ["gemma-4-developer-agent"]}
     if not a.smoke:

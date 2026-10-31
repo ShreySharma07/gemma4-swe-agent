@@ -10,9 +10,10 @@ memory / time over a (P, S) grid on random tokens. Rank 0 writes OUT_DIR/prefix_
 """
 import contextlib
 import functools
+import gc
+import glob
 import json
 import time
-import types
 
 import torch
 import torch.nn as nn
@@ -29,9 +30,9 @@ def freeze_cache(cache):
     for layer in cache.layers:
         k0, v0 = layer.keys.detach(), layer.values.detach()
 
-        def update(self, key_states, value_states, cache_kwargs=None, k0=k0, v0=v0):
+        def update(key_states, value_states, cache_kwargs=None, k0=k0, v0=v0):
             return torch.cat([k0, key_states], dim=-2), torch.cat([v0, value_states], dim=-2)
-        layer.update = types.MethodType(update, layer)
+        layer.update = update  # plain closure: a bound method would make layer <-> method a cycle that keeps the cache
     return cache
 
 
@@ -95,9 +96,28 @@ def suffix_hidden(lm, ids, prefix):
 
 
 # ------------------------------------------------------------------ probe
-def _example(T, P, vocab, device, seed):
+_REAL = {}
+
+
+def _real_ids(T, seed):
+    """First T tokens of a real RS2 episode (attached kernel output gemma4-rftset-rs2), else None. Random tokens give
+    losses ~16-18 near the logit softcap, where bf16 noise looks like error (L4 v2)."""
+    if "eps" not in _REAL:
+        import numpy as np
+        f = sorted(glob.glob("/kaggle/input/**/rs2.npz", recursive=True))
+        _REAL["eps"] = []
+        if f:
+            d = np.load(f[0])
+            st = d["ep_starts"]
+            _REAL["eps"] = [d["ids"][st[k]:st[k + 1]] for k in range(len(st) - 1)]
+    long = [e for e in _REAL["eps"] if len(e) >= T]
+    return torch.from_numpy(long[seed % len(long)][:T].astype("int64")).unsqueeze(0) if long else None
+
+
+def _example(T, P, vocab, device, seed, real=False):
     g = torch.Generator().manual_seed(seed)  # same tokens on every rank (FSDP needs equal shapes, not equal data)
-    ids = torch.randint(10, vocab, (1, T), generator=g)
+    ids = _real_ids(T, seed) if real else None
+    ids = torch.randint(10, vocab, (1, T), generator=g) if ids is None else ids
     full_lab = ids[0, 1:].clone()
     full_lab[:P] = IGNORE  # full sequence: train only targets after the prefix
     return ids.to(device), full_lab.to(device), ids[0, P + 1:].clone().to(device)
@@ -117,6 +137,7 @@ def probe(tr, smoke):
         return 0 if smoke else round(torch.cuda.max_memory_allocated() / 2 ** 30, 2)
 
     def reset():
+        gc.collect()
         if not smoke:
             torch.cuda.synchronize()
             torch.cuda.empty_cache()
@@ -125,7 +146,7 @@ def probe(tr, smoke):
     # 1. correctness: same targets, full sequence vs prefix cache (crosses the sliding window when P > window)
     corr = []
     for P, S in ([(40, 24), (64, 48)] if smoke else [(3072, 2048), (9216, 2048)]):
-        ids, full_lab, suf_lab = _example(P + S, P, vocab, dev, seed=P)
+        ids, full_lab, suf_lab = _example(P + S, P, vocab, dev, seed=P, real=not smoke)
         fm.eval()
         with torch.no_grad():
             lf = float(fm(ids, full_lab))
@@ -143,6 +164,7 @@ def probe(tr, smoke):
         reset()
         log(event="prefix_correct", **corr[-1])
     out["correctness"] = corr
+    out["correctness_tokens"] = "real (rs2.npz)" if not smoke and _REAL.get("eps") else "random"
     cfg = fm.module.m.config.get_text_config()
     out["config"] = {k: getattr(cfg, k, None) for k in ("attn_logit_softcapping", "final_logit_softcapping", "sliding_window",
                                                        "attention_k_eq_v")}
@@ -151,6 +173,7 @@ def probe(tr, smoke):
                                  "math": torch.backends.cuda.math_sdp_enabled()}
     save()
 
+    reset()
     # 1b. gradient fidelity: LoRA grads of the truncated path vs full backprop through the prefix (same targets)
     P, S = (32, 32) if smoke else (4096, 4096)
     ids, full_lab, suf_lab = _example(P + S, P, vocab, dev, seed=11)
