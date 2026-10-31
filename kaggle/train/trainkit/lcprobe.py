@@ -69,7 +69,8 @@ def _seq(T, k, dev, vocab=None, tail=False):
     if eps:
         long = [e for e in eps if len(e[0]) >= T]
         parts = [long[k % len(long)]] if long else [eps[(k + j) % len(eps)] for j in range(len(eps))]
-        cut = slice(len(parts[0][0]) - T, None) if tail and long else slice(0, T)
+        end = int(np.nonzero(parts[0][1])[0][-1]) + 1 if tail and long else T
+        cut = slice(max(0, end - T), max(0, end - T) + T)
         ids = torch.from_numpy(np.concatenate([e[0] for e in parts])[cut].astype(np.int64))
         wts = torch.from_numpy(np.concatenate([e[1] for e in parts])[cut][1:].astype(np.float32))
         assert ids.numel() == T, f"RS2 holds fewer than {T} tokens"
@@ -313,20 +314,49 @@ def probe(tr, smoke):
     # ~0.5% of the base weights, so LoRA shapes the forward and both A and B get gradients
     _randomize(tr.fm.named_parameters(), std=1e-3, only="lora_B")
 
-    out["U_attention"] = _attn_unit(dev, False)  # before anything else: decides whether B/C below mean anything
-    for r in out["U_attention"]:
-        tr.log(event="lc_U", **r)
-    save()
+    tests = tr.s.lc_tests
+    if "U" in tests:
+        out["U_attention"] = _attn_unit(dev, False)  # before anything else: decides whether B/C below mean anything
+        for r in out["U_attention"]:
+            tr.log(event="lc_U", **r)
+        save()
 
     def save_rank(key, row):  # every rank keeps its own copy: an OOM on rank r > 0 can hang rank 0 before it saves
         (OUT_DIR / f"lc_probe_rank{tr.rank}.json").write_text(json.dumps({**rank_rows, key: row}, indent=1))
         rank_rows[key] = row
     rank_rows = {}
 
+    # D. rounding-only control (v3: attn on vs off LoRA-grad cosine 0.097 at 4k, although every attention path matched
+    # fp32 in isolation and the real-width CPU model differed only at fp32 rounding level). Same math, three reduction
+    # orders: HF dense mask, our blocks of 1024 queries, our blocks of 512. If 1024 vs 512 is as far apart as on vs
+    # off, the 4k LoRA gradient is dominated by bf16 rounding and cosine cannot judge the attention fix.
+    if "D" in tests:
+        ids, lab, wts = _seq(4096, tr.rank, dev)
+        norm = float(wts.sum())
+        got, out["D_rounding"] = {}, []
+        for name, block in (("off", None), ("attn_b1024", None), ("attn_b512", 512), ("off_again", None)):
+            set_flags(tr.fm, attn=name.startswith("attn"))
+            fix_attention.BLOCK = block
+            reset()
+            loss = _fwd_bwd(tr, ids, lab, wts, norm, smoke)
+            got[name] = (loss, _grads(tr))
+        fix_attention.BLOCK = None
+        for a, b in (("attn_b1024", "off"), ("attn_b512", "off"), ("attn_b512", "attn_b1024"), ("off_again", "off")):
+            row = {"pair": f"{a} vs {b}", "loss_a": round(got[a][0], 7), "loss_b": round(got[b][0], 7),
+                   "loss_abs_diff": round(abs(got[a][0] - got[b][0]), 7), **_compare(got[a][1], got[b][1])}
+            out["D_rounding"].append(row)
+            tr.log(event="lc_D", **row)
+        del got
+        save()
+
     # A. StreamCE exactness on real hidden states; P_CHUNK 512 so the position chunks are exercised too (the CPU smoke
     # had one vocab tile and one chunk). Reference: full-logit autograd 512 positions at a time (2 GB fp32 per chunk)
+    if "A" not in tests:
+        out["done"] = True
+        save()
+        return
     reset()
-    ids, lab, wts = _seq(2049, tr.rank, dev, tail=True)  # the episode's end: model-written tokens (v2: the head was all prompt)
+    ids, lab, wts = _seq(2049, tr.rank, dev, tail=True)  # ends at the episode's last trained token (v3: the tail was context)
     set_flags(tr.fm, **{k: True for k in FLAGS})
     with torch.no_grad():
         tr.fm.eval()
@@ -353,6 +383,10 @@ def probe(tr, smoke):
     del h, hr, hf, ls, lf
     save()
 
+    if "B" not in tests:
+        out["done"] = True
+        save()
+        return
     # B. exactness of each runtime fix at T=4096 (real tokens, one episode per rank)
     T = 4096
     ids, lab, wts = _seq(T, tr.rank, dev)
@@ -376,6 +410,10 @@ def probe(tr, smoke):
         save()
     del ref, g
 
+    if "C" not in tests:
+        out["done"] = True
+        save()
+        return
     # C. memory / time scan, all fixes on
     set_flags(tr.fm, **{k: True for k in FLAGS})
     out["C_scan"] = []

@@ -22,6 +22,7 @@ NO_MASKS = {"full_attention": None, "sliding_attention": None}
 MASK = "bias"  # "bias": additive mask in q's dtype, row stride padded to 16 (L4 v2: the bool-mask variant's gradient
                # had cosine 0.55 vs HF's dense-mask path at 4k); "bool": the v2 variant, kept for the probe's unit test
 _HF_SDPA = None
+BLOCK = None  # query block for sliding layers (None = the window); the probe varies it as a rounding-only control
 CAPTURE = None  # probe only: a list -> every call appends its arguments (lcprobe._real_width_diag)
 
 
@@ -68,8 +69,9 @@ def lc_attention(module, query, key, value, attention_mask, dropout=0.0, scaling
     window = kwargs.get("sliding_window") or getattr(module, "sliding_window", None)
     hkv, g = key.shape[1], query.shape[1] // key.shape[1]
     if window and T > window:
-        out = torch.cat([_ckpt(_window_block, query, key, value, s, min(s + window, T), window, scaling)
-                         for s in range(0, T, window)], dim=2)
+        step = BLOCK or window
+        out = torch.cat([_ckpt(_window_block, query, key, value, s, min(s + step, T), window, scaling)
+                         for s in range(0, T, step)], dim=2)
     else:
         out = torch.cat([_ckpt(_grouped_causal, query[:, h * g:(h + 1) * g], key[:, h:h + 1], value[:, h:h + 1], scaling)
                          for h in range(hkv)], dim=1)

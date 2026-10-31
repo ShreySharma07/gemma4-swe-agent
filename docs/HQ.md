@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LC1 real-width CPU diagnostic: attention fix agrees with HF to fp32 rounding; the 4k cosine is likely bf16 rounding, October 31
+
+Smoke v4 (CPU, free): 3-layer Gemma-4 at the real width/config (2 sliding + 1 full, random init, fp32, T=2100), attn off vs on. Layer 0 gets bit-identical q/k/v in both modes; HF's sliding mask = our rule (0 disagreements); `dropout` 0, `scaling` 1.0, only extra kwarg `position_ids`. On the same inputs, our attention vs HF's: **global layer bit-identical (0.0); sliding 2.2e-5 relative** — summation order over large logits (QK-norm + scaling 1.0 → logits std ~16). Layer outputs diverge ×7 per layer in this random net (4.3e-4 → 3.1e-3 → 9.7e-3). No semantic difference found. All-off vs all-off on L4 is bit-identical, so it never measured rounding sensitivity; mlp_tile/norm_ckpt/no_kv_store pass because they are bit-identical, not because the metric tolerates rounding. **Next (needs a go, ~0.5 quota-h):** L4 control D at 4k — off vs attn(blocks 1024) vs attn(blocks 512, same math, different rounding); if 1024 vs 512 is as far apart as on vs off, cosine cannot judge the fix. Plus StreamCE check on a window ending at the last trained token.
+
 ## Shrey/Claude — LC1 L4 v3: 28k and 32k fit; attention kernels exact in isolation but the model still differs with the attn fix, October 31
 
 `gemma4-lc-probe` v3 (rc 0, ~0.7 h session ≈ 1.4 quota-h; LC1 total ≈ 3.3). **Memory (all fixes, real tokens, pageable offload): T=28k peak 16.63 GiB (reserved 21.59), 72.3 tok/s/rank; T=32k peak 18.30 GiB (reserved 21.63), 68.4 tok/s/rank**; node MemAvailable after forward 90.7 / 79.6 GB (host OOM fixed). ShardedAdamW step after 32k: 0.38 s. Prediction (≤20 GiB at 28k, 32k may fit) held.

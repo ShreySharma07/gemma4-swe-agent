@@ -39,6 +39,7 @@ class TrainSettings:
     smoke: bool = False               # CPU, gloo, 2 ranks, tiny random model
     prefix_probe: bool = False        # PA1: run trainkit.prefix.probe instead of training (no data needed)
     lc_probe: bool = False            # LC1: run trainkit.lcprobe.probe (long-context fixes: exactness + memory)
+    lc_tests: str = "UABC"            # which lcprobe tests run on L4 (D = rounding-only attention control)
     t0: float = field(default_factory=time.time)
 
     def hours_left(self):
