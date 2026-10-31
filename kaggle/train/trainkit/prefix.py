@@ -21,6 +21,7 @@ from .config import OUT_DIR
 from .data import IGNORE
 
 PREFILL_CHUNK = 8192
+TIMING = {}  # last prefill wall time (probe: prefill vs trained tokens/s)
 
 
 def freeze_cache(cache):
@@ -36,6 +37,7 @@ def freeze_cache(cache):
 
 def prefix_cache(lm, ids, chunk=PREFILL_CHUNK):
     """No-grad chunked prefill of ids [1, P] into the model's own cache (sliding layers keep only their window)."""
+    t = time.perf_counter()
     was = lm.training
     lm.eval()  # HF turns use_cache off under gradient checkpointing in train mode
     cache = None
@@ -45,6 +47,9 @@ def prefix_cache(lm, ids, chunk=PREFILL_CHUNK):
             cache = lm(input_ids=ids[:, a:a + chunk], past_key_values=cache, use_cache=True, cache_position=pos,
                        position_ids=pos.unsqueeze(0)).past_key_values
     lm.train(was)
+    if ids.is_cuda:
+        torch.cuda.synchronize()
+    TIMING["prefill_s"] = time.perf_counter() - t
     return freeze_cache(cache)
 
 
@@ -113,10 +118,42 @@ def probe(tr, smoke):
             lp = float(fm(ids, suf_lab, prefix=P))
         fm.train()  # train mode = the gradient-checkpointing path (v1 smoke crashed only here)
         lt = float(fm(ids, suf_lab, prefix=P))
+        with torch.no_grad():  # negative control: same targets with no prefix at all must differ from full
+            ls = float(fm(ids[:, P:], suf_lab))
         corr.append({"P": P, "S": S, "loss_full": round(lf, 5), "loss_prefix": round(lp, 5), "abs_diff": round(abs(lf - lp), 5),
-                     "loss_prefix_train": round(lt, 5), "abs_diff_train": round(abs(lf - lt), 5)})
+                     "loss_prefix_train": round(lt, 5), "abs_diff_train": round(abs(lf - lt), 5),
+                     "loss_suffix_only": round(ls, 5), "abs_diff_suffix_only": round(abs(lf - ls), 5)})
         log(event="prefix_correct", **corr[-1])
     out["correctness"] = corr
+    cfg = fm.module.m.config.get_text_config()
+    out["config"] = {k: getattr(cfg, k, None) for k in ("attn_logit_softcapping", "final_logit_softcapping", "sliding_window",
+                                                       "attention_k_eq_v")}
+    if not smoke:
+        out["config"]["sdpa"] = {"flash": torch.backends.cuda.flash_sdp_enabled(), "mem_efficient": torch.backends.cuda.mem_efficient_sdp_enabled(),
+                                 "math": torch.backends.cuda.math_sdp_enabled()}
+    save()
+
+    # 1b. gradient fidelity: LoRA grads of the truncated path vs full backprop through the prefix (same targets)
+    P, S = (32, 32) if smoke else (4096, 4096)
+    ids, full_lab, suf_lab = _example(P + S, P, vocab, dev, seed=11)
+    grads = []
+    for path_ in ("full", "prefix"):
+        with torch.autograd.graph.save_on_cpu(pin_memory=not smoke):
+            loss = fm(ids, full_lab) if path_ == "full" else fm(ids, suf_lab, prefix=P)
+        loss.backward()
+        grads.append([q.grad.detach().float().clone() if q.grad is not None else None
+                      for q in fm.parameters() if q.requires_grad])
+        for q in fm.parameters():
+            q.grad = None
+    acc = torch.zeros(3, device=dev, dtype=torch.float64)  # dot, |full|^2, |prefix|^2 over this rank's shards
+    for a, b in zip(*grads):
+        if a is not None and b is not None:
+            acc += torch.stack([(a * b).sum(), (a * a).sum(), (b * b).sum()]).double()
+    torch.distributed.all_reduce(acc)
+    out["grad_fidelity"] = {"P": P, "S": S, "cosine": round(float(acc[0] / (acc[1].sqrt() * acc[2].sqrt() + 1e-30)), 4),
+                            "norm_ratio_prefix_over_full": round(float(acc[2].sqrt() / (acc[1].sqrt() + 1e-30)), 4)}
+    log(event="prefix_grad_fidelity", **out["grad_fidelity"])
+    del grads
     save()
 
     # 2. overfit sanity: a few optimizer steps on one example through the prefix path; loss must fall
@@ -139,7 +176,8 @@ def probe(tr, smoke):
     del opt
 
     # 3. memory / time grid, ascending total length; stop at the first OOM (later configs are larger)
-    grid = [(0, 32), (32, 32), (64, 32)] if smoke else [(0, 8192), (16384, 4096), (16384, 8192), (24576, 4096), (24576, 8192)]
+    grid = [(0, 32), (32, 32), (64, 32)] if smoke else [(0, 8192), (16384, 4096), (16384, 8192), (24576, 4096), (24576, 6144),
+                                                      (28672, 4096), (24576, 8192)]
     out["grid"] = []
     for P, S in grid:
         ids, full_lab, suf_lab = _example(P + S, P, vocab, dev, seed=P + S)
@@ -152,7 +190,12 @@ def probe(tr, smoke):
             loss.backward()
             if not smoke:
                 torch.cuda.synchronize()
-            row.update(ok=True, sec=round(time.perf_counter() - t, 1), peak_gb=peak(), loss=round(float(loss), 4))
+            sec = time.perf_counter() - t
+            pre = TIMING.get("prefill_s", 0.0) if P else 0.0
+            row.update(ok=True, sec=round(sec, 1), prefill_s=round(pre, 1), peak_gb=peak(), loss=round(float(loss), 4),
+                       prefill_tok_s=round(P / pre, 1) if P and pre else None,
+                       trained_tok_s=round(S / max(1e-6, sec - pre), 1), host_pinned_gb=None if smoke else
+                       round(torch.cuda.memory_stats().get("host_alloc_bytes.all.peak", 0) / 2 ** 30, 2))
         except torch.cuda.OutOfMemoryError as e:
             row.update(ok=False, error=f"OOM: {str(e)[:200]}", peak_gb=peak())
         for p in fm.parameters():
@@ -165,5 +208,19 @@ def probe(tr, smoke):
         save()
         if row["any_rank_failed"]:
             break
+    # 4. unequal prefixes across ranks (same number of prefill chunks), as real batches will have; watched by NCCL timeout
+    if not any(r["any_rank_failed"] for r in out["grid"]):
+        P = (32 + 4 * tr.rank) if smoke else (17408 + 1024 * tr.rank)
+        S = 32 if smoke else 4096
+        ids, _, suf_lab = _example(P + S, P, vocab, dev, seed=99 + tr.rank)
+        reset()
+        t = time.perf_counter()
+        with torch.autograd.graph.save_on_cpu(pin_memory=not smoke):
+            loss = fm(ids, suf_lab, prefix=P)
+        loss.backward()
+        for q in fm.parameters():
+            q.grad = None
+        out["unequal_prefix"] = {"ok": True, "P_rank0": P, "S": S, "sec": round(time.perf_counter() - t, 1), "peak_gb": peak()}
+        log(event="prefix_unequal", **out["unequal_prefix"])
     out["done"] = True
     save()
