@@ -5,10 +5,13 @@ ranks and micro-steps), LoRA grads are summed across ranks by ShardedAdamW (fix_
 micro-steps with linear warmup then cosine decay. Validation loss (held-out tasks) at the start, every
 val_every steps and at the end. Rank 0 writes metrics.jsonl and the adapter(s).
 """
+import ctypes
 import datetime
+import gc
 import json
 import math
 import sys
+import threading
 import time
 
 import torch
@@ -19,6 +22,46 @@ from .data import TrainData
 from .export import export_adapter
 from .fix_lora import ShardedAdamW
 from .model import add_lora, load_base, lora_modules, wrap_fsdp
+
+
+def host_gb():
+    """(this process's RSS, node MemAvailable) in GB, from /proc."""
+    def kb(path, key):
+        with open(path) as f:
+            return int(next(l for l in f if l.startswith(key)).split()[1]) / 2 ** 20
+    return round(kb("/proc/self/status", "VmRSS"), 1), round(kb("/proc/meminfo", "MemAvailable"), 1)
+
+
+def release_heap():
+    """Return freed heap to the OS: loading 62 GB of bf16 shards leaves glibc holding freed CPU memory (LC1 v4: a rank
+    was SIGKILLed for host RAM 50 s after load, at the first 4k step)."""
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except OSError:
+        pass
+
+
+class HostWatch(threading.Thread):
+    """Samples RSS / MemAvailable every 5 s into OUT_DIR/host_rank{r}.json (written each sample, so it survives a
+    SIGKILL): the minimum MemAvailable, the maximum RSS and the last 120 samples."""
+
+    def __init__(self, rank, t0):
+        super().__init__(daemon=True)
+        self.path, self.t0 = OUT_DIR / f"host_rank{rank}.json", t0
+        self.min_avail, self.max_rss, self.tail = 1e9, 0.0, []
+
+    def run(self):
+        while True:
+            rss, avail = host_gb()
+            self.min_avail, self.max_rss = min(self.min_avail, avail), max(self.max_rss, rss)
+            self.tail = (self.tail + [[round((time.time() - self.t0) / 60, 2), rss, avail]])[-120:]
+            try:
+                self.path.write_text(json.dumps({"min_avail_gb": self.min_avail, "max_rss_gb": self.max_rss,
+                                                 "tail_min_rss_avail": self.tail}))
+            except OSError:
+                pass
+            time.sleep(5)
 
 
 class Trainer:
@@ -37,6 +80,10 @@ class Trainer:
             torch.backends.cuda.enable_cudnn_sdp(False)
             torch.backends.cuda.enable_mem_efficient_sdp(True)
         OUT_DIR.mkdir(parents=True, exist_ok=True)
+        self.host = None
+        if not s.smoke:
+            self.host = HostWatch(self.rank, s.t0)
+            self.host.start()
         self.metrics = open(OUT_DIR / "metrics.jsonl", "a") if self.rank == 0 else None
 
     def log(self, **kw):
@@ -56,8 +103,12 @@ class Trainer:
         if not self.s.smoke:
             torch.cuda.empty_cache()
         self.vocab = m.config.get_text_config().vocab_size
+        rss0, _ = host_gb()
+        release_heap()
+        rss1, avail = host_gb()
         self.log(event="model", load_s=load_s, lora_modules=n_lora, lora_params=sum(p.numel() for p in self.lora),
-                 gpu_gb=0 if self.s.smoke else round(torch.cuda.memory_allocated() / 2 ** 30, 2))
+                 gpu_gb=0 if self.s.smoke else round(torch.cuda.memory_allocated() / 2 ** 30, 2),
+                 rss_gb_before_trim=rss0, rss_gb=rss1, node_avail_gb=avail)
 
     def loss(self, ids, lab, wts, norm):
         """sum_t wts_t * ce_t / norm for one sequence; checkpoint inputs of long sequences live in pinned host RAM."""
