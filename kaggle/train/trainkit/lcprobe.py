@@ -63,14 +63,15 @@ def _episodes():
     return _EPS["eps"]
 
 
-def _seq(T, k, dev, vocab=None):
+def _seq(T, k, dev, vocab=None, tail=False):
     """Sequence k of length T: a real RS2 episode (longest first; concatenated beyond the longest), else random."""
     eps = _episodes()
     if eps:
         long = [e for e in eps if len(e[0]) >= T]
         parts = [long[k % len(long)]] if long else [eps[(k + j) % len(eps)] for j in range(len(eps))]
-        ids = torch.from_numpy(np.concatenate([e[0] for e in parts])[:T].astype(np.int64))
-        wts = torch.from_numpy(np.concatenate([e[1] for e in parts])[1:T].astype(np.float32))
+        cut = slice(len(parts[0][0]) - T, None) if tail and long else slice(0, T)
+        ids = torch.from_numpy(np.concatenate([e[0] for e in parts])[cut].astype(np.int64))
+        wts = torch.from_numpy(np.concatenate([e[1] for e in parts])[cut][1:].astype(np.float32))
         assert ids.numel() == T, f"RS2 holds fewer than {T} tokens"
     else:
         g = torch.Generator().manual_seed(1000 + k)
@@ -104,13 +105,63 @@ def _compare(a, b, reduce=True):
             "norm_ratio": round(float(acc[1].sqrt() / (acc[2].sqrt() + 1e-30)), 6), "worst_tensor_rel": round(float(worst), 6)}
 
 
+HOST = {}
+
+
+def _host_avail_gb():
+    with open("/proc/meminfo") as f:
+        return round(int(next(l for l in f if l.startswith("MemAvailable")).split()[1]) / 2 ** 20, 1)
+
+
 def _fwd_bwd(tr, ids, lab, wts, norm, smoke):
     for p in tr.lora:
         p.grad = None
-    with torch.autograd.graph.save_on_cpu(pin_memory=not smoke):
+    with torch.autograd.graph.save_on_cpu(pin_memory=False):  # pageable: pinned blocks round up (host OOM at 28k, v2)
         loss = tr.fm(ids, lab, wts, norm)
+    HOST["avail_after_fwd_gb"] = _host_avail_gb()  # all checkpoint inputs are on the host now (node-wide figure)
     loss.backward()
     return float(loss)
+
+
+# ------------------------------------------------------------------ attention unit test (no model)
+def _attn_unit(dev, smoke):
+    """lc_attention (bias mask, bool mask) and HF's sdpa path with its dense mask, each vs an fp32 reference, at the
+    real head shapes: forward error and q/k/v gradient cosine. Lengths include one that is not a multiple of 16."""
+    from types import SimpleNamespace
+    torch.manual_seed(0)
+    cases = ([("sliding", 4, 2, 16, 16), ("global", 4, 1, 32, None)] if smoke else
+             [("sliding", 32, 16, 256, 1024), ("global", 32, 4, 512, None)])
+    rows, dt = [], torch.float32 if smoke else torch.bfloat16
+    for kind, H, KV, D, W in cases:
+        for T in ((100, 103) if smoke else (4096, 4100)):
+            q, k, v = (torch.randn(1, n, T, D, device=dev) * D ** -0.25 for n in (H, KV, KV))
+            mod = SimpleNamespace(is_causal=True, sliding_window=W, num_key_value_groups=H // KV)
+            i, j = torch.arange(T, device=dev)[:, None], torch.arange(T, device=dev)[None, :]
+            allowed = (j <= i) & (j > i - W) if W else (j <= i)
+            qr, kr, vr = (x.clone().requires_grad_(True) for x in (q, k, v))
+            ref = []
+            for h in range(H):  # fp32 reference, one head at a time
+                sc = (qr[0, h] @ kr[0, h // (H // KV)].T).masked_fill(~allowed, float("-inf"))
+                ref.append(torch.softmax(sc, -1) @ vr[0, h // (H // KV)])
+            ref = torch.stack(ref, 1)  # [T, H, D]
+            go = torch.randn_like(ref)
+            (ref * go).sum().backward()
+            gref = [x.grad for x in (qr, kr, vr)]
+            for variant in ("lc_bias", "lc_bool", "hf_dense"):
+                qx, kx, vx = (x.to(dt).clone().requires_grad_(True) for x in (q, k, v))
+                LC["attn"] = variant != "hf_dense"
+                fix_attention.MASK = "bool" if variant == "lc_bool" else "bias"
+                mask = None if variant != "hf_dense" or not W else allowed[None, None]
+                o, _ = fix_attention.lc_attention(mod, qx, kx, vx, mask, scaling=1.0, sliding_window=W)
+                (o.float() * go[None]).sum().backward()
+                err = float((o[0].float() - ref).norm() / ref.norm())
+                cos = [float(torch.nn.functional.cosine_similarity(a.grad.float().flatten(), b.flatten(), 0))
+                       for a, b in zip((qx, kx, vx), gref)]
+                rows.append({"kind": kind, "T": T, "variant": variant, "fwd_rel_err": round(err, 6),
+                             "grad_cos_qkv": [round(c, 6) for c in cos]})
+            del q, k, v, qr, kr, vr, ref, go, gref
+    fix_attention.MASK = "bias"
+    return rows
 
 
 # ------------------------------------------------------------------ memory breakdown (allocator trace replay)
@@ -178,6 +229,8 @@ def probe(tr, smoke):
         return 0 if smoke else round(torch.cuda.max_memory_allocated() / 2 ** 30, 2)
 
     if smoke:
+        out["U_attention"] = _attn_unit(dev, True)
+        save()
         _smoke(tr, out, save)
         out["done"] = True
         save()
@@ -187,6 +240,11 @@ def probe(tr, smoke):
     # ~0.5% of the base weights, so LoRA shapes the forward and both A and B get gradients
     _randomize(tr.fm.named_parameters(), std=1e-3, only="lora_B")
 
+    out["U_attention"] = _attn_unit(dev, False)  # before anything else: decides whether B/C below mean anything
+    for r in out["U_attention"]:
+        tr.log(event="lc_U", **r)
+    save()
+
     def save_rank(key, row):  # every rank keeps its own copy: an OOM on rank r > 0 can hang rank 0 before it saves
         (OUT_DIR / f"lc_probe_rank{tr.rank}.json").write_text(json.dumps({**rank_rows, key: row}, indent=1))
         rank_rows[key] = row
@@ -195,7 +253,7 @@ def probe(tr, smoke):
     # A. StreamCE exactness on real hidden states; P_CHUNK 512 so the position chunks are exercised too (the CPU smoke
     # had one vocab tile and one chunk). Reference: full-logit autograd 512 positions at a time (2 GB fp32 per chunk)
     reset()
-    ids, lab, wts = _seq(2049, tr.rank, dev)
+    ids, lab, wts = _seq(2049, tr.rank, dev, tail=True)  # the episode's end: model-written tokens (v2: the head was all prompt)
     set_flags(tr.fm, **{k: True for k in FLAGS})
     with torch.no_grad():
         tr.fm.eval()
@@ -213,7 +271,7 @@ def probe(tr, smoke):
     for a in range(0, hf.shape[0], 512):
         part = reference_ce(hf[a:a + 512], wg, lab[a:a + 512].clamp(min=0), wts[a:a + 512], cap, norm)
         part.backward()
-        lf += float(part)
+        lf += float(part.detach())
     del wg
     out["A_streamce"] = {"loss_stream": round(float(ls), 6), "loss_ref": round(lf, 6),
                          "abs_diff": round(abs(float(ls) - lf), 7), "peak_gb": peak(), **_compare([hr.grad.float()], [hf.grad.float()]),
@@ -249,7 +307,7 @@ def probe(tr, smoke):
     set_flags(tr.fm, **{k: True for k in FLAGS})
     out["C_scan"] = []
     last_ok = None
-    for T in (8192, 24576, 28672, 32768):
+    for T in (28672, 32768):  # 8k: 8.24 GiB, 24k: 14.95 GiB peak (v2)
         ids, lab, wts = _seq(T, tr.rank, dev)
         reset()
         base = torch.cuda.memory_allocated()
@@ -273,7 +331,7 @@ def probe(tr, smoke):
         flag = torch.tensor([0.0 if row["ok"] else 1.0], device=dev)
         dist.all_reduce(flag, op=dist.ReduceOp.MAX)
         row["any_rank_failed"] = bool(float(flag))
-        row["host_pinned_peak_gb"] = round(torch.cuda.memory_stats().get("host_alloc_bytes.all.peak", 0) / 2 ** 30, 2)
+        row["host_avail_after_fwd_gb"] = HOST.get("avail_after_fwd_gb")
         out["C_scan"].append(row)
         save_rank(f"C_{T}", row)
         tr.log(event="lc_C", **{k: v for k, v in row.items() if k != "breakdown"})

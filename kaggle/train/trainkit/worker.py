@@ -62,7 +62,7 @@ class Trainer:
     def loss(self, ids, lab, wts, norm):
         """sum_t wts_t * ce_t / norm for one sequence; checkpoint inputs of long sequences live in pinned host RAM."""
         if ids.shape[1] >= self.s.offload_from:
-            with torch.autograd.graph.save_on_cpu(pin_memory=not self.s.smoke):
+            with torch.autograd.graph.save_on_cpu(pin_memory=False):  # pinned blocks round up: host OOM at 28k (LC1 v2)
                 return self.fm(ids, lab, wts, norm)
         return self.fm(ids, lab, wts, norm)
 

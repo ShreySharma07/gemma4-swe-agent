@@ -19,6 +19,8 @@ from torch.utils.checkpoint import checkpoint
 from .config import LC
 
 NO_MASKS = {"full_attention": None, "sliding_attention": None}
+MASK = "bias"  # "bias": additive mask in q's dtype, row stride padded to 16 (L4 v2: the bool-mask variant's gradient
+               # had cosine 0.55 vs HF's dense-mask path at 4k); "bool": the v2 variant, kept for the probe's unit test
 _HF_SDPA = None
 
 
@@ -39,7 +41,12 @@ def _window_block(query, key, value, s, e, window, scale):
     i = torch.arange(s, e, device=q.device)[:, None]
     j = torch.arange(ks, e, device=q.device)[None, :]
     mask = (j <= i) & (j > i - window)
-    return F.scaled_dot_product_attention(q, k, v, attn_mask=mask[None, None], scale=scale)
+    if MASK == "bool":
+        return F.scaled_dot_product_attention(q, k, v, attn_mask=mask[None, None], scale=scale)
+    L = e - ks  # the memory-efficient kernel wants the mask's row stride aligned to 16: pad, then slice
+    bias = torch.full((e - s, -(-L // 16) * 16), float("-inf"), dtype=q.dtype, device=q.device)[:, :L]
+    bias.masked_fill_(mask, 0.0)
+    return F.scaled_dot_product_attention(q, k, v, attn_mask=bias[None, None], scale=scale)
 
 
 def _ckpt(fn, *args):

@@ -1,5 +1,13 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LC1 L4 v2: 24k fits at 14.95 GiB and runs faster than 8k; attention fix NOT exact; host OOM at 28k, October 31
+
+`gemma4-lc-probe` v2 (~0.75 h session ≈ 1.5 quota-h; LC1 total ≈ 1.9). Load 518 s, 4.44 GiB/rank after wrap.
+**Memory/speed (all fixes on, real RS2 tokens):** T=8k peak 8.24 GiB (reserved 11.3), 97.7 tok/s/rank; **T=24k peak 14.95 GiB (reserved 19.6), 81.1 tok/s/rank = 324 tok/s total** (old 8k stack: ~290 tok/s, 17.6–18.9 GiB). Prediction ≤17 GiB at 24k held. **28k: rank 1 SIGKILLed** after 24k — host RAM, not GPU: save_on_cpu pinned blocks round up to powers of two (~30 GB/rank at 28k) + pinned heads; no 28k/32k data.
+**Exactness at 4k (cosine of LoRA grads vs all-off; noise floor off vs off_again 0.99987):** mlp_tile 0.99992, norm_ckpt 0.99986, no_kv_store 0.99987, all loss diffs 0 → exact. **attn 0.5545, loss +5.8e-4 → NOT exact** (all-on 0.556, same). CPU smoke had passed it (math kernel, window 16, one global KV head), so the fault is GPU-specific or in a case the smoke shape cannot show (prime suspect: the block mask's unaligned 2047-wide bool mask on the memory-efficient kernel).
+**StreamCE test vacuous:** first 2,049 tokens are all prompt (n_trained 0 → NaN).
+**v3 changes (smoke first):** attention unit test vs an fp32 reference at real head shapes (T 4096 and 4100) for lc bias-mask / lc bool-mask / HF dense-mask, forward error + q/k/v grad cosine; block mask now additive in q's dtype with a 16-aligned row stride; save_on_cpu pageable (pin_memory=False) in probe and trainer; StreamCE test on the episode's last 2,049 tokens; scan only 28k/32k with node MemAvailable after forward.
+
 ## Shrey/Claude — LC1 L4 v1 crashed at the first forward (embed_scale left on GPU), October 31
 
 `gemma4-lc-probe` v1: model load 453 s, 410 LoRA modules / 122.4M LoRA params, **4.16 GB/rank after load** (was 4.64: the tied head now lives in host RAM). First forward failed in `HostEmbedding`: `embed_scale` is a GPU buffer, the lookup is on the CPU (the CPU smoke could not see this). ~0.2 h session ≈ 0.4 quota-h. Fix: keep the scale on the CPU; v2 pushed.
