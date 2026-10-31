@@ -100,6 +100,8 @@ class Trainer:
         m = add_lora(m, self.s.rank, self.s.alpha, self.dt)
         n_lora = lora_modules(m)
         self.fm, self.layer_cls, self.lora = wrap_fsdp(m, self.s.smoke, 32 if self.s.smoke else self.s.mlp_tile)  # smoke: T~100
+        self.fm.train()  # from_pretrained returns eval mode, where HF skips gradient checkpointing (LC1 v4/v5: a 4k
+        # step then kept every layer's activations and dequantized weights, ~40 GB/rank of host RAM via save_on_cpu)
         if not self.s.smoke:
             torch.cuda.empty_cache()
         self.vocab = m.config.get_text_config().vocab_size
