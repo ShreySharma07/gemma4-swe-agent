@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — PA1 paused before v5; rethinking max-context training, October 31
+
+PA1 v5 (real-token gradient fidelity, S=2k grid, memory breakdown) was planned but **not pushed**: Shrey asked to stop and rethink. No quota spent beyond v3 (PA1 total ≈ 2.6 quota-h). Open questions carried over: (1) is the truncated gradient (cosine 0.09 on random tokens) a usable training signal at all, since it drops everything LoRA learns through how the prefix is encoded; (2) why full backprop at 8k already peaks at 17.6 GB/rank (13 GB above the 4.64 GB weights) on L4. Options under review: measure (2) first; rent a single 80 GB GPU for full-backprop QLoRA at full context; or narrow what must be trained at long context.
+
 ## Shrey/Claude — PA1 L4 v3: cache path exact on real tokens; gradient fidelity alarming (random tokens); OOM at (16k, 4k), October 31
 
 `gemma4-prefix-probe` v3 (~1 quota-h; PA1 total ≈ 2.6 quota-h). **Correctness on real RS2 tokens: |Δloss| 0.0012 at (P=3072, S=2048) and 0.00004 at (9216, 2048)** vs suffix-only control 0.88 / 1.19 (full-sequence loss 0.94 / 1.36). The v2 drift was a random-token artefact: the frozen windowed cache reproduces full attention. **Gradient fidelity (random tokens, P=S=4096): cosine 0.093, norm ratio 0.126**: the truncated gradient is ~8× smaller and nearly orthogonal to full backprop. Not yet trusted (random tokens misled the loss check), but if it holds on real tokens, most of the LoRA signal flows through how the prefix is encoded, and prefix-truncated training would discard it. Then OOM (~20 GB) at the overfit step (P=16384, S=4096, backward), so no memory grid yet. Next probe: gradient fidelity on real tokens at several (P, S); memory grid with S=2048; per-component memory (root embedding unshard, repeat_kv in global layers, checkpoint inputs).
