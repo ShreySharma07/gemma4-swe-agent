@@ -33,14 +33,14 @@ def model_path(smoke):
 def data_path():
     if DATA_FILE.exists():
         return DATA_FILE
-    found = sorted(glob.glob(f"{INPUT}/**/train_*.npz", recursive=True))
-    assert found, "no training data: embed it (notebook inputs cell) or attach a dataset with train_*.npz"
+    found = sorted(glob.glob(f"{INPUT}/**/train_*.npz", recursive=True)) + sorted(glob.glob(f"{INPUT}/**/rs2.npz", recursive=True))
+    assert found, "no training data: embed it (notebook inputs cell) or attach a dataset with train_*.npz / rs2.npz"
     return found[0]
 
 
 def main():
     s = TrainSettings.load()
-    mp, dp = model_path(s.smoke), ("none" if s.prefix_probe else data_path())
+    mp, dp = model_path(s.smoke), ("none" if s.prefix_probe or s.lc_probe else data_path())
     print("model", mp, "| data", dp, "| settings", json.dumps(s.__dict__), flush=True)
     rc = launch(mp, dp, 2 if s.smoke else 4, timeout_s=int(max(0.2, s.hours_left() + 0.3) * 3600))
     report = {"rc": rc, "settings": s.__dict__}
@@ -50,9 +50,10 @@ def main():
     report["exports"] = [r for r in rows if r.get("event") == "export"]
     steps = [r for r in rows if r.get("event") == "step"]
     report["steps"] = {"n": len(steps), "first": steps[:3], "last": steps[-3:]}
-    pp = OUT_DIR / "prefix_probe.json"
-    if pp.exists():
-        report["prefix_probe"] = json.loads(pp.read_text())
+    for probe in ("prefix_probe", "lc_probe"):
+        pp = OUT_DIR / f"{probe}.json"
+        if pp.exists():
+            report[probe] = json.loads(pp.read_text())
     if rc != 0:
         report["rank_tails"] = rank_tails()
     final = OUT_DIR / "adapter_final"
@@ -62,7 +63,7 @@ def main():
         shutil.copytree(final, dest)
         report["adapter"] = str(dest)
     (WORK / "train_report.json").write_text(json.dumps(report, indent=1, default=str))
-    print("TRAIN_REPORT", json.dumps({k: report[k] for k in ("rc", "val", "exports", "prefix_probe") if k in report}), flush=True)
+    print("TRAIN_REPORT", json.dumps({k: report[k] for k in ("rc", "val", "exports", "prefix_probe", "lc_probe") if k in report}), flush=True)
 
 
 if __name__ == "__main__":

@@ -1,31 +1,23 @@
-"""Export: gather the LoRA weights one FSDP layer unit at a time -> PEFT adapter in the format vLLM served in p0."""
+"""Export: the (replicated) LoRA weights -> PEFT adapter in the format vLLM served in p0."""
 import json
 import os
 
 import torch
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 from .config import TARGETS
 
 
 def export_adapter(fm, layer_cls, out_dir, rank, r, alpha, base_path):
-    """All ranks take part (each layer is one unit, ~0.3 GB gathered); rank 0 writes. Keys are
+    """LoRA tensors are FSDP-ignored and identical on every rank (fix_lora), so rank 0 writes them directly. Keys are
     base_model.model.<checkpoint module>.lora_{A,B}.weight, e.g. ...model.language_model.layers.N.self_attn.q_proj."""
     from safetensors.torch import save_file
-    names = {id(mod): n for n, mod in fm.named_modules()}
-    tensors = {}
-    for unit in FSDP.fsdp_modules(fm):
-        if not isinstance(unit.module, layer_cls):
-            continue
-        with FSDP.summon_full_params(unit, recurse=False, writeback=False):
-            if rank == 0:
-                base = names[id(unit)]
-                for n, p in unit.module.named_parameters():
-                    if "lora_" in n:
-                        key = f"{base}.{n}".replace("_fsdp_wrapped_module.", "").removeprefix("m.").replace(".default.", ".")
-                        tensors[key] = p.detach().to("cpu", torch.bfloat16).clone()
     if rank != 0:
         return None
+    tensors = {}
+    for n, p in fm.named_parameters():
+        if "lora_" in n:
+            key = n.replace("_fsdp_wrapped_module.", "").removeprefix("m.").replace(".default.", ".")
+            tensors[key] = p.detach().to("cpu", torch.bfloat16).clone()
     os.makedirs(out_dir, exist_ok=True)
     save_file(tensors, os.path.join(out_dir, "adapter_model.safetensors"))
     with open(os.path.join(out_dir, "adapter_config.json"), "w") as f:

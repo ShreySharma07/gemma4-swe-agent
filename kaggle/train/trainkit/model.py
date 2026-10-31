@@ -1,19 +1,20 @@
-"""Model: NF4 Gemma-4-31B + LoRA r16 + FSDP, and the masked, chunked, soft-capped loss (probe v4 recipe)."""
+"""Model: NF4 Gemma-4-31B + LoRA r16 + FSDP with the long-context fixes (fix_*.py), and the weighted streamed loss."""
 import re
 from functools import partial
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import ShardingStrategy
 from torch.distributed.fsdp.wrap import lambda_auto_wrap_policy
 
-from .config import TARGETS
+from . import fix_attention, fix_head, fix_lora, fix_mlp, fix_norm
+from .config import LC, TARGETS
 from .data import IGNORE
+from .fix_attention import NO_MASKS
+from .fix_head import StreamCE
 
 LORA_RE = r".*language_model.*\.(" + "|".join(TARGETS) + r")$"
-CHUNK = 256  # loss chunk: 256 x 262k fp32 logits = 0.27 GB
 
 
 def load_base(path, rank, smoke):
@@ -34,7 +35,7 @@ def load_base(path, rank, smoke):
 def add_lora(m, r, alpha, dtype):
     from peft import LoraConfig, get_peft_model
     m.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
-    m.enable_input_require_grads()
+    # no enable_input_require_grads: non-reentrant checkpointing does not need it, and the embedding is frozen
     m = get_peft_model(m, LoraConfig(r=r, lora_alpha=alpha, lora_dropout=0.0, bias="none", target_modules=LORA_RE,
                                      task_type="CAUSAL_LM"))
     for n, p in m.named_parameters():
@@ -43,68 +44,54 @@ def add_lora(m, r, alpha, dtype):
     return m
 
 
-class MaskedCE(torch.autograd.Function):
-    """Next-token CE over the trained positions only, with Gemma's final-logit softcap, CHUNK positions at a time.
-    The head is frozen, so only dL/dh is needed; it is computed in forward and kept (T x hidden)."""
-
-    @staticmethod
-    def forward(ctx, h, w, y, cap):
-        idx = (y != IGNORE).nonzero().squeeze(1)
-        gh = torch.zeros_like(h)
-        tot = torch.zeros((), device=h.device, dtype=torch.float32)
-        n = max(1, idx.numel())
-        for i in range(0, idx.numel(), CHUNK):
-            j = idx[i:i + CHUNK]
-            hc = h[j].detach().requires_grad_(True)
-            with torch.enable_grad():
-                z = (hc @ w.T).float()
-                if cap:
-                    z = torch.tanh(z / cap) * cap
-                loss = F.cross_entropy(z, y[j], reduction="sum")
-                g, = torch.autograd.grad(loss, hc)
-            gh[j] = g
-            tot += loss.detach()
-        ctx.save_for_backward(gh)
-        ctx.n = n
-        return tot / n
-
-    @staticmethod
-    def backward(ctx, go):
-        gh, = ctx.saved_tensors
-        return gh * (go / ctx.n), None, None, None
-
-
 class LossWrap(nn.Module):
-    """FSDP root: the tied lm_head/embedding is unsharded only inside the root forward, so the loss lives here."""
+    """FSDP root. The tied embedding / lm_head is in host RAM (fix_head), so the root holds only norms and buffers."""
 
-    def __init__(self, m, cap):
+    def __init__(self, m, cap, head):
         super().__init__()
         self.m, self.cap = m, cap
+        self.head = [head]  # a list, so it is neither a parameter nor a buffer FSDP would move to the GPU
 
-    def forward(self, ids, labels, prefix=0):
-        """prefix > 0: ids[:, :prefix] only feed a frozen KV cache (no grad); labels cover ids[:, prefix + 1:]."""
-        base = self.m.base_model.model  # PeftModel -> LoraModel -> Gemma4ForConditionalGeneration
-        lm = base.model.language_model
+    def forward(self, ids, labels, wts=None, norm=None, prefix=0, hidden=False):
+        """loss = sum_t wts_t * ce_t / norm over labels [T-1] (wts default: 1 where labels != IGNORE; norm default:
+        the local weight sum, i.e. this sequence's mean). prefix > 0: ids[:, :prefix] only feed a frozen KV cache.
+        hidden: return the final hidden states h[:-1] instead (probe)."""
+        lm = self.m.base_model.model.model.language_model
+        if wts is None:
+            wts = (labels != IGNORE).float()
+        if norm is None:
+            norm = wts.sum().clamp(min=1.0)
         if prefix:
             from .prefix import suffix_hidden
             h = suffix_hidden(lm, ids, prefix)
         else:
-            h = lm(input_ids=ids, use_cache=False).last_hidden_state[0]
-        return MaskedCE.apply(h[:-1], base.get_output_embeddings().weight, labels, self.cap)
+            h = lm(input_ids=ids, attention_mask=NO_MASKS if LC["attn"] else None, use_cache=False).last_hidden_state[0]
+        if hidden:
+            return h[:-1]
+        y = labels.clamp(min=0)
+        return StreamCE.apply(h[:-1], self.head[0], y, wts, self.cap, float(norm))
 
 
-def wrap_fsdp(m, smoke):
-    """One FSDP unit per decoder layer, the vision tower in its own (never gathered) unit, the rest in the root."""
+def wrap_fsdp(m, smoke, mlp_tile=4096):
+    """Install the long-context fixes, then one FSDP unit per decoder layer, the vision tower in its own (never
+    gathered) unit, the rest in the root. LoRA tensors are FSDP-ignored (fix_lora); the head lives on the host."""
+    dev = torch.device("cpu") if smoke else torch.device("cuda", torch.cuda.current_device())
+    fix_attention.install(m)
+    fix_mlp.install(mlp_tile)
+    fix_norm.install()
+    head = fix_head.move_to_host(m, dev)
+    lora = fix_lora.lora_params(m)
+    fix_lora.broadcast_init(lora)  # replicated tensors: every rank must start from the same init
     lm = next(mm for n, mm in m.named_modules() if n.endswith("language_model") and "vision" not in n)
     layer_cls = type(lm.layers[0])
     vision = [mm for n, mm in m.named_modules() if n.endswith("vision_tower") or n.endswith("embed_vision")]
     types = tuple({layer_cls} | {type(v) for v in vision})
     cap = getattr(m.config.get_text_config(), "final_logit_softcapping", None)
-    fm = FSDP(LossWrap(m, cap), auto_wrap_policy=partial(lambda_auto_wrap_policy, lambda_fn=lambda x: isinstance(x, types)),
+    fm = FSDP(LossWrap(m, cap, head), auto_wrap_policy=partial(lambda_auto_wrap_policy, lambda_fn=lambda x: isinstance(x, types)),
               sharding_strategy=ShardingStrategy.FULL_SHARD, use_orig_params=True,
               device_id=torch.device("cpu") if smoke else torch.cuda.current_device(), limit_all_gathers=True,
-              sync_module_states=False)
-    return fm, layer_cls
+              sync_module_states=False, ignored_states=lora)
+    return fm, layer_cls, lora
 
 
 def lora_modules(m):
