@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — R2 DONE: 350/601 factory rollouts resolved (58%), October 31
+
+Shard 1 (`atulbaliyan/gemma4-factory-rollout-s1`, 5.7 h on Atul's quota): 174/300, 55.3 tasks/h, output shared with Shrey and downloaded to `data/runs/r2_s1/`. Combined, disjoint, all 601 tasks once: **350 resolved**; singles 75%, pairs 37%, triples 14%; v0 74%, v1 46%. Every R2 prediction held. Failure pressure: call cap (124 tasks used ≥27 of 28 calls) > overflow (44) > time cap (28). Behaviour to filter in training data: stray files in ~32% of patches, tests after last edit in ~5%. Next: build the training set from the 350 resolved trajectories.
+
 ## Shrey/Claude — R2 shard 0 DONE: 176/301 (58%), every prediction held, October 30
 
 `gemma4-factory-rollout-s0` v1, 5.8 h (~11.6 quota-h), 54.3 tasks/h at concurrency 6, all 301 done. Singles 75%, pairs 33%, triples 23%; v0 tasks 75%, v1 tasks 44%. 12-min cap hits 4.3%, call-cap hits 68, overflow 8.3%, rewrite fallbacks 7. 176 resolved trajectories ≥ the 150 decision bar → training set next (drop stray-file patches: 32% of tasks). Shard 1 waits on Atul (datasets must be shared with him). `results/runs/r2_s0/`; traces in `data/runs/r2_s0/`.
