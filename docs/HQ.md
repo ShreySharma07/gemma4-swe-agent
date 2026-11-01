@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — G1 pushed: `gemma4-lora-gate` v1 on 4×L4, November 1
+
+Quota checked by Shrey. v14 vs `v18_rs2_lora` (raw adapter) on the 95 held-out toolz + pathspec tasks; expected ≈ 4.3 h ≈ 8.6 quota-h, budget cap 10.5 h. Results to follow.
+
 ## Shrey/Claude — G1 rebuilt with the raw adapter; CPU dry run v3 passes; ready for quota check, November 1
 
 k_eq_v copy is off by default (evalkit fetch + trainer export; `kvdup.py` is opt-in). `gemma4-lora-dry` v3 (free, both steps rc 0): 95 held-out tasks (toolz 48, pathspec 47); base arm has no adapter, lora arm ships `adapters/rs2_lora` as exported (244,982,352 bytes = 820 tensors, no v_proj). L4 `kaggle/eval_l4/lora_gate_kernel` (`gemma4-lora-gate`): v14 vs `v18_rs2_lora`, alternating blocks of 24, 12 min cap, concurrency 6, ≈ 4.3 h ≈ 8.6 quota-h, budget cap 10.5 h. Waiting for Shrey's quota check.
