@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — T1 result: RS2 LoRA trains cleanly at full context; val loss −34% (0.1011 → 0.0669 after epoch 1 → 0.0666 at end), November 1
+
+`gemma4-train-rs2-lora` v1 (rc 0). ≈ 4.8 h wall ≈ 9.6 quota-h (trainer 284 min + ~5 min setup). Plan as predicted: 203 train episodes → 200/epoch, 0 dropped for length (max 26,831), 50 optimizer steps, 4.95M tokens processed. **Memory:** peak 17.47 GiB/rank on every step (prediction ≤ 17: just over, 5 GiB headroom on the 22.5 GiB L4); host min available 101 GB, max RSS 59 GB. **Speed:** median 344 tok/s total (284 at 26.8k, 368 at 6.5k; prediction 280–330). **Stability:** no NaN; grad norm median ~0.5, spikes 3.5 (step 10), 18.4 (step 37, short 6k step), clipped at 1.0. **Loss:** train mean 0.0756 epoch 1 → 0.0494 epoch 2; **val 0.1011 → 0.0669 (−33.8%) → 0.0666 (−34.1%)**. Val beat the 5–20% prediction but epoch 2 bought only 0.4% val while train fell 35%: the model is starting to memorise the 200 episodes, and a third epoch would not help. Both exports ok (410 modules, 820 tensors, 245 MB, PEFT shapes ok). **Decision rule:** val dropped ≥ 3% without rising → the final adapter goes to the local paired eval on v14 (held-out toolz/pathspec gate, then new-60). **Caveat:** val loss is on successful on-policy episodes; part of the drop is likely format/boilerplate tokens, so it does not prove a better agent. **Before the eval:** check that vLLM applies the k_eq_v LoRA delta to V on the global layers, and the NF4 (train) vs W4A16 (serve) base mismatch. Summary: `results/runs/t1/l4_v1_summary.json`.
+
 ## Shrey/Claude — T1 pushed: `gemma4-train-rs2-lora` v1 on 4×L4, November 1
 
 Quota checked by Shrey. 2 epochs of RS2 whole episodes ≤ 28k, all LC1 fixes; expected ≈ 5 h wall ≈ 10 quota-h, budget cap 10.5 h. Results to follow.
