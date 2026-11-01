@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LC1 L4 v6 pushed: rounding control (D+A) with the train-mode fix, November 1
+
+`gemma4-lc-probe` v6 (quota checked by Shrey; tests D+A, budget 1.0 h, ~0.5 quota-h expected; LC1 total ≈ 4.8 if it completes). D: attn off vs block 1024 vs block 512 vs off_again at 4k; A: StreamCE vs chunked reference on trained tokens. Results to follow.
+
 ## Shrey/Claude — LC1 smoke v7 (train-mode fix): all CPU checks pass with gradient checkpointing active, November 1
 
 `gemma4-lc-probe-smoke` v7 (CPU, free) with `fm.train()` after build. U attention: lc bias/bool and HF dense identical to the fp32 reference (fwd rel 0.0, q/k/v grad cosine 1.0, sliding and global, T 100/103). S_exact: all six fix combinations (all, each fix left out, none) match the reference (loss diff 7e-7, cosine 1.0, worst tensor rel ≤ 1.5e-5). S_opt: ShardedAdamW step identical (max param diff 0.0). S_train: 4-step plan runs, rc 0. So the eval-mode bug was the only problem v7 targeted; the L4 rounding control (D+A, ~0.5 quota-h) is ready to re-push and needs a quota check. Result: `results/runs/lc1/smoke_v7_trainmode.json`.
