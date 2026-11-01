@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LC1 smoke v7 (train-mode fix): all CPU checks pass with gradient checkpointing active, November 1
+
+`gemma4-lc-probe-smoke` v7 (CPU, free) with `fm.train()` after build. U attention: lc bias/bool and HF dense identical to the fp32 reference (fwd rel 0.0, q/k/v grad cosine 1.0, sliding and global, T 100/103). S_exact: all six fix combinations (all, each fix left out, none) match the reference (loss diff 7e-7, cosine 1.0, worst tensor rel ≤ 1.5e-5). S_opt: ShardedAdamW step identical (max param diff 0.0). S_train: 4-step plan runs, rc 0. So the eval-mode bug was the only problem v7 targeted; the L4 rounding control (D+A, ~0.5 quota-h) is ready to re-push and needs a quota check. Result: `results/runs/lc1/smoke_v7_trainmode.json`.
+
 ## Shrey/Claude — LC1 L4 v5: host OOM explained: model was in eval mode, so no gradient checkpointing, October 31
 
 `gemma4-lc-probe` v5 (D+A retry with the host watch; ~0.25 h ≈ 0.5 quota-h; LC1 total ≈ 4.3). After load RSS 5.2 GB/rank (malloc_trim freed nothing: load-time RSS 58.8 GB was the mmapped shards), node 165 GB free. During the first 4k fwd of test D, RSS rose 5 → 43 GB per rank at ~1 GB/s until a rank was killed (node free 12 GB). **Cause:** the trainer never called `fm.train()`; `from_pretrained` returns eval mode, where HF's GradientCheckpointingLayer does not checkpoint, so save_on_cpu offloaded every layer's saved tensors (incl. dequantized weights). v2/v3 escaped because test A toggled eval→train before the 4k tests; real training escaped because `validate("start")` ends with `train()`. The CPU smoke exactness tests also ran without checkpointing (L4 v2/v3 B covered the checkpointed paths: bit-identical). Fix: `self.fm.train()` right after wrapping.
