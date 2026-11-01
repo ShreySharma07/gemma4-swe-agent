@@ -50,7 +50,7 @@ def main():
     report["exports"] = [r for r in rows if r.get("event") == "export"]
     steps = [r for r in rows if r.get("event") == "step"]
     report["steps"] = {"n": len(steps), "first": steps[:3], "last": steps[-3:]}
-    for probe in ("prefix_probe", "lc_probe"):
+    for probe in ("prefix_probe", "lc_probe", "vablate"):
         pp = OUT_DIR / f"{probe}.json"
         if pp.exists():
             report[probe] = json.loads(pp.read_text())
@@ -63,7 +63,7 @@ def main():
         shutil.copytree(final, dest)
         report["adapter"] = str(dest)
     (WORK / "train_report.json").write_text(json.dumps(report, indent=1, default=str))
-    print("TRAIN_REPORT", json.dumps({k: report[k] for k in ("rc", "val", "exports", "prefix_probe", "lc_probe") if k in report}), flush=True)
+    print("TRAIN_REPORT", json.dumps({k: report[k] for k in ("rc", "val", "exports", "prefix_probe", "lc_probe", "vablate") if k in report}), flush=True)
 
 
 if __name__ == "__main__":

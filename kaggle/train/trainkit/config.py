@@ -40,6 +40,7 @@ class TrainSettings:
     prefix_probe: bool = False        # PA1: run trainkit.prefix.probe instead of training (no data needed)
     lc_probe: bool = False            # LC1: run trainkit.lcprobe.probe (long-context fixes: exactness + memory)
     lc_tests: str = "UABC"            # which lcprobe tests run on L4 (D = rounding-only attention control)
+    vablate: bool = False             # LP2: trainkit.vablate (val loss with/without the global layers' V delta)
     t0: float = field(default_factory=time.time)
 
     def hours_left(self):

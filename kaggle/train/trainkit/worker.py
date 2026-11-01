@@ -213,7 +213,11 @@ def main():
         tr.close()
         return
     data = TrainData(sys.argv[2], s.max_windows, vocab=tr.vocab if s.smoke else None, seed=s.seed, max_len=s.max_len)
-    tr.run(data)
+    if s.vablate:
+        from .vablate import probe
+        probe(tr, data, s.smoke)
+    else:
+        tr.run(data)
     tr.close()
 
 
