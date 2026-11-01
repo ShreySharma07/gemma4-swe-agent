@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — G1 rebuilt with the raw adapter; CPU dry run v3 passes; ready for quota check, November 1
+
+k_eq_v copy is off by default (evalkit fetch + trainer export; `kvdup.py` is opt-in). `gemma4-lora-dry` v3 (free, both steps rc 0): 95 held-out tasks (toolz 48, pathspec 47); base arm has no adapter, lora arm ships `adapters/rs2_lora` as exported (244,982,352 bytes = 820 tensors, no v_proj). L4 `kaggle/eval_l4/lora_gate_kernel` (`gemma4-lora-gate`): v14 vs `v18_rs2_lora`, alternating blocks of 24, 12 min cap, concurrency 6, ≈ 4.3 h ≈ 8.6 quota-h, budget cap 10.5 h. Waiting for Shrey's quota check.
+
 ## Shrey/Claude — LP2 result: HF agrees with vLLM; removing the global layers' V delta slightly lowers held-out loss → G1 runs with the raw adapter, November 1
 
 `gemma4-vablate` v1 (rc 0, 47.9 min ≈ 1.6 quota-h). Adapter loaded: 820 tensors, 10 global layers patched. **Reproduction:** full 0.06661 (T1 end 0.0666), base 0.10109 (T1 start 0.1011), full_again == full exactly. **Ablation (NF4 + HF):** v_base **0.06637** vs full 0.06661: −0.00024 pooled (−0.36%), better on 26/40 episodes (65%), median −0.27%. vLLM (LP1) gave the same direction and size: raw − kv = −0.00017 (−0.3%), raw better on 29/40. **Pre-registered rule:** v_base < full pooled and on ≥ 60% of episodes → HF agrees with vLLM: the k_eq_v copy reproduces HF's forward, and the V delta itself slightly hurts on held-out episodes → **G1 with the raw adapter**, which is what the scorer serves with no extra step. So the copy is turned off by default: evalkit no longer adds it to fetched adapters, and the trainer export no longer writes it; `evalkit/kvdup.py` stays for opt-in use. A later training run could adapt K only on global layers (train = serve with no copy); not needed now, since the gap is 0.3%. Result: `results/runs/lp2/l4_v1.json`.
