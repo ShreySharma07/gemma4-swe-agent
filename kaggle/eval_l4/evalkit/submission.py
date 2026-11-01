@@ -33,8 +33,8 @@ class Submission:
                 continue
             found = sorted(INPUT.glob(f"**/adapters/{n}/adapter_model.safetensors"))
             assert found, f"agent declares adapter {n!r}: not in the submission and no attached adapters/{n}/"
-            from .kvdup import kv_dup
-            log(f"adapter {n} <- {found[0].parent} (k_eq_v v_proj copy: {kv_dup(found[0].parent, dest)})")
+            shutil.copytree(found[0].parent, dest)  # as exported: no k_eq_v v_proj copy (LP2: it slightly hurts)
+            log(f"adapter {n} <- {found[0].parent}")
 
     def declared_model(self):
         """Exactly one model across all agents (scorer rule); swegemma.models.discovery is gone in 0.2.11."""

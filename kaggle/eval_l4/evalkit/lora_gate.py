@@ -1,5 +1,5 @@
 """
-G1 held-out gate (GPU): v14 vs v14 + rs2_lora (submissions/v18_rs2_lora) on the 95 toolz + pathspec factory tasks that
+G1 held-out gate (GPU): v14 vs v14 + rs2_lora as exported, no k_eq_v copy (submissions/v18_rs2_lora) on the 95 toolz + pathspec factory tasks that
 RS2 held out of training. Pre-registered in docs/experiments.md (Nov 1).
   - tasks: R2's rewritten issues (rollout_tasks.jsonl of the attached gemma4-factory-rollout-s0/s1 outputs), so both
     arms see exactly the prompts the RS2 val episodes were sampled from; snapshots + meta from gemma4-factory-v0/v1

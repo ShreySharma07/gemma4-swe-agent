@@ -18,10 +18,8 @@ def export_adapter(fm, layer_cls, out_dir, rank, r, alpha, base_path):
         if "lora_" in n:
             key = n.replace("_fsdp_wrapped_module.", "").removeprefix("m.").replace(".default.", ".")
             tensors[key] = p.detach().to("cpu", torch.bfloat16).clone()
-    for k in [k for k in tensors if ".self_attn.k_proj.lora_" in k]:  # k_eq_v global layers: V = k_proj(x) in HF, but
-        v = k.replace(".k_proj.", ".v_proj.")                          # vLLM serves V from its own qkv slice, so give
-        if v not in tensors:                                           # that slice the same LoRA (evalkit/kvdup.py)
-            tensors[v] = tensors[k].clone()
+    # k_eq_v global layers: no v_proj LoRA, so vLLM serves V without the k_proj delta (HF trains with it). LP1/LP2:
+    # that scores 0.3% better on held-out episodes than copying the delta to V (evalkit/kvdup.py, opt-in)
     os.makedirs(out_dir, exist_ok=True)
     save_file(tensors, os.path.join(out_dir, "adapter_model.safetensors"))
     with open(os.path.join(out_dir, "adapter_config.json"), "w") as f:

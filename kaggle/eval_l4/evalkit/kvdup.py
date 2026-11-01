@@ -6,6 +6,7 @@ with no v_proj LoRA the V slice serves the base K weights only: V silently loses
 k_proj lora_A/lora_B into v_proj gives the V slice the same delta, i.e. V == K again, as in training.
 Global layers are found from the adapter itself: a layer with a k_proj LoRA and no v_proj LoRA.
 Usage: python -m evalkit.kvdup <adapter_dir_in> <adapter_dir_out>
+Opt-in only: LP1 (vLLM) and LP2 (HF) both score held-out episodes 0.3% better WITHOUT the copy, so adapters ship raw.
 """
 import json
 import pathlib
