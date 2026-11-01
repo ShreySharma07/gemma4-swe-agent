@@ -11,7 +11,7 @@ Build the LoRA training notebook from kaggle/train/trainkit (+ the env modules o
 Targets:
   --smoke   free CPU kernel gemma4-train-smoke: tiny random Gemma-4, gloo, 2 ranks, same code path
   default   L4 kernel gemma4-train-lora (competition attached so it gets 4x L4); bf16 QAT weights -> NF4
-Usage: python3 kaggle/train/make_train_notebook.py DATA.npz [--smoke] [--dataset owner/slug] [--max-windows N]
+Usage: python3 kaggle/train/make_train_notebook.py DATA.npz|rs2 [--smoke] [--dataset owner/slug] [--max-windows N]
        [--budget-h 10.5] [--lr 1e-4] [--name conv_lora]
 Then:  .venv/bin/kaggle kernels push -p kaggle/train/smoke_kernel   (or kaggle/train/l4_kernel)
 """
@@ -54,11 +54,12 @@ def first_doc_line(path):
 def build(a):
     data = pathlib.Path(a.data)
     probe = a.prefix_probe or a.lc_probe
-    embed = not probe and data.stat().st_size / 1e6 <= EMBED_MAX_MB and not a.dataset
-    assert embed or a.dataset or probe, (f"{data} is {data.stat().st_size / 1e6:.2f} MB; embedding it would exceed the "
+    rs2 = a.data == "rs2"  # whole RS2 episodes from kernel output gemma4-rftset-rs2 (rs2/rs2.npz), attached
+    embed = not probe and not rs2 and data.stat().st_size / 1e6 <= EMBED_MAX_MB and not a.dataset
+    assert embed or a.dataset or probe or rs2, (f"{data} is {data.stat().st_size / 1e6:.2f} MB; embedding it would exceed the "
                                 "notebook source budget. Attach it as a dataset and pass --dataset owner/slug.")
     settings = {"name": a.name, "lr": a.lr, "max_windows": a.max_windows, "budget_h": a.budget_h, "smoke": a.smoke,
-                "epochs": a.epochs, "grad_accum": a.grad_accum, "save_every": a.save_every, "val_every": a.val_every,
+                "epochs": a.epochs, "grad_accum": a.grad_accum, "max_len": a.max_len, "save_every": a.save_every, "val_every": a.val_every,
                 "prefix_probe": a.prefix_probe, "lc_probe": a.lc_probe, "lc_tests": a.lc_tests}
     cells = [
         md(f"""# LoRA training: `{a.name}` ({'CPU smoke' if a.smoke else '4x L4'})
@@ -126,18 +127,19 @@ print("exit code", proc.wait())"""),
     # one notebook per adapter, so a later run never overwrites the output an earlier adapter is served from
     slug = (("gemma4-prefix-probe-smoke" if a.smoke else "gemma4-prefix-probe") if a.prefix_probe else
             ("gemma4-lc-probe-smoke" if a.smoke else "gemma4-lc-probe") if a.lc_probe else
-            "gemma4-train-smoke" if a.smoke else "gemma4-train-lora" if a.name == "conv_lora"
-            else "gemma4-train-" + a.name.replace("_", "-"))
+            ("gemma4-train-smoke" if a.name == "conv_lora" else "gemma4-train-smoke-" + a.name.replace("_", "-"))
+            if a.smoke else "gemma4-train-lora" if a.name == "conv_lora" else "gemma4-train-" + a.name.replace("_", "-"))
     out = REPO / "kaggle" / "train" / (("prefix_probe_smoke" if a.smoke else "l4_prefix_probe") if a.prefix_probe else
                                        ("lc_probe_smoke" if a.smoke else "l4_lc_probe") if a.lc_probe else
-                                       "smoke_kernel" if a.smoke else "l4_kernel" if a.name == "conv_lora" else f"l4_{a.name}")
+                                       ("smoke_kernel" if a.name == "conv_lora" else f"smoke_{a.name}") if a.smoke else
+                                       "l4_kernel" if a.name == "conv_lora" else f"l4_{a.name}")
     out.mkdir(parents=True, exist_ok=True)
     (out / f"{slug}.ipynb").write_text(json.dumps(nb, indent=1))
     meta = {"id": mine(slug), "title": slug, "code_file": f"{slug}.ipynb", "language": "python",
             "kernel_type": "notebook", "is_private": True, "enable_gpu": not a.smoke, "enable_internet": False,
             "dataset_sources": ["metric/gemma-4-developer-agent-wheelhouse"] + ([a.dataset] if a.dataset else []),
             "kernel_sources": [shared("gemma4-scorer-env"), shared("gemma4-train-wheels")] +
-                              ([shared("gemma4-rftset-rs2")] if probe and not a.smoke else []),  # real tokens
+                              ([shared("gemma4-rftset-rs2")] if rs2 or (probe and not a.smoke) else []),  # real tokens
             "model_sources": [] if a.smoke else ["google/gemma-4/Transformers/gemma-4-31b-it-qat-q4_0-unquantized/2"],
             "competition_sources": [] if a.smoke else ["gemma-4-developer-agent"]}
     if not a.smoke:
@@ -149,7 +151,7 @@ print("exit code", proc.wait())"""),
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("data")
+    ap.add_argument("data", help="windows .npz, 'rs2' (attach the RS2 kernel output), or 'none' for a probe")
     ap.add_argument("--smoke", action="store_true")
     ap.add_argument("--dataset", default=None, help="Kaggle dataset holding the .npz (when too big to embed)")
     ap.add_argument("--name", default="conv_lora")
@@ -157,6 +159,7 @@ if __name__ == "__main__":
     ap.add_argument("--epochs", type=float, default=1.0)
     ap.add_argument("--grad-accum", type=int, default=2)
     ap.add_argument("--max-windows", type=int, default=None)
+    ap.add_argument("--max-len", type=int, default=28672, help="drop episodes longer than this (never truncated)")
     ap.add_argument("--budget-h", type=float, default=10.5)
     ap.add_argument("--save-every", type=int, default=0)
     ap.add_argument("--val-every", type=int, default=0)
