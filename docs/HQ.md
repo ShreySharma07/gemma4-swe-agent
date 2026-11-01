@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LP2 result: HF agrees with vLLM; removing the global layers' V delta slightly lowers held-out loss → G1 runs with the raw adapter, November 1
+
+`gemma4-vablate` v1 (rc 0, 47.9 min ≈ 1.6 quota-h). Adapter loaded: 820 tensors, 10 global layers patched. **Reproduction:** full 0.06661 (T1 end 0.0666), base 0.10109 (T1 start 0.1011), full_again == full exactly. **Ablation (NF4 + HF):** v_base **0.06637** vs full 0.06661: −0.00024 pooled (−0.36%), better on 26/40 episodes (65%), median −0.27%. vLLM (LP1) gave the same direction and size: raw − kv = −0.00017 (−0.3%), raw better on 29/40. **Pre-registered rule:** v_base < full pooled and on ≥ 60% of episodes → HF agrees with vLLM: the k_eq_v copy reproduces HF's forward, and the V delta itself slightly hurts on held-out episodes → **G1 with the raw adapter**, which is what the scorer serves with no extra step. So the copy is turned off by default: evalkit no longer adds it to fetched adapters, and the trainer export no longer writes it; `evalkit/kvdup.py` stays for opt-in use. A later training run could adapt K only on global layers (train = serve with no copy); not needed now, since the gap is 0.3%. Result: `results/runs/lp2/l4_v1.json`.
+
 ## Shrey/Claude — LP2 pushed: `gemma4-vablate` v1 on 4×L4, November 1
 
 Quota checked by Shrey. Full / v_base / full_again / base val loss on the NF4 training stack; expected ≈ 45 min ≈ 1.5 quota-h, budget cap 1.5 h. Results to follow.
