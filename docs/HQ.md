@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LP1 result: T1's gain survives the served W4A16 base (−41% val loss, 40/40 episodes); the k_eq_v copy does not help (kv 0.3% worse than raw), November 1
+
+`gemma4-lora-probe` v1 (rc 0, 35.5 min ≈ 1.2 quota-h, no OOM; engine load 261 s, ≈ 1,120 tok/s prefill with prompt logprobs). 40 val episodes, 612k tokens. **Weighted val loss on W4A16:** base **0.0866**, raw 0.0508, kv 0.0509 (NF4 training base: 0.1011 → 0.0666). **NF4 → W4A16 is not a problem:** the served base is already 14% better than NF4 (fewer rounding errors on the QAT weights), and the adapter's gain is larger there (41% vs 34%); every episode improves (per-episode gain 34–50%, median 41%). **k_eq_v:** kv is above raw by 0.00017 pooled (0.3%) and on 29/40 episodes (median +0.7%, sign test p ≈ 0.006): small but consistent. So copying the global-layer k_proj LoRA into V, which reproduces the training forward exactly on paper, scores slightly worse on held-out episodes than leaving V unadapted. Not explained yet; candidates: the V-side delta partly fits NF4 rounding of the K weights, or vLLM's v slice differs from HF's V in a way the source read missed. Either way, both adapters give the same ~41% and the difference is far below what G1 can see. **Pre-registered rule:** "kv > raw → the copy is wrong, debug before G1". It fired, narrowly. **Proposal (needs Shrey):** run G1 with the raw adapter (lowest served loss, and exactly what the scorer serves without extra steps), log the rule deviation, and leave the k_eq_v question to a later HF-side ablation (val loss with the global V delta removed on the NF4 path). Result: `results/runs/lp1/l4_v1_report.json`.
+
 ## Shrey/Claude — LP1 pushed: `gemma4-lora-probe` v1 on 4×L4, November 1
 
 Quota checked by Shrey. Base / raw / kv weighted val loss on the served W4A16 base; expected ≈ 45 min ≈ 1.5 quota-h, budget cap 1.5 h. Results to follow.
