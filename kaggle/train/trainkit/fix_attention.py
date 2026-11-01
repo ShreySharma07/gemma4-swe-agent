@@ -24,6 +24,8 @@ MASK = "bias"  # "bias": additive mask in q's dtype, row stride padded to 16 (L4
 _HF_SDPA = None
 BLOCK = None  # query block for sliding layers (None = the window); the probe varies it as a rounding-only control
 CAPTURE = None  # probe only: a list -> every call appends its arguments (lcprobe._real_width_diag)
+NOISE = None  # probe only: (rel, seed) -> every attention output (HF's or ours) is multiplied by 1 + rel * U(-1, 1),
+              # fixed per (seed, layer) so a checkpoint's recompute sees the same noise (rounding-sensitivity control)
 
 
 def _grouped_causal(q, k, v, scale):
@@ -55,7 +57,19 @@ def _ckpt(fn, *args):
     return checkpoint(fn, *args, use_reentrant=False) if torch.is_grad_enabled() else fn(*args)
 
 
+def _noisy(out, layer):
+    rel, seed = NOISE
+    g = torch.Generator(device=out.device).manual_seed(seed * 1000 + (layer or 0))
+    u = torch.rand(out.shape, generator=g, device=out.device, dtype=torch.float32) * 2 - 1
+    return (out.float() * (1 + rel * u)).to(out.dtype)
+
+
 def lc_attention(module, query, key, value, attention_mask, dropout=0.0, scaling=None, is_causal=None, **kwargs):
+    out, w = _attention(module, query, key, value, attention_mask, dropout, scaling, is_causal, **kwargs)
+    return (out if NOISE is None else _noisy(out, getattr(module, "layer_idx", None))), w
+
+
+def _attention(module, query, key, value, attention_mask, dropout, scaling, is_causal, **kwargs):
     T, Tk = query.shape[2], key.shape[2]
     if CAPTURE is not None:
         CAPTURE.append({"layer": getattr(module, "layer_idx", None), "T": T, "Tk": Tk, "q": query, "k": key, "v": value,

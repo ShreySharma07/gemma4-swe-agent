@@ -334,14 +334,19 @@ def probe(tr, smoke):
         ids, lab, wts = _seq(4096, tr.rank, dev)
         norm = float(wts.sum())
         got, out["D_rounding"] = {}, []
-        for name, block in (("off", None), ("attn_b1024", None), ("attn_b512", 512), ("off_again", None)):
+        # v6: b512 vs b1024 cosine -0.53. Control: HF's own path with every attention output perturbed by up to one
+        # bf16 ulp (2^-8 relative, two seeds). If HF vs HF + ulp noise is as far apart, any bf16 path is as good as HF's
+        for name, block, noise in (("off", None, None), ("attn_b1024", None, None), ("attn_b512", 512, None),
+                                   ("off_again", None, None), ("off_noise1", None, (2 ** -8, 1)),
+                                   ("off_noise2", None, (2 ** -8, 2))):
             set_flags(tr.fm, attn=name.startswith("attn"))
-            fix_attention.BLOCK = block
+            fix_attention.BLOCK, fix_attention.NOISE = block, noise
             reset()
             loss = _fwd_bwd(tr, ids, lab, wts, norm, smoke)
             got[name] = (loss, _grads(tr))
-        fix_attention.BLOCK = None
-        for a, b in (("attn_b1024", "off"), ("attn_b512", "off"), ("attn_b512", "attn_b1024"), ("off_again", "off")):
+        fix_attention.BLOCK = fix_attention.NOISE = None
+        for a, b in (("attn_b1024", "off"), ("attn_b512", "off"), ("attn_b512", "attn_b1024"), ("off_again", "off"),
+                     ("off_noise1", "off"), ("off_noise2", "off"), ("off_noise2", "off_noise1")):
             row = {"pair": f"{a} vs {b}", "loss_a": round(got[a][0], 7), "loss_b": round(got[b][0], 7),
                    "loss_abs_diff": round(abs(got[a][0] - got[b][0]), 7), **_compare(got[a][1], got[b][1])}
             out["D_rounding"].append(row)
@@ -485,13 +490,18 @@ def _smoke(tr, out, save):
     rlm = ref.base_model.model.model.language_model
     head = ref.base_model.model.get_output_embeddings().weight
     cap = tr.fm.module.cap
-    rloss = 0.0
-    for ids, lab, wts in seqs:
-        h = rlm(input_ids=ids, use_cache=False).last_hidden_state[0][:-1]
-        loss = reference_ce(h, head, lab.clamp(min=0), wts, cap, norm)
-        loss.backward()
-        rloss += float(loss)
-    rgrad = [ref_lora[k].grad.detach().float().clone() for k in mine]
+
+    def reference():
+        for p in ref_lora.values():
+            p.grad = None
+        total = 0.0
+        for ids, lab, wts in seqs:
+            h = rlm(input_ids=ids, use_cache=False).last_hidden_state[0][:-1]
+            loss = reference_ce(h, head, lab.clamp(min=0), wts, cap, norm)
+            loss.backward()
+            total += float(loss)
+        return total, [ref_lora[k].grad.detach().float().clone() for k in mine]
+    rloss, rgrad = reference()
 
     def new_stack(**on):
         set_flags(tr.fm, **on)
@@ -514,6 +524,25 @@ def _smoke(tr, out, save):
         out["S_exact"].append(row)
         tr.log(event="lc_S", **row)
         save()
+
+    # the L4 noise control (test D) must perturb the forward consistently under checkpoint recompute: the new stack
+    # with noise must match the reference with the same noise exactly, twice; noisy vs clean is reported for scale
+    fix_attention.NOISE = (2 ** -8, 1)
+    for k in FLAGS:
+        LC[k] = False
+    nloss, ngrad = reference()
+    out["S_noise"] = []
+    for run in ("noise_vs_noisy_ref", "noise_again_vs_noisy_ref"):
+        loss, g = new_stack(**{k: True for k in FLAGS})
+        row = {"run": run, "loss": round(loss, 7), "loss_ref": round(nloss, 7), "loss_abs_diff": round(abs(loss - nloss), 8),
+               **_compare(g, ngrad, reduce=False)}
+        row["pass"] = row["cosine"] > 0.99999 and row["worst_tensor_rel"] < 1e-3 and row["loss_abs_diff"] < 1e-4
+        out["S_noise"].append(row)
+        tr.log(event="lc_S_noise", **row)
+    fix_attention.NOISE = None
+    out["S_noise"].append({"run": "noisy_ref_vs_clean_ref", "loss_abs_diff": round(abs(nloss - rloss), 8),
+                           **_compare(ngrad, rgrad, reduce=False)})
+    save()
 
     # one optimizer step: ShardedAdamW (all fixes on) vs torch AdamW + clip on the reference, fed the same summed
     # gradients (Adam's first step is ~lr * sign(g), so near-zero grads that differ by noise would flip by 2 lr)
