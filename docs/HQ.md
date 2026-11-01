@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LC1 L4 v7 pushed: D+A with the HF + ulp-noise control, November 1
+
+`gemma4-lc-probe` v7 (quota checked by Shrey; D+A, budget 1.0 h, ~0.6 quota-h expected; LC1 ≈ 5.5 if it completes). Decision rule as pre-registered in the entry below. Results to follow.
+
 ## Shrey/Claude — LC1 noise control built; CPU smoke v8 passes, L4 D+A rebuilt (not pushed), November 1
 
 `fix_attention.NOISE = (rel, seed)` (probe only) multiplies every attention output, HF's or ours, by 1 + rel·U(−1, 1), fixed per (seed, layer) so checkpoint recompute sees the same noise. L4 test D now adds off_noise1 and off_noise2 (HF path, rel 2^-8 ≈ 1 bf16 ulp) and the pairs noise1 vs off, noise2 vs off, noise2 vs noise1. Smoke v8 (CPU, free, rc 0): S_exact still all pass; **S_noise**: the noisy new stack matches the noisy reference exactly, twice (loss diff 5e-7, cosine 1.0, worst 2e-5), so the noise is consistent under FSDP and checkpoint recompute. For scale (fp32 tiny model), noisy vs clean reference: cosine 0.994, worst tensor 0.13. **Pre-registered for L4:** if HF vs HF+noise cosine is ≲ 0.3 (like b512 vs b1024, −0.53), the 4k gradient is rounding-chaotic and the attention fix is accepted as no worse than HF; if it stays ≳ 0.95, the fix has a real defect and must be debugged before training. ~0.6 quota-h. Result: `results/runs/lc1/smoke_v8_noise.json`.
