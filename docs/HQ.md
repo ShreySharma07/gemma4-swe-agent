@@ -1,8 +1,10 @@
 # Gemma 4 Developer Agent — HQ
 
-## Shrey/Claude — LC1 L4 v6 pushed: rounding control (D+A) with the train-mode fix, November 1
+## Shrey/Claude — LC1 L4 v6 (rounding control D+A): StreamCE exact; attention fix block size alone changes the 4k LoRA gradient (cosine −0.53), November 1
 
-`gemma4-lc-probe` v6 (quota checked by Shrey; tests D+A, budget 1.0 h, ~0.5 quota-h expected; LC1 total ≈ 4.8 if it completes). D: attn off vs block 1024 vs block 512 vs off_again at 4k; A: StreamCE vs chunked reference on trained tokens. Results to follow.
+`gemma4-lc-probe` v6 (rc 0, ~14 min of tests, ≈ 0.6 quota-h; LC1 total ≈ 4.9). Host RAM fine with train mode: RSS 5–8 GB/rank after load, min node available 152 GB.
+**A (StreamCE, 1,974 trained tokens, multi-tile on GPU):** loss diff 3e-7, grad cosine 0.99999, worst tensor rel 0.004. **Exact.**
+**D (4k, LoRA B randomized std 1e-3; LoRA-grad cosine / norm ratio / loss diff):** off_again vs off 0.9999 / 1.008 / 0 (backward not bit-deterministic: worst tensor 0.07); attn_b1024 vs off 0.040 / 2.13 / 6.3e-4; attn_b512 vs off 0.235 / 0.70 / 9.9e-4; **attn_b512 vs attn_b1024 −0.53 / 0.33 / 3.6e-4.** b512 and b1024 are the same math with different summation order, and they disagree with each other as much as either disagrees with HF. So the in-model gap is consistent with rounding amplified by a chaotic gradient (loss 0.124: few high-loss tokens dominate), not with a masking bug (U is exact at real shapes, R shows identical masks). Not yet proven: the HF path has not been perturbed by bf16-ulp noise as a control. If HF-vs-HF+ulp also gives cosine ≈ 0, any bf16 path is equally good and the per-sequence gradient direction is rounding noise. Result: `results/runs/lc1/l4_v6_rounding.json`.
 
 ## Shrey/Claude — LC1 smoke v7 (train-mode fix): all CPU checks pass with gradient checkpointing active, November 1
 
