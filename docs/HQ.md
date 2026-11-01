@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LP2 pushed: `gemma4-vablate` v1 on 4×L4, November 1
+
+Quota checked by Shrey. Full / v_base / full_again / base val loss on the NF4 training stack; expected ≈ 45 min ≈ 1.5 quota-h, budget cap 1.5 h. Results to follow.
+
 ## Shrey/Claude — LP2 (HF-side V-delta ablation) built and pre-registered; CPU smoke passes; L4 notebook ready (not pushed), November 1
 
 Required by LP1's rule (kv > raw → debug before G1), as Shrey decided. `trainkit/vablate.py` loads T1's adapter into the training stack (NF4 + HF + LC1 fixes) and scores the 40 RS2 val episodes (pooled + per episode) as: full (as trained), v_base (global layers' V = base k_proj(x) via `object.__setattr__(attn, "v_proj", k_proj.base_layer)`, K keeps the delta: the vLLM raw forward), full_again, base (lora_B zeroed). Smoke `gemma4-vablate-smoke` v1 (CPU, free, tiny model, random LoRA, real RS2 tokens; rc 0): with the global k_proj delta zeroed the patch is exact (max per-episode diff 0.0); with it, v_base moves the loss (−0.0018 pooled); full_again == full exactly; 40 episodes. L4 `kaggle/train/l4_vablate` (`gemma4-vablate`, attaches T1's output): ≈ 45 min ≈ 1.5 quota-h, budget cap 1.5 h. Waiting for Shrey's quota check. Smoke: `results/runs/lp2/smoke_v1.json`.
