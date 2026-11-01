@@ -187,9 +187,10 @@ class Trainer:
                      grad_norm=round(float(gn), 3), tokens=int(red[0]), elapsed_s=round(float(mx[0]), 3),
                      tok_per_s=round(float(red[0]) / float(mx[0]), 1), peak_gb=round(float(mx[1]), 2),
                      max_len=max(data.length(w) for ws in micro for w in ws))
-            if self.s.val_every and (step + 1) % self.s.val_every == 0:
+            last = step + 1 == total  # the end-of-run validation and export follow anyway
+            if self.s.val_every and (step + 1) % self.s.val_every == 0 and not last:
                 self.validate(data, f"step{step + 1}")
-            if self.s.save_every and (step + 1) % self.s.save_every == 0:
+            if self.s.save_every and (step + 1) % self.s.save_every == 0 and not last:
                 self.export(f"step{step + 1}")
         self.validate(data, "end")
         self.export("final")

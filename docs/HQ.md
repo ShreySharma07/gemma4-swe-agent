@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — T1 (first RS2 LoRA) pre-registered; CPU smoke on the real RS2 file passes; L4 notebook ready (not pushed), November 1
+
+T1 in experiments.md: whole RS2 episodes ≤ 28,672 tokens, all LC1 fixes, r16 α32, lr 1e-4 cosine, batch 8 episodes, 2 epochs (~50 steps), val + export after epoch 1 and at the end. Builder: `make_train_notebook.py rs2` attaches the `gemma4-rftset-rs2` kernel output; `--max-len`; per-adapter smoke slug. Trainer: no duplicate val/export on the last step. Smoke `gemma4-train-smoke-rs2-lora` v1 (CPU, free, tiny model, real RS2 tokens folded to its vocab, 4 episodes): rc 0; plan 2 steps, 40 val episodes, 0 dropped for length; steps at 8k and 12.5k tokens, grad norm 2.1–2.2; val start/end weighted; 3 exports (41 modules, PEFT keys, shapes ok). L4 notebook `kaggle/train/l4_rs2_lora` (`gemma4-train-rs2-lora`): expected ≈ 5 h wall ≈ 10 quota-h, budget cap 10.5 h. Waiting for Shrey's quota check. Smoke report: `results/runs/t1/smoke_v1_report.json`.
+
 ## Shrey/Claude — LC1 L4 v7: HF vs HF + 1-ulp noise has LoRA-grad cosine 0.005 → attention fix accepted (no worse than HF); StreamCE exact again, November 1
 
 `gemma4-lc-probe` v7 (rc 0, ~17 min of tests ≈ 0.6 quota-h; LC1 total ≈ 5.5). Host min available 152.8 GB on every rank.
