@@ -38,11 +38,17 @@ SWAP2_DIR = REPO / "kaggle" / "eval_l4" / "siteswap2_kernel"  # A12v validated s
 REGRADE_DIR = REPO / "kaggle" / "eval_l4" / "regrade_kernel"  # R1 stray-file re-grade (--regrade)
 FSMOKE_DIR = REPO / "kaggle" / "eval_l4" / "factory_smoke_kernel"  # FS1 factory rollout smoke (--factory-smoke, GPU)
 ROLLOUT_DIR = REPO / "kaggle" / "eval_l4" / "factory_rollout_kernel"  # R2 rollouts: <dir>_s<shard> (--factory-rollout, GPU)
+LPROBE_DIR = REPO / "kaggle" / "eval_l4" / "lora_probe_kernel"  # LP1 adapter logprob probe on the served base (--lora-probe)
+LGATE_DIR = REPO / "kaggle" / "eval_l4" / "lora_gate_kernel"  # G1 held-out gate, v14 vs v14 + adapter (--lora-gate)
+LDRY_DIR = REPO / "kaggle" / "eval_l4" / "lora_dry_kernel"  # both of them --dry on CPU (--lora-dry)
+LORA_BASE = "v14_thinking"  # G1's base arm; the submission under test is <name> (v14 + adapter)
+LORA_FROM = "gemma4-train-rs2-lora"  # T1 output: adapters/rs2_lora/
+R2_S1 = "atulbaliyan/gemma4-factory-rollout-s1"  # R2 shard 1 ran on Atul's quota; output shared read-only (HQ, Oct 30)
 # A3/A4 (--necessity): agent patches + per-task rows of these runs, and the old-54 LOO results (exec-graph run)
 NEC_RUNS = ["eval_v7_new60/x/eval_v7_noedit/rep0", "eval_v14_new60_peek/x/eval_v14_thinking/rep0"] + \
     [f"rs_v7_valid/x/eval_v7_noedit/rep{i}" for i in range(5)]
 MODULES = ["__init__", "config", "util", "envsetup", "inputs", "submission", "compat", "server", "runner", "report",
-           "preflight", "overlays", "gate", "necessity", "siteswap", "siteswap2", "regrade", "factory_smoke", "factory_rollout", "main"]
+           "preflight", "overlays", "gate", "necessity", "siteswap", "siteswap2", "regrade", "factory_smoke", "factory_rollout", "kvdup", "lora_probe", "lora_gate", "main"]
 GATE_PREFIXES = REPO / "data" / "runs" / "gate" / "prefixes.json"
 SOURCE_MAX_BYTES = 1_000_000  # Kaggle rejects notebook source above ~1 MB (HTTP 400; found by Atul, Oct 15)
 
@@ -74,6 +80,7 @@ def module_doc(name):
 
 
 def run_cells(a, step, result):
+    steps = [step] if isinstance(step, str) else step
     return [
         md("## 4. Scorer environment\nRestore the Py3.12 venv, upgrade changed wheelhouse wheels, add pip and test deps, "
            "and prepare the Python 3.13 task sandbox (scorer site)."),
@@ -84,12 +91,10 @@ ScorerEnv().prepare(gpus={not a.preflight})"""),
                       if a.preflight else
                       "Evaluate\nRuns inside the venv (vLLM + Evaluator); output is streamed here and to `run.log`.")),
         code(f"""import subprocess, threading, time, glob
-proc = subprocess.Popen(["/tmp/scorer_host/bin/python", "-m", "evalkit.{step}"], cwd="/kaggle/working",
-                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 # hard stop: the in-run budget only stops NEW chunks, so a hang could run to Kaggle's 12 h cap (Oct 18: ~21 quota h lost)
 deadline = EVAL_CFG["t0"] + (EVAL_CFG["session_budget_h"] + 0.25) * 3600
 killed = []
-def _watchdog():
+def _watchdog(proc):
     while proc.poll() is None:
         if time.time() > deadline:
             print("WATCHDOG: session budget exceeded, killing the evaluator", flush=True)
@@ -97,26 +102,31 @@ def _watchdog():
             proc.kill()
             return
         time.sleep(30)
-threading.Thread(target=_watchdog, daemon=True).start()
-for line in proc.stdout:
-    print(line, end="", flush=True)
-print("exit code", proc.wait())
+for step in {steps!r}:  # one process per step ("module [args]")
+    proc = subprocess.Popen(["/tmp/scorer_host/bin/python", "-m", "evalkit." + step.split()[0], *step.split()[1:]],
+                            cwd="/kaggle/working", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    threading.Thread(target=_watchdog, args=(proc,), daemon=True).start()
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+    print(step, "exit code", proc.wait())
 if killed:  # keep whatever finished: traces and results of completed chunks
     subprocess.run("tar czf /kaggle/working/partial_eval.tgz -C /kaggle/working $(ls -d eval_* 2>/dev/null | grep -v tgz) run.log",
                    shell=True)"""),
         md("## 6. Results"),
         code(f"""import os
-p = "/kaggle/working/{result}"
-print(open(p).read()[:20000] if os.path.exists(p) else "no result file (see WATCHDOG / run.log)")"""),
+for p in {[result] if isinstance(result, str) else result!r}:
+    p = "/kaggle/working/" + p
+    print(open(p).read()[:20000] if os.path.exists(p) else "no result file (see WATCHDOG / run.log)")"""),
     ]
 
 
 def build(a):
     a.siteswap = a.siteswap or a.siteswap2  # same payload
-    a.preflight = a.preflight or a.sweep or a.overlays or a.necessity or a.siteswap or a.regrade
+    a.preflight = a.preflight or a.sweep or a.overlays or a.necessity or a.siteswap or a.regrade or a.lora_dry
+    lora = a.lora_probe or a.lora_gate or a.lora_dry
     settings = {"name": a.name, "max_tasks": a.max_tasks, "repeats": a.repeats, "devset": a.devset,
                 "session_budget_h": a.budget_h, "sweep": a.sweep, "valid_only": a.valid_only}
-    if a.factory_rollout:
+    if a.factory_rollout or a.lora_gate or a.lora_dry:
         settings.update(shard=a.shard, n_shards=a.n_shards, max_time_minutes=a.max_time_min)
     gate_b64 = system_b64 = tools_b64 = ""
     if a.gate:  # behaviour gate: prefixes + v7's exact system prompt and declared tools
@@ -179,13 +189,19 @@ if GATE_B64:
     pathlib.Path("/kaggle/working/gate_prefixes.json").write_bytes(gzip.decompress(base64.b64decode(GATE_B64)))
     pathlib.Path("/kaggle/working/gate_system.md").write_bytes(base64.b64decode(SYSTEM_B64))
     pathlib.Path("/kaggle/working/gate_tools.json").write_bytes(base64.b64decode(TOOLS_B64))
+BASE_B64 = {zip_submission(LORA_BASE) if (a.lora_gate or a.lora_dry) else ""!r}  # G1 only: the base arm ({LORA_BASE})
+if BASE_B64:
+    pathlib.Path("/kaggle/working/base_src.zip").write_bytes(base64.b64decode(BASE_B64))
 print("submission zip", len(base64.b64decode(SUBMISSION_B64)), "bytes")"""),
         md("## 3. evalkit modules\nOne cell per module."),
     ]
     for m in MODULES:
         cells.append(md(f"### `evalkit/{m}.py`\n{module_doc(m)}"))
         cells.append(code(f"%%writefile /kaggle/working/evalkit/{m}.py\n" + (KIT / f"{m}.py").read_text()))
-    step, result = (("gate", "gate_report.json") if a.gate else ("factory_rollout", "factory_rollout_report.json") if a.factory_rollout else ("factory_smoke", "factory_smoke_report.json") if a.factory_smoke else ("necessity", "necessity_report.json") if a.necessity
+    step, result = ((["lora_probe --dry", "lora_gate --dry"], ["lora_probe_report.json", "lora_gate_report.json"]) if a.lora_dry
+                    else ("lora_probe", "lora_probe_report.json") if a.lora_probe
+                    else ("lora_gate", "lora_gate_report.json") if a.lora_gate
+                    else ("gate", "gate_report.json") if a.gate else ("factory_rollout", "factory_rollout_report.json") if a.factory_rollout else ("factory_smoke", "factory_smoke_report.json") if a.factory_smoke else ("necessity", "necessity_report.json") if a.necessity
                     else ("regrade", "regrade_report.json") if a.regrade
                     else ("siteswap2", "siteswap2_report.json") if a.siteswap2
                     else ("siteswap", "siteswap_report.json") if a.siteswap
@@ -216,9 +232,10 @@ print("exit code", proc.wait())"""),
           "nbformat": 4, "nbformat_minor": 4}
     wire = len(json.dumps({**nb, "cells": [{**c, "source": "".join(c["source"])} for c in cells]}).encode())
     assert wire < SOURCE_MAX_BYTES, f"notebook source {wire:,} bytes >= {SOURCE_MAX_BYTES:,}: move inputs to a dataset"
-    out_dir = ROLLOUT_DIR.with_name(f"{ROLLOUT_DIR.name}_s{a.shard}") if a.factory_rollout else FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
+    out_dir = LDRY_DIR if a.lora_dry else LPROBE_DIR if a.lora_probe else LGATE_DIR if a.lora_gate else ROLLOUT_DIR.with_name(f"{ROLLOUT_DIR.name}_s{a.shard}") if a.factory_rollout else FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
-    nb_name = (f"gemma4-factory-rollout-s{a.shard}.ipynb" if a.factory_rollout else "gemma4-factory-smoke.ipynb" if a.factory_smoke else "gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
+    nb_name = ("gemma4-lora-dry.ipynb" if a.lora_dry else "gemma4-lora-probe.ipynb" if a.lora_probe else "gemma4-lora-gate.ipynb" if a.lora_gate else
+               f"gemma4-factory-rollout-s{a.shard}.ipynb" if a.factory_rollout else "gemma4-factory-smoke.ipynb" if a.factory_smoke else "gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
                "gemma4-a3a4-necessity.ipynb" if a.necessity else "gemma4-r1-regrade.ipynb" if a.regrade else "gemma4-a12v-validate.ipynb" if a.siteswap2 else "gemma4-a12-siteswap.ipynb" if a.siteswap else
                "gemma4-eval-preflight.ipynb" if a.preflight else "check-l4.ipynb")
     (out_dir / nb_name).write_text(json.dumps(nb, indent=1))
@@ -261,6 +278,16 @@ print("exit code", proc.wait())"""),
         meta.update(id=mine(f"gemma4-factory-rollout-s{a.shard}"), title=f"gemma4-factory-rollout-s{a.shard}",
                     code_file=nb_name)
         meta["dataset_sources"] += [shared("gemma4-factory-v0"), shared("gemma4-factory-v1")]  # owned by the source account
+    if lora:  # T1's adapter; LP1 also needs the RS2 val episodes, G1 the R2 rewritten issues + factory snapshots
+        slug = "gemma4-lora-dry" if a.lora_dry else "gemma4-lora-probe" if a.lora_probe else "gemma4-lora-gate"
+        meta.update(id=mine(slug), title=slug, code_file=nb_name)
+        meta["kernel_sources"] = [shared("gemma4-scorer-env"), shared("gemma4-devset-build"), shared(LORA_FROM)]
+        if a.lora_probe or a.lora_dry:
+            meta["kernel_sources"].append(shared("gemma4-rftset-rs2"))
+        if a.lora_gate or a.lora_dry:
+            meta["kernel_sources"] += [shared("gemma4-test-overlays"), shared("gemma4-factory-rollout-s0"),
+                                       R2_S1]
+            meta["dataset_sources"] += [shared("gemma4-factory-v0"), shared("gemma4-factory-v1")]
     if a.preflight:
         meta.pop("machine_shape", None)
     else:
@@ -296,4 +323,7 @@ if __name__ == "__main__":
     ap.add_argument("--max-time-min", type=float, default=12, help="--factory-rollout: per-task agent time cap")
     ap.add_argument("--gate-adapters", default="", help="comma-separated adapter names for --gate")
     ap.add_argument("--gate-samples", type=int, default=4)
+    ap.add_argument("--lora-probe", action="store_true", help="GPU kernel: LP1 adapter logprob probe on the served base")
+    ap.add_argument("--lora-gate", action="store_true", help="GPU kernel: G1 held-out gate, v14 vs <name> (v14 + adapter)")
+    ap.add_argument("--lora-dry", action="store_true", help="CPU kernel: LP1 + G1 with --dry (inputs, adapters, no model)")
     build(ap.parse_args())
