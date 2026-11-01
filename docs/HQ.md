@@ -1,8 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
-## Shrey/Claude — LC1 L4 v7 pushed: D+A with the HF + ulp-noise control, November 1
+## Shrey/Claude — LC1 L4 v7: HF vs HF + 1-ulp noise has LoRA-grad cosine 0.005 → attention fix accepted (no worse than HF); StreamCE exact again, November 1
 
-`gemma4-lc-probe` v7 (quota checked by Shrey; D+A, budget 1.0 h, ~0.6 quota-h expected; LC1 ≈ 5.5 if it completes). Decision rule as pre-registered in the entry below. Results to follow.
+`gemma4-lc-probe` v7 (rc 0, ~17 min of tests ≈ 0.6 quota-h; LC1 total ≈ 5.5). Host min available 152.8 GB on every rank.
+**D at 4k (LoRA-grad cosine / norm ratio / |Δloss|):** off_again vs off 0.99994 / 1.009 / 0; **off_noise1 vs off 0.005 / 1.72 / 3.1e-4; off_noise2 vs off −0.003 / 1.21 / 6.9e-4; noise2 vs noise1 0.013 / 0.70 / 9.9e-4**; attn_b1024 vs off 0.019 / 0.30 / 3.6e-4; attn_b512 vs off −0.007 / 0.61 / 6.8e-4; b512 vs b1024 0.037 / 2.02 / 3.2e-4. Perturbing HF's own attention by ≤ 1 bf16 ulp moves the gradient as far as our fix does, so by the pre-registered rule the attention fix is **accepted**: it is as good as HF's path, and every LC1 fix is now exact or rounding-equivalent. **Caveat for training:** a single 4k sequence's LoRA gradient (loss 0.124, LoRA B std 1e-3) has a direction set by bf16 rounding on any path, HF included; the loss itself is stable to ~0.5%. Expected gradients over many tokens and steps should still be meaningful, but it argues for watching val loss closely, keeping grad clipping, and not reading single-step grads. **A:** StreamCE |Δloss| 2e-7, cosine 0.99999 (repeat of v6). Result: `results/runs/lc1/l4_v7_noise_control.json`. **Next:** set up RS2 training, whole episodes ≤ 28,672 tokens (~5.8 quota-h per epoch).
 
 ## Shrey/Claude — LC1 noise control built; CPU smoke v8 passes, L4 D+A rebuilt (not pushed), November 1
 
