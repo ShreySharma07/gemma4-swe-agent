@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — G1 result: v14 + rs2_lora 42/95 vs v14 40/95 on held-out toolz + pathspec (+2, McNemar p 0.75): inconclusive; LoRA arm overflows the 32k context more (18 vs 12), November 2
+
+`gemma4-lora-gate` v1 (rc 0, all 95 tasks in both arms, RUN_DONE 3.7 h ≈ 7.4 quota-h). **Paired:** base 40 (= R2's 40/95), lora 42; lora-only 6, base-only 4, **McNemar p 0.75**. By lib: toolz 21 → 23/48, pathspec 19 → 19/47; by kind: single 26 → 24/35, pair 12 → 15/43, triple 2 → 3/17. **Behaviour:** median task 328 → 349 s (+6%; the LoRA arm's blocks ran 47–55 tasks/h vs 51–61), median tool calls 24 → 22, call-cap hits 28 → 22, time-cap hits 2 → 4, empty patches 8 → 9. **Context overflows (litellm ContextWindowExceeded, 32k):** base 12, **lora 18** (8 in both); 2 of the 4 base-only wins are lora overflows. So the adapter's 41% val-loss gain has not turned into resolves at this n: it makes slightly fewer, slower calls and runs out of context more often. **Pre-registered rule:** +1 to +4 → inconclusive → new-60 at the scorer's conditions (concurrency 1, 8 min) before deciding. Open question for the next training run: why the trained policy fills context faster (longer thinking or tool outputs? the RS2 episodes were ≤ 28k, and overflow runs were never in training). Result: `results/runs/g1/l4_v1_report.json` (report + per-task rows).
+
 ## Shrey/Claude — G1 pushed: `gemma4-lora-gate` v1 on 4×L4, November 1
 
 Quota checked by Shrey. v14 vs `v18_rs2_lora` (raw adapter) on the 95 held-out toolz + pathspec tasks; expected ≈ 4.3 h ≈ 8.6 quota-h, budget cap 10.5 h. Results to follow.
