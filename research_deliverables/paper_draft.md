@@ -117,7 +117,7 @@ The pre-registered predictions failed (completion ≥ 50%, pure incompleteness �
 
 Of 128 swaps, 61 passed; 24 had unresolved names, 15 changed signatures, 5 read agent-added attributes, 17 could not be built and 6 were identical to gold. 25 of the 85 swaps A12 called "clean" failed these screens.
 
-**What the screens miss.** A second reader built synthetic cases that pass as compatible: a changed default value, a name bound only in a nested helper but loaded outside it, and a sync function replaced by an async one. Attribute checks cover only some `self`/`cls` patterns. How often such cases occur among the 51 is unknown. The identity control re-splices each function span from the same tree and so checks span bounds, not the hybrid builder itself. The gold patch re-ran cleanly on all 29 tasks.
+**What the screens miss.** A second reader built synthetic cases that pass as compatible: a changed default value, a name bound only in a nested helper but loaded outside it, and a sync function replaced by an async one. Attribute checks cover only some `self`/`cls` patterns. The source read below found two more: module attributes and field types that gold's other sites change or rely on. How often such cases occur among the 51 is unknown. The identity control re-splices each function span from the same tree and so checks span bounds, not the hybrid builder itself. The gold patch re-ran cleanly on all 29 tasks.
 
 **Result.** Among necessary-group hybrids that passed the screens:
 
@@ -129,7 +129,7 @@ Of 128 swaps, 61 passed; 24 had unresolved names, 15 changed signatures, 5 read 
 | Tasks with ≥ 1 failure | **18 of 19** |
 | Task-cluster bootstrap 95% CI | 0.63–1.00 |
 
-Two readers inspected failure output for ten cases each. The first sample all showed target-behaviour failures, e.g. a width computation returning 7 instead of 5 for wide characters. In the second, independently drawn sample of ten distinct tasks, seven showed substantive behaviour failures, one output was inconclusive, one failed only on error-message wording, and one (fastapi_14609) pointed to a composition problem. Excluding failures where gold's other sites may depend on the gold version of the swapped function (a post-hoc check) leaves 42/50. Source-level adjudication of the hybrids is pending; all 105 built hybrids are archived for it.
+A first read of ten random failure outputs found target-behaviour failures in all. A second sample of ten distinct tasks was read at source level against the gold patch. In eight, the agent's own function computes what the failing assertion rejects, e.g. it never sets a redirect history, or handles `TTY_COMPATIBLE=1` but not `0`; one of these also returns `None` where gold's renderer iterates a list. One matches gold's logic and fails only on message wording; one (fastapi_14609) calls a module attribute that gold's edits remove. Excluding failures where gold's other sites may depend on the gold version of the swapped function (a post-hoc check) leaves 42/50.
 
 The registered failure-rate criterion was met. This supports frequent target-test failure in this selected, static-screened hybrid population, not an estimate that 84% of agent edits are intrinsically wrong.
 
@@ -191,7 +191,7 @@ From separate competition submissions, not clean ablations:
 - **Selected, imbalanced populations.** The interventions cover 13 and 19 tasks, mostly from old-54 v7 repeats; only 3 distinct v14 tasks contribute swaps. Small n gives wide intervals.
 - **Gold-relative labels.** Necessity and "the right site" are defined against one reference patch. A failing hybrid shows the agent's function does not work *with this gold design*.
 - **Incomplete compatibility screens.** Default values, nested scopes, sync/async kind and many attribute patterns are unchecked (§4.2). Completion runs kept no test output, so their exit-code failures are untyped.
-- **Proxies and adjudication.** Exposure counts mentions and intended read ranges. Failure typing relies on test-output tails; source-level review of the hybrids is pending.
+- **Proxies and adjudication.** Exposure counts mentions and intended read ranges. Failure typing relies on test-output tails; only ten hybrids were read at source level, by an unblinded reader.
 - **Retrieval tests** use gold first edits as seeds, not real agent edits. E0b's labels are co-change, not necessity.
 - **Size is observational.** We do not claim it causes failure.
 
