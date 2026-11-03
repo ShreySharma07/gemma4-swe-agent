@@ -1,5 +1,12 @@
 # Gemma 4 Developer Agent — HQ
 
+## Claude — MM1: edit chronology re-derived (Atul review item 4), November 3
+
+- New tagger `analysis/mutation_test_metrics.py` (run_command-aware writes; test invoked vs test returned PASS; final-patch coverage kept separate). Ran on Kaggle CPU kernel `shreysharma07/gemma4-mutation-metrics` v2 over v7 and v16 new-60. Summary: `results/runs/mutation_metrics/`; row MM1 in `experiments.md`.
+- Result (heuristic): the tagger saw writes to all 159 final-patch source files. A test ran after the last source mutation in 5–13% of tasks; one returned PASS in ≤5%. Agents mostly re-run their own scripts instead. The old analyzer missed most edits (it saw edits in 7% of v7 tasks).
+- **Blocked:** v14 traces are not on Kaggle (Atul's `check-l4` now holds v16). They exist locally (`data/runs/eval_v14_new60_peek/eval_v14_thinking.tgz`, 1.1 MB). Uploading them as a private dataset needs Shrey's go-ahead.
+- Paper: no current sentence depends on edit chronology. The "15 touched some sites" and "9 edited elsewhere" figures come from final-patch coverage and stand.
+
 ## Shrey/Claude — paper wind-up: evidence manifest, deviations, blinded second read, November 3
 
 - **Evidence manifest:** added `research_deliverables/evidence_manifest.md`, which maps each paper claim to its pre-registration commit, result commit and aggregate files.
