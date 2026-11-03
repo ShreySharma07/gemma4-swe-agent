@@ -46,3 +46,13 @@ Both are composition or interface failures that a passing static screen does not
 **What this does not establish.**
 - Verdicts are judged against gold's design and the target tests. An "intrinsic" error means the agent's function fails what those tests check, not that no other design could pass.
 - Ten distinct-task cases chosen by Atul's hash rule are not a random sample of the 51 swaps, so no corrected rate is computed from them.
+
+## Blinded second read (Nov 3, 2026)
+
+A separate Claude agent re-read the same ten cases. It could not see these verdicts, the paper, Atul's review or the stored failure labels, and it ran nothing. It matched each hybrid to its log by an identical patch. It briefly saw the `class` field of one unrelated swap (entry 000).
+
+- **Agree, 8 of 10:** 104, 018, 034, 098, 121, 113 and 124 are intrinsic; 006 is wording only.
+- **014 fastapi_14609:** both reads call it composition. The second reader adds an intrinsic bug: the agent's `isinstance(field_info, FieldInfo)` check is against pydantic v2's `FieldInfo`, so every field takes the removed v1 path.
+- **100 rich_3676:** the second reader calls it interface (12 tests fail on `None` in gold's renderer) and notes that `test_notes` alone supports intrinsic. This is the same evidence as the first read, labelled differently.
+
+Neither read found a harness or other failure. Both readers are the same model family, so this is a consistency check, not an independent human read. Atul's check is still welcome.
