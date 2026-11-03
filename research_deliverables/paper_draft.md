@@ -57,7 +57,7 @@ v7 → v14 is a bundled change: 8 tasks gained and 1 lost, exact McNemar p = 0.0
 - *Function groups:* each gold hunk mapped to its innermost enclosing function.
 - *Necessity:* group *g* is necessary if gold-minus-*g* fails the target tests. 56 of 60 new-60 tasks received labels. Labels are relative to the gold patch; other correct fixes may exist.
 
-**Pre-registration.** Every analysis has a row in `docs/experiments.md` giving prediction and decision rule, committed before the analysis ran, with the result and any deviation added after. For the retrieval tests E0a and E0b, prediction and result share a commit. Counterfactual runs used the scorer-faithful CPU sandbox with the competition's test environment.
+**Pre-registration.** Every analysis has a row in `docs/experiments.md` giving prediction and decision rule, committed before the analysis ran, with the result and any deviation added after. For the retrieval tests E0a and E0b, prediction and result share a commit. Other deviations: five completion cases fall back to dropping module-level hunks; the site-swap identity control is a textual re-splice; one site-swap sensitivity flag and the source-level read were added post hoc. The evidence manifest maps every claim to its registration, result commit and aggregate files; raw trajectories and test logs remain restricted competition material. Counterfactual runs used the scorer-faithful CPU sandbox with the competition's test environment.
 
 ---
 
