@@ -27,6 +27,8 @@ step's observation belongs to its last tool call. A call index k is the position
 tool call in that flattened list.
 
 Command splitting (run_command only).
+  H0  Leaked chat-template tokens such as `<|"|>` (Gemma tool-call debris) are replaced by a
+      space first, so they do not read as redirections.
   H1  Heredocs: a line containing `<<[-]['"]WORD['"]` starts a body that ends at the line
       equal (after strip) to WORD. The header line stays in the shell text; the body is
       attached to the header. A body is Python if the header runs `python[N.N] [-]` and is
@@ -35,6 +37,8 @@ Command splitting (run_command only).
   H2  Shell lines are split into segments on unquoted `;`, `&&`, `||`, `|`, `&` (but not the
       `&` of `2>&1`/`&>`). Each segment is tokenised with shlex (fallback: whitespace).
       Leading `VAR=val`, `env`, `time`, `timeout N`, `sudo`, `command` are skipped.
+  H2b An unquoted `#` at the start of a word starts a shell comment that runs to the end of the
+      line; comments are dropped (agents write prose like `# -> dict[str, ...]`).
 
 Mutation targets (a "write" event: path, via, char position in the command).
   M1  edit_file / write_file: args filepath (or any arg key containing "path").
@@ -53,6 +57,10 @@ Mutation targets (a "write" event: path, via, char position in the command).
       `os.replace|rename(S, T)`; `fileinput.input(..., inplace=True)`. T is resolved when it
       is a string literal or a variable assigned `V = Path("lit")` / `V = "lit.ext"` in the
       same code; otherwise the target is UNRESOLVED.
+  M7b If any M7 target is UNRESOLVED (helper `def edit(path, ...)`, loop over a list of
+      paths), the targets become every file-like string literal in that code (`"a/b.py"`,
+      extensions py pyi md rst toml cfg ini txt json yaml), excluding /tmp. Read-only paths
+      named in the same code would be over-counted; the via tag is `py:fallback-literal`.
   M8  A write is APPLIED if the call did not return status "error" and its exit_code is 0
       or unrecorded; or, for a call that also ran a test whose summary was found in the
       output (so a `&&` chain reached the test), regardless of the final exit code.
@@ -96,6 +104,10 @@ Chronology (per task, primary source mutations only).
   test_after_last_mut  = a test invocation at a later call, or later in the same call
                          (char position after the last write in that call).
   pass_after_last_mut  = such a test returned PASS (R2).
+  X1  exec_after_last_mut / exec_ok_after_last_mut: any code execution after the last
+      mutation (a test, `python X.py`, `python -c`, or a python heredoc that wrote nothing),
+      and whether one returned status ok with exit 0. This is "ran something", e.g. the
+      agent's own repro script; it is NOT test verification and exit 0 is not correctness.
 
 Final-patch coverage (separate block). From patches/<id>.patch and the gold file list in
 analysis/per_task.jsonl (gold_files is computed from the gold patch only, not from
@@ -136,12 +148,14 @@ OPEN_CALL = re.compile(r"\b(?:io\.|codecs\.)?open\(\s*([^,()]+?)\s*,\s*(?:mode\s
 WRITE_TEXT = re.compile(r"(\b[A-Za-z_]\w*|(?:pathlib\.)?Path\(\s*[^()]*?\))\s*\.\s*write_(?:text|bytes)\(", re.S)
 SHUTIL = re.compile(r"\b(?:shutil\.(?:copy2?|copyfile|move)|os\.(?:replace|rename))\(\s*[^,]+,\s*([^,()]+?)\s*[,)]")
 FILEINPUT = re.compile(r"fileinput\.input\(([^)]*inplace\s*=\s*(?:True|1)[^)]*)\)")
+FILE_LIT = re.compile(r"""["']((?:/workspace/)?[\w.\-]+(?:/[\w.\-]+)*\.(?:py|pyi|md|rst|toml|cfg|ini|txt|json|ya?ml))["']""")
+DEBRIS = re.compile(r"<\|[^|<>\n]{0,20}\|>")  # leaked chat-template tokens such as <|"|> (H0)
 PY_TEST_CALL = re.compile(r"\bpytest\.main\(|\bunittest\.main\(|subprocess\.[A-Za-z_]+\([^)]*['\"](?:-m\s*['\"]?\s*)?pytest")
 
 # test summaries (R1)
 PYTEST_SUMMARY = re.compile(
     r"^[=\-\s]*((?:\d+ (?:passed|failed|errors?|skipped|xfailed|xpassed|deselected|warnings?|rerun)(?:, )?)+)"
-    r"(?:\s+in\s+[\d.]+\s*s.*)?\s*=*\s*$", re.M)
+    r"(?:\s+in\s+[\d.]+\s*s.*)?\.?\s*=*\s*$", re.M)
 PYTEST_NOTESTS = re.compile(r"\bno tests ran\b|\bInterrupted: \d+ errors?\b|ERROR: (?:file|module) or directory not found"
                             r"|ERROR: not found:|\bcollected 0 items\b", re.I)
 UNITTEST_RAN = re.compile(r"^Ran (\d+) tests? in [\d.]+s", re.M)
@@ -217,7 +231,7 @@ def classify(path):
 
 # ------------------------------------------------------------------ shell parsing
 def logical_line_end(cmd, start):
-    """End index of the shell line starting at `start`: the first newline outside quotes."""
+    """-> (end, code_end): first newline outside quotes, and where an unquoted `#` comment starts (H2b)."""
     q, i = None, start
     while i < len(cmd):
         ch = cmd[i]
@@ -232,10 +246,14 @@ def logical_line_end(cmd, start):
         elif ch == "\\":
             i += 2
             continue
+        elif ch == "#" and (i == start or cmd[i - 1] in " \t;&|("):
+            nl = cmd.find("\n", i)
+            nl = len(cmd) if nl < 0 else nl
+            return nl, i
         elif ch == "\n":
-            return i
+            return i, i
         i += 1
-    return len(cmd)
+    return len(cmd), len(cmd)
 
 
 def split_heredocs(cmd):
@@ -243,8 +261,8 @@ def split_heredocs(cmd):
     Newlines inside quotes (multi-line `python -c "..."`) do not end a line (H1)."""
     out, off = [], 0
     while off < len(cmd):
-        end = logical_line_end(cmd, off)
-        line = cmd[off:end]
+        end, code_end = logical_line_end(cmd, off)
+        line = cmd[off:code_end]
         line_off, off = off, end + 1
         blank = QUOTED.sub(lambda q: "_" * len(q.group(0)), line)
         m = next((h for h in HEREDOC.finditer(line) if blank[h.start()] == "<"), None)  # marker outside quotes
@@ -382,13 +400,21 @@ def py_writes(code):
     for m in FILEINPUT.finditer(code):
         first = m.group(1).split(",")[0]
         writes.append((resolve(first), "py:fileinput"))
+    if any(p == "?" for p, _ in writes):
+        # M7b: unresolved target (helper `def edit(path, ...)`, loop over a list): fall back to the
+        # file-like string literals in the same code, excluding /tmp.
+        lits = sorted({x for x in FILE_LIT.findall(code) if not x.startswith("/tmp")})
+        if lits:
+            writes = [w for w in writes if w[0] != "?"] + [(x, "py:fallback-literal") for x in lits]
     return writes, bool(PY_TEST_CALL.search(code))
 
 
 # ------------------------------------------------------------------ per-call tagging
 def tag_command(cmd, scripts):
-    """-> dict(writes=[(pos, path, via)], tests=[pos], created=[(path, content)], removed=[path])."""
-    writes, tests, created, removed = [], [], [], []
+    """-> dict(writes=[(pos, path, via)], tests=[pos], created=[(path, content)], removed=[path],
+    execs=[pos]) where execs are code executions (python/pytest), used only for the exec metric."""
+    writes, tests, created, removed, execs = [], [], [], [], []
+    cmd = DEBRIS.sub(" ", cmd)
     for line_off, line, body in split_heredocs(cmd):
         blank_line = QUOTED.sub(lambda q: "_" * len(q.group(0)), line)
         py_body = body is not None and bool(PY_HEADER.search(blank_line))
@@ -448,8 +474,10 @@ def tag_command(cmd, scripts):
             # tests (T1)
             if w in ("pytest", "py.test", "tox", "nox"):
                 tests.append(pos)
-            elif is_python(toks[0]):
+                execs.append(pos)
+            elif is_python(toks[0]) and not (py_body and "<<" in blank):
                 rest = toks[1:]
+                n_before = len(writes)
                 if "-m" in rest and rest.index("-m") + 1 < len(rest) and rest[rest.index("-m") + 1] in ("pytest", "py.test", "unittest"):
                     tests.append(pos)
                 elif "-c" in rest and rest.index("-c") + 1 < len(rest):
@@ -468,12 +496,16 @@ def tag_command(cmd, scripts):
                                 tests.append(pos)
                         elif TEST_PATH.search(sp):
                             tests.append(pos)
+                if len(writes) == n_before and rest:
+                    execs.append(pos)  # X1: python run that wrote nothing
         if py_body:
             ws, t = py_writes(body)
             writes += [(line_off, norm_path(p) if p != "?" else "?", via) for p, via in ws]
             if t:
                 tests.append(line_off)
-    return {"writes": writes, "tests": tests, "created": created, "removed": removed}
+            if not ws:
+                execs.append(line_off)  # X1: python heredoc that wrote nothing
+    return {"writes": writes, "tests": tests, "created": created, "removed": removed, "execs": execs}
 
 
 def obs_fields(o):
@@ -548,6 +580,9 @@ def analyze_task(trace, patch_text):
             applied = (status != "error" and ec in (0, None)) or (bool(t["tests"]) and has_summary)
             for p, path, via in t["writes"]:
                 events.append({"k": k, "pos": p, "kind": "write", "path": path, "via": via, "applied": applied})
+            exec_ok = status != "error" and ec in (0, None)
+            for p in t["execs"]:
+                events.append({"k": k, "pos": p, "kind": "exec", "ok": exec_ok})
             for path, content in t["created"]:
                 scripts[path] = content
             removed_all += [(k, r) for r in t["removed"]]
@@ -555,6 +590,8 @@ def analyze_task(trace, patch_text):
                 call_tags.append("W:" + ",".join(sorted({v for _, _, v in t["writes"]})))
             if t["tests"]:
                 call_tags.append("T:" + str(test_ret))
+            elif t["execs"]:
+                call_tags.append("X:" + ("ok" if exec_ok else "err"))
         tags.append(call_tags)
 
     pfiles = re.findall(r"^\+\+\+ b/(\S+)", patch_text or "", flags=re.M)
@@ -576,14 +613,19 @@ def analyze_task(trace, patch_text):
         mut_calls = sorted({e["k"] for e in muts})
         if not muts:
             return {"n_mut_calls": 0, "first_mut": None, "last_mut": None, "test_after_last_mut": None,
-                    "pass_after_last_mut": None, "last_test_after_outcome": None, "mut_paths": []}
+                    "pass_after_last_mut": None, "last_test_after_outcome": None, "mut_paths": [],
+                    "exec_after_last_mut": None, "exec_ok_after_last_mut": None}
         last_k = max(e["k"] for e in muts)
         last_pos = max(e["pos"] for e in muts if e["k"] == last_k)
-        after = [e for e in events if e["kind"] == "test" and (e["k"] > last_k or (e["k"] == last_k and e["pos"] > last_pos))]
+        later = [e for e in events if e["k"] > last_k or (e["k"] == last_k and e["pos"] > last_pos)]
+        after = [e for e in later if e["kind"] == "test"]
+        ex = [e for e in later if e["kind"] in ("exec", "test")]
         return {"n_mut_calls": len(mut_calls), "first_mut": mut_calls[0], "last_mut": last_k,
                 "test_after_last_mut": bool(after), "pass_after_last_mut": any(e["outcome"] == "PASS" for e in after),
                 "last_test_after_outcome": after[-1]["outcome"] if after else None,
-                "mut_paths": sorted({e["path"] for e in muts})}
+                "mut_paths": sorted({e["path"] for e in muts}),
+                "exec_after_last_mut": bool(ex),
+                "exec_ok_after_last_mut": any(e.get("ok") or e.get("outcome") == "PASS" for e in ex)}
 
     tests = [e for e in events if e["kind"] == "test"]
     test_calls = sorted({e["k"] for e in tests})
@@ -655,6 +697,8 @@ def group_metrics(rows, key):
         "pct_pass_after_last_mut": pct(sum(bool(c["pass_after_last_mut"]) for c in ch), n),
         "pct_test_after_last_mut_given_mut": pct(sum(bool(c["test_after_last_mut"]) for c in with_mut), len(with_mut)),
         "pct_pass_after_last_mut_given_mut": pct(sum(bool(c["pass_after_last_mut"]) for c in with_mut), len(with_mut)),
+        "pct_exec_after_last_mut": pct(sum(bool(c["exec_after_last_mut"]) for c in ch), n),
+        "pct_exec_ok_after_last_mut": pct(sum(bool(c["exec_ok_after_last_mut"]) for c in ch), n),
         "median_mut_calls": med([c["n_mut_calls"] for c in ch]),
         "median_mut_calls_given_mut": med([c["n_mut_calls"] for c in with_mut]),
         "last_test_after_outcome": dict(collections.Counter(str(c["last_test_after_outcome"]) for c in with_mut)),
@@ -768,7 +812,7 @@ def main():
         summary[key] = s
         # validation sample: first resolved, first unresolved non-empty, first empty-patch (per run), capped globally
         pick = []
-        for cond in (lambda r: r["resolved"], lambda r: not r["resolved"] and r["patch_files"], lambda r: not r["patch_files"]):
+        for cond in (lambda r: r["resolved"], lambda r: not r["resolved"] and r["patch_files"], lambda r: not r["patch_files"], lambda r: r["n_test_calls"] > 0):
             r = next((r for r in rows if cond(r) and r not in pick), None)
             if r:
                 pick.append(r)
@@ -797,7 +841,7 @@ def main():
         for lab in ("resolved", "unresolved", "all"):
             c, o, t = s["chronology"][lab], s["old_tagger"][lab], s["test_activity"][lab]
             print(f"  {lab:10s} n={c['n']:3d} ge1mut={c['pct_ge1_mutation']} testAfter={c['pct_test_after_last_mut']} "
-                  f"passAfter={c['pct_pass_after_last_mut']} medMut={c['median_mut_calls']} "
+                  f"passAfter={c['pct_pass_after_last_mut']} medMut={c['median_mut_calls']} execAfter={c['pct_exec_after_last_mut']} execOkAfter={c['pct_exec_ok_after_last_mut']} "
                   f"anyTest={t['pct_any_test_invoked']} anyPass={t['pct_any_test_pass']} | OLD firstEdit={o.get('pct_first_edit_found')} "
                   f"testsAfter={o.get('pct_tests_after_last_edit')} unverified={o.get('n_wrong_fix_unverified')}")
         print("  recall vs final patch:", {k: (v if not isinstance(v, list) else len(v)) for k, v in s["tagger_recall_vs_final_patch"].items()})
