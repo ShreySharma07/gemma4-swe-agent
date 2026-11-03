@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — v18_rs2_lora LB: notebook timed out (no score), November 3
+
+Ref 57892829 shows COMPLETE with an empty score; Shrey saw "notebook timed out" on Kaggle, so the run exceeded the 12 h cap. The same caps (8 min, 28 calls) finished for v14 (0.17), so the adapter's serving cost is the likely cause. Local v14 at concurrency 1 (new-60) averages 231 s of agent time per task (7.7 h for 120 tasks); the scorer adds container setup and verification per task under gVisor, so v14 was probably already close to 12 h. G1 measured only +6% median task time with the adapter, but at concurrency 6, where batching hides per-token LoRA cost. At concurrency 1, every decode step pays the LoRA kernels on 410 modules, and the scorer serves with `max_lora_rank 128`. **Lowering the time cap is not the lever:** on v14's new-60 runs, a 5 min cap saves only 6% of agent time and drops 4 of 30 wins (6 min: 2%, 3 wins). **Unmeasured:** the LoRA slowdown at concurrency 1 under the scorer's settings. That number decides whether any adapter can fit. Lesson for the runtime rule: the nominal check (caps × 120) and G1's batched timing both missed this; adapters need a concurrency-1 timing before any LB use.
+
 ## Claude — MM1: edit chronology re-derived (Atul review item 4), November 3
 
 - New tagger `analysis/mutation_test_metrics.py` (run_command-aware writes; test invoked vs test returned PASS; final-patch coverage kept separate). Ran on Kaggle CPU kernel `shreysharma07/gemma4-mutation-metrics` v2 over v7 and v16 new-60. Summary: `results/runs/mutation_metrics/`; row MM1 in `experiments.md`.
