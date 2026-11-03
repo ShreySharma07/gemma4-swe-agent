@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LT1 result: the adapter costs +11% decode / +3% prefill at concurrency 1 (≈ +0.8 h per 120 tasks); module count doesn't matter; v14 must sit within 0.8 h of the 12 h cap, November 3
+
+`gemma4-lora-timing` v1 (rc 0, 0.35 h ≈ 0.7 quota-h, 36 timed calls). Decode tok/s, base / rs2_lora / rs2_attn: 2k 38.6 / 34.1 / 34.3; 8k 36.3 / 32.5 / 32.5; 16k 34.8 / 31.3 / 31.3; 24k 32.9 / 29.8 / 29.8. **Decode slowdown 1.10–1.13×** (predicted 1.3–1.8: wrong, much smaller). **Prefill slowdown 1.03×.** Attention-only (230 modules) costs the same as all 410 modules: the overhead is a fixed per-step cost of serving any LoRA (punica path, rank padded to 128), not proportional to adapter size. So an attention-only retrain buys no time. **Projection:** v14 spends ≈ 7.1k completion tokens per task (86% of its 231 s mean is decode); at 35.6 → 31.9 tok/s that is +23.5 s decode + 0.4 s prefill per task, **≈ +0.8 h per 120 tasks**. **Pre-registered rule:** ≤ +1 h → "resubmit v18 unchanged is plausible (still at v14's margin)". But v18 did time out, so v14's own scorer runtime must already be above ≈ 11.2 h (or the hidden tasks run longer than new-60). The binding constraint is v14's margin, not the adapter: resubmitting v18 unchanged would most likely time out again (deviation from the rule's wording, recorded). **Lever:** decode tokens. Any adapter needs ≥ ~10–15% fewer completion tokens per task (e.g. a lower thinking budget than 4,096, or fewer calls), and that change needs its own local check, because v14 itself has no measured scorer margin. Result: `results/runs/lt1/l4_v1_report.json`.
+
 ## Shrey/Claude — LT1 pushed: `gemma4-lora-timing` v1 on 4×L4, November 3
 
 Quota checked by Shrey. Base / rs2_lora / rs2_attn prefill and decode at concurrency 1 on the scorer's server; expected ≈ 30 min ≈ 1 quota-h, budget cap 1.5 h. Results to follow.
