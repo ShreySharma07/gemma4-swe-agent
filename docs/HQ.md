@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — LT1 pushed: `gemma4-lora-timing` v1 on 4×L4, November 3
+
+Quota checked by Shrey. Base / rs2_lora / rs2_attn prefill and decode at concurrency 1 on the scorer's server; expected ≈ 30 min ≈ 1 quota-h, budget cap 1.5 h. Results to follow.
+
 ## Shrey/Claude — LT1 (LoRA serving cost at concurrency 1) built and pre-registered; CPU dry run passes; ready for quota check, November 3
 
 `evalkit/lora_timing.py`: the scorer's exact vLLM server, one request at a time, raw-token /v1/completions on prefixes (2k, 8k, 16k, 24k) of the longest RS2 val episode (26,446 tokens), a nonce token per call so nothing is cached across calls; prefill (max_tokens 1), then 256 decode tokens (ignore_eos); 3 repeats; arms base / rs2_lora (410 modules) / rs2_attn (T1's q/k/v/o only, 230 modules, built in-kernel; cost only, behaviour not evaluated). Projection basis from v14's local new-60 traces: ≈ 7.1k completion tokens and 25 LLM calls per task (mean 231 s), so decode speed dominates. Dry run `gemma4-lora-dry` v4 (free, all three steps rc 0): both adapters discovered, 4 lengths. L4 `kaggle/eval_l4/lora_timing_kernel` (`gemma4-lora-timing`): ≈ 30 min ≈ 1 quota-h, budget cap 1.5 h. Waiting for Shrey's quota check.
