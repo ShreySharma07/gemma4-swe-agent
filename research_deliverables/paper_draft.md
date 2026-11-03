@@ -191,7 +191,7 @@ From separate competition submissions, not clean ablations:
 - **Selected, imbalanced populations.** The interventions cover 13 and 19 tasks, mostly from old-54 v7 repeats; only 3 distinct v14 tasks contribute swaps. Small n gives wide intervals.
 - **Gold-relative labels.** Necessity and "the right site" are defined against one reference patch. A failing hybrid shows the agent's function does not work *with this gold design*.
 - **Incomplete compatibility screens.** Default values, nested scopes, sync/async kind and many attribute patterns are unchecked (§4.2). Completion runs kept no test output, so their exit-code failures are untyped.
-- **Proxies and adjudication.** Exposure counts mentions and intended read ranges. Failure typing relies on test-output tails; only ten hybrids were read at source level, by an unblinded reader.
+- **Proxies and adjudication.** Exposure counts mentions and intended read ranges. Failure typing relies on test-output tails; only ten hybrids were read at source level, by an unblinded reader and a blinded second reader of the same model family (8/10 identical verdicts, the rest differing only in label).
 - **Retrieval tests** use gold first edits as seeds, not real agent edits. E0b's labels are co-change, not necessity.
 - **Size is observational.** We do not claim it causes failure.
 
