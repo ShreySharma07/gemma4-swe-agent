@@ -1,5 +1,20 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — paper wind-up: evidence manifest, deviations, blinded second read, November 3
+
+- **Evidence manifest:** added `research_deliverables/evidence_manifest.md`, which maps each paper claim to its pre-registration commit, result commit and aggregate files.
+- **Deviations:** the manifest lists seven pre-registration deviations:
+  - A4 falls back to dropping module-level hunks;
+  - A12 was replaced by A12v;
+  - the identity control is a textual re-splice;
+  - the reverse-coupling flag was added post hoc;
+  - the source read was not pre-registered;
+  - E0a/E0b predictions were committed with their results;
+  - old-54 dominates the populations.
+- **Paper:** §2 names the deviations and §8 notes the blinded second read. Both are synced to the doc (rev 32). The paper is 2,956 words before references.
+- **Blinded second read:** a separate Claude agent re-read the ten A12v hybrids without access to the earlier verdicts or stored labels. Its verdicts match on 8 of 10. For 014 it adds an intrinsic bug to composition; for 100 it labels the case interface rather than intrinsic plus interface.
+- **Still running:** Atul's item 4 (edit/test metrics independent of the old tagger) is delegated to an agent working on Kaggle CPU.
+
 ## Shrey/Claude — A12v source read of Atul's ten hybrids: 8 intrinsic, 1 wording-only, 1 composition, November 2
 
 Read each of the ten hybrids in Atul's sample as a gold-vs-hybrid patch diff against the failing assertions (no rerun; `research_deliverables/a12v_source_adjudication_2026-11-02.md`). **Intrinsic (agent's own function computes what the assertion rejects):** fastapi_14986, requests_7328 (never sets `resp.history`; Atul's "inconclusive" settled), fastapi_14455 (the `ERROR` is inline-snapshot's teardown echo), rich_3506, rich_3061, rich_4006, rich_3675, and rich_3676 (stringified notes, plus `None` where gold's renderer iterates a list). **Wording only:** fastapi_14479 (logic identical to gold). **Composition:** fastapi_14609 (calls `v1.ModelField`, which gold removes; already reverse-coupling flagged). Two new static-screen gaps: module attributes and field type contracts. Unblinded single reader; Atul to check. 43/51 unchanged. Paper §4.2 and limitations updated; the Claude Doc is synced.
