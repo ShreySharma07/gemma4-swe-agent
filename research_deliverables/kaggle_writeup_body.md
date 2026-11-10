@@ -1,12 +1,12 @@
 ## Abstract
 
-Do code agents fail because they cannot find the code that must change? On the competition's stack (Gemma-4-31B W4A16, 32k context, no compaction), a gold-file path appeared in tool calls or outputs for 29 of 30 failures of our best configuration on 60 recent tasks. Resolution falls steeply with change size, which cannot be separated from the number of sites.
+We ran a quantized Gemma-4-31B agent (W4A16, 32k context, no compaction) on 60 recent GitHub issues and studied how it failed. In 29 of our best configuration's 30 failed runs, a file from the reference fix showed up in a tool call or its output, so the agent was usually looking in the right place. Failures pile up as the required change gets bigger, although in our data size and the number of edited sites move together.
 
-Two pre-registered counterfactuals on failed partial patches, pooled across three agent runs, probe what remains:
+We then took failed patches that touched some of the right functions, pooled from three sets of runs, and changed them in two pre-registered ways:
 - **Completion.** Adding the reference edits the agent missed to its own patch rescued 2 of 13 tasks.
 - **Site swap.** Placing the agent's version of one necessary reference function into the otherwise gold-patched tree failed the target tests in 43 of 51 hybrids that passed our static compatibility screens (18 of 19 tasks).
 
-A pre-registered structural co-change retriever lost to lexical retrieval on 120 external repositories. These results show the limits of these protocols; residual hybrid incompatibility remains a threat.
+A pre-registered retriever built on code structure also lost to plain BM25 at finding co-changed functions in 120 external repositories. The agent usually finds the place and then writes code the tests reject there, although the swap test cannot fully rule out leftover incompatibility with the gold code.
 
 ---
 
@@ -14,7 +14,7 @@ A pre-registered structural co-change retriever lost to lexical retrieval on 120
 
 Repository-level code agents spend much effort on localization: graph tools, retrieval indices and structural summaries that help them find where to edit [RepoGraph; LocAgent; CodeAnchor]. Recent evidence questions how much this matters. Across six localization methods and three models, better localization rarely improves repair, and descriptions of a bug's *cause* help more than its location [From Finding to Fixing].
 
-We ask the follow-up question for a small, quantized, open model under the Kaggle Gemma 4 Developer Agent competition's budget. If the agent sees the right files but still fails, *why*? It may:
+We ask what happens after localization for a small, quantized open model under the Kaggle Gemma 4 Developer Agent competition's budget. If the agent has the right files in front of it and still fails, there are three obvious explanations. It may:
 1. edit the wrong place;
 2. edit some right places but not all (unfinished);
 3. make wrong edits at the right places.
@@ -22,12 +22,12 @@ We ask the follow-up question for a small, quantized, open model under the Kaggl
 We separate these with two counterfactual interventions on the agent's own failed patches, built from leave-one-out *necessity* labels: a reference function is necessary if removing its edits from the gold patch makes the target tests fail.
 
 **Contributions.**
-1. A replication of near-saturated exposure on a new model and stack, with failure tracking change size; size and site count are not separable in our data (§3).
+1. Near-saturated exposure, replicated on a new model and stack; failure tracks change size, which we cannot separate from site count (§3).
 2. A completion counterfactual: supplying the missed gold edits rescues 2/13 tasks (§4.1).
 3. A site-swap counterfactual: static-screened gold-background hybrids fail the target tests in 43/51 swaps (§4.2). We report how an earlier version mislabeled 25 incompatible hybrids as "clean", and what the corrected screens still miss.
 4. A pre-registered negative result for structure-derived co-change recovery against lexical baselines (§5).
 
-Each analysis had a pre-registered prediction and decision rule (§2); we report the predictions that failed.
+We wrote down a prediction and a decision rule before each analysis (§2). Several predictions turned out wrong, and we report those as well.
 
 ---
 
@@ -51,15 +51,15 @@ v7 → v14 is a bundled change: 8 tasks gained and 1 lost, exact McNemar p = 0.0
 - *Function groups:* each gold hunk mapped to its innermost enclosing function.
 - *Necessity:* group *g* is necessary if gold-minus-*g* fails the target tests. 56 of 60 new-60 tasks received labels. Labels are relative to the gold patch; other correct fixes may exist.
 
-**Pre-registration.** Every analysis has a row in `docs/experiments.md` giving prediction and decision rule, committed before the analysis ran, with the result and any deviation added after. For the retrieval tests E0a and E0b, prediction and result share a commit. Other deviations: five completion cases fall back to dropping module-level hunks; the site-swap identity control is a textual re-splice; one site-swap sensitivity flag and the source-level read were added post hoc. The evidence manifest maps every claim to its registration, result commit and aggregate files; raw trajectories and test logs remain restricted competition material. Counterfactual runs used the scorer-faithful CPU sandbox with the competition's test environment.
+**Pre-registration.** Each analysis has a row in `docs/experiments.md` with its prediction and decision rule, committed before it ran; results and deviations were added afterwards. The exceptions are E0a and E0b, committed together with their results, and one site-swap sensitivity flag and the source-level read, added post hoc (other deviations are described where they occur). The evidence manifest maps every claim to its commits and aggregate files; raw trajectories and test logs stay restricted. Counterfactual runs used the scorer-faithful CPU sandbox.
 
 ---
 
 ## 3. RQ1: Exposed, but not resolved
 
-**Exposure is near-saturated.** In v14, 59/60 tasks were exposed to a gold file and 55/60 to gold lines. 29 of the 30 failures were exposed to a gold file (Wilson 95% CI 83–99%). Under this proxy, "never looked" is not the main failure.
+Exposure is close to saturated. In v14, 59/60 tasks were exposed to a gold file and 55/60 to gold lines. 29 of the 30 failures were exposed to a gold file (Wilson 95% CI 83–99%). By this measure, the agent rarely fails because it never looked.
 
-**Resolve falls with change size.** On the 57 tasks whose gold patch changes non-test Python, split into terciles of changed lines:
+Resolution drops as the change gets larger. On the 57 tasks whose gold patch changes non-test Python, split into terciles of changed lines:
 
 | Gold change size | v7 | v14 |
 |---|---|---|
@@ -67,13 +67,13 @@ v7 → v14 is a bundled change: 8 tasks gained and 1 lost, exact McNemar p = 0.0
 | Medium (7–28) | 10/19 | 12/19 |
 | Large (> 28) | **0/18** | **2/18** |
 
-In a logistic model with issue length and repository as controls, each log-unit of changed lines lowers the odds of resolution (pooled OR 0.47, p = 0.046; v14 alone OR 0.37, p = 0.025). With 57 tasks and three dominant repositories, this is an association, not a mechanism.
+In a logistic model with issue length and repository as controls, each log-unit of changed lines lowers the odds of resolution (pooled OR 0.47, p = 0.046; v14 alone OR 0.37, p = 0.025). With 57 tasks from three dominant repositories, we treat this as an association only.
 
-**Site count is not separable from size.** Multi-file fixes resolve less often in raw counts (v14: 3/17 vs 27/43), but 15 of the 17 multi-file tasks are also in the largest tercile. After size control the multi-file OR is 0.32 (95% CI 0.04–2.54); the pre-registered prediction (OR < 0.4, p < 0.05) failed.
+We cannot separate site count from size. Multi-file fixes resolve less often in raw counts (v14: 3/17 vs 27/43), but 15 of the 17 multi-file tasks are also in the largest tercile. After size control the multi-file OR is 0.32 (95% CI 0.04–2.54); the pre-registered prediction (OR < 0.4, p < 0.05) failed.
 
-With necessity labels, 19 tasks need ≥ 2 necessary groups. They resolve less often in all three arms (v7 4/19 vs 18/38, v14 6/19 vs 23/38, v16 6/19 vs 20/38). After size control the OR is 1.68 (95% CI 0.45–6.33). With few matched sets (8 multi-file, 13 necessity), absence of an adjusted effect is not evidence of no multiplicity effect.
+With necessity labels, 19 tasks need ≥ 2 necessary groups. They resolve less often in all three arms (v7 4/19 vs 18/38, v14 6/19 vs 23/38, v16 6/19 vs 20/38). After size control the OR is 1.68 (95% CI 0.45–6.33). With only 8 and 13 matched sets, a null adjusted effect does not rule out a multiplicity effect.
 
-**The bundled change.** v14 produced fewer empty final patches than v7 (5 vs 15 of 60) while resolution rose from 23 to 30; non-empty unresolved patches went from 22 to 25. This does not isolate thinking.
+Going from v7 to v14, the agent produced fewer empty final patches than v7 (5 vs 15 of 60) while resolution rose from 23 to 30; non-empty unresolved patches went from 22 to 25. Because several things changed at once, this says nothing specific about thinking.
 
 ---
 
@@ -86,7 +86,7 @@ By final-patch coverage (function-level matching, heuristic), 15 of v14's 30 fai
 | Completion cases | 3 | 7 | 16 | 13 |
 | Primary site swaps | 4 | 6 | 41 | 19 |
 
-Repeats of one task are correlated, so we headline task-level counts and use task-clustered intervals.
+Repeats of one task are correlated, so we report task-level counts and task-clustered intervals.
 
 ### 4.1 Completion: add what the agent missed
 
@@ -127,7 +127,7 @@ A first read of ten random failure outputs found target-behaviour failures in al
 
 The registered failure-rate criterion was met. This supports frequent target-test failure in this selected, static-screened hybrid population, not an estimate that 84% of agent edits are intrinsically wrong.
 
-**Taken together.** Supplying the sites the agent missed rarely helped; with gold's other sites in place, the agent's function usually still failed the tests. In 9 of v14's 30 failures the agent edited a different place altogether, a mode we do not analyse further.
+So filling in the sites the agent missed rarely helped, and with gold's other sites in place the agent's own function usually still failed the tests. Separately, in 9 of v14's 30 failures the agent edited a different place altogether; we leave that mode for later work.
 
 ---
 
@@ -151,7 +151,7 @@ Both gates failed. On SWE-rebench tasks from 120 repositories (one task each, no
 | Share an edited identifier (keywords excluded) | 89% | 65% |
 | Directly linked by a structural edge | 35% | 16% |
 
-Co-changes are more often textually than structurally related, consistent with BM25's advantage; a pre-registered prediction that shared edits alone would explain it failed. Given §4.1, we spent no GPU budget on closed-loop frontier runs, so the in-run effect of structural assistance is untested.
+Co-changes are more often textual than structural, consistent with BM25's lead, though a pre-registered prediction that shared edits alone explain it failed. Given §4.1, we ran no closed-loop frontier agents, so in-run structural help is untested.
 
 ---
 
@@ -175,7 +175,7 @@ From separate competition submissions, not clean ablations:
 
 **Patch interventions and correctness.** TRIM (2607.18161) minimises agent trajectories and patches; RGFL (2601.18044) includes counterfactual analysis of the localization stage. Ours apply gold-relative completion and replacement to the agent's own failed patches. Test passage is not semantic correctness (2503.15223). Verification-aware training (2610.03984) and reproduction-test diagnosis (SWE-Doctor, 2607.00990) point the same way as our findings.
 
-**Memorization.** Renaming studies (2609.27891) show SWE-bench performance partly reflects repository familiarity. Our tasks are public, a threat we cannot remove.
+**Memorization.** Renaming studies (2609.27891) show SWE-bench performance partly reflects repository familiarity. Our tasks come from public repositories, so we cannot rule this out.
 
 ---
 
@@ -188,13 +188,12 @@ From separate competition submissions, not clean ablations:
 - **Proxies and adjudication.** Exposure counts mentions and intended read ranges. Failure typing relies on test-output tails; only ten hybrids were read at source level, by an unblinded reader and a blinded second reader of the same model family (8/10 identical verdicts, the rest differing only in label).
 - **Retrieval tests** use gold first edits as seeds, not real agent edits. E0b's labels are co-change, not necessity.
 - **Edit timing.** A shell-aware heuristic re-tagging of v7, v14 and v16 trajectories finds a test run after the final edit in 5–13% of tasks; no earlier verification labels are used.
-- **Size is observational.** We do not claim it causes failure.
 
 ---
 
 ## 9. Conclusion
 
-For a quantized 31B agent under competition constraints, gold files nearly always appear in the agent's trajectory, and failures grow with the size of the required change. When the agent edits a necessary site, its function usually fails the target tests even with gold's other sites in place, and supplying the sites it missed rarely helps. The evidence motivates better diagnosis and verification of the edit itself. It does not establish that localization, in-run completion, context management or graph-assisted policies cannot help.
+Under the competition's constraints, our 31B agent almost always came across the files it needed, and it failed more often as the required change grew. When it edited a function the fix needs, that function usually failed the target tests even with the rest of the gold patch in place, and handing the agent the sites it missed rarely helped. This argues for more work on checking and diagnosing edits. It does not show that localization, in-run completion, context management or graph-based help cannot work; we never tested those inside the agent loop.
 
 ---
 
