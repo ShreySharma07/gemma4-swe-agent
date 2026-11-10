@@ -1,6 +1,6 @@
 """
-R2 on-policy factory rollouts (GPU). Pre-registered in docs/experiments.md (Oct 29).
-All verified factory tasks from the attached datasets (gemma4-factory-v0: fac_*, gemma4-factory-v1: f1_*), shuffled
+R2 / R3 on-policy factory rollouts (GPU). Pre-registered in docs/experiments.md (R2 Oct 29, R3 Nov 10).
+All verified factory tasks from the attached datasets (R2: gemma4-factory-v0 fac_* + -v1 f1_*; R3: -v2 f2_*), shuffled
 with seed 0 and split into n_shards; this kernel runs tasks[shard::n_shards]:
   1. rewrite   the FS1 issue rewrite (Gemma, thinking off), same leak checks and template fallback
   2. rollouts  the submission under test (v14) unchanged except the per-task time cap (Settings.max_time_minutes),

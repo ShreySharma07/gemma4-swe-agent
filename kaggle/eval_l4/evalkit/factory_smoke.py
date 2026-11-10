@@ -151,7 +151,9 @@ def breakdown(rows, meta, budget):
     cap = (budget.get("max_time_minutes") or 8) * 60  # pass the effective budget (rollouts override the cap)
     for r in rows:
         m = meta.get(r["instance_id"], {})
-        for key in (f"lib:{lib_of(r['instance_id'])}", f"kind:{m.get('kind')}", *(f"op:{o}" for o in m.get("ops", []))):
+        for key in (f"lib:{lib_of(r['instance_id'])}", f"kind:{m.get('kind')}", *(f"op:{o}" for o in m.get("ops", [])),
+                    *([f"issue:{m['issue']}"] if m.get("issue") else []),  # factory v2 meta: issue style, coupling
+                    *([f"coupled:{m['coupled'] or 'none'}"] if "coupled" in m else [])):
             b = by.setdefault(key, [0, 0])
             b[0] += bool(r.get("resolved"))
             b[1] += 1

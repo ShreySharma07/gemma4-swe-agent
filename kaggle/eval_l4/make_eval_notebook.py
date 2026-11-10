@@ -121,6 +121,11 @@ for p in {[result] if isinstance(result, str) else result!r}:
     ]
 
 
+def roll_slug(a):
+    """R2 (factory v0+v1) keeps its kernel ids; any other task set gets its own, so R2's outputs are never replaced."""
+    return "gemma4-factory-rollout" if a.factory_set == "v0,v1" else "gemma4-r3-rollout"
+
+
 def build(a):
     a.siteswap = a.siteswap or a.siteswap2  # same payload
     a.preflight = a.preflight or a.sweep or a.overlays or a.necessity or a.siteswap or a.regrade or a.lora_dry
@@ -235,10 +240,10 @@ print("exit code", proc.wait())"""),
           "nbformat": 4, "nbformat_minor": 4}
     wire = len(json.dumps({**nb, "cells": [{**c, "source": "".join(c["source"])} for c in cells]}).encode())
     assert wire < SOURCE_MAX_BYTES, f"notebook source {wire:,} bytes >= {SOURCE_MAX_BYTES:,}: move inputs to a dataset"
-    out_dir = LDRY_DIR if a.lora_dry else LTIME_DIR if a.lora_timing else LPROBE_DIR if a.lora_probe else LGATE_DIR if a.lora_gate else ROLLOUT_DIR.with_name(f"{ROLLOUT_DIR.name}_s{a.shard}") if a.factory_rollout else FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
+    out_dir = LDRY_DIR if a.lora_dry else LTIME_DIR if a.lora_timing else LPROBE_DIR if a.lora_probe else LGATE_DIR if a.lora_gate else ROLLOUT_DIR.with_name(f"{roll_slug(a).replace('gemma4-', '').replace('-', '_')}_kernel_s{a.shard}") if a.factory_rollout else FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     nb_name = ("gemma4-lora-dry.ipynb" if a.lora_dry else "gemma4-lora-timing.ipynb" if a.lora_timing else "gemma4-lora-probe.ipynb" if a.lora_probe else "gemma4-lora-gate.ipynb" if a.lora_gate else
-               f"gemma4-factory-rollout-s{a.shard}.ipynb" if a.factory_rollout else "gemma4-factory-smoke.ipynb" if a.factory_smoke else "gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
+               f"{roll_slug(a)}-s{a.shard}.ipynb" if a.factory_rollout else "gemma4-factory-smoke.ipynb" if a.factory_smoke else "gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
                "gemma4-a3a4-necessity.ipynb" if a.necessity else "gemma4-r1-regrade.ipynb" if a.regrade else "gemma4-a12v-validate.ipynb" if a.siteswap2 else "gemma4-a12-siteswap.ipynb" if a.siteswap else
                "gemma4-eval-preflight.ipynb" if a.preflight else "check-l4.ipynb")
     (out_dir / nb_name).write_text(json.dumps(nb, indent=1))
@@ -278,9 +283,8 @@ print("exit code", proc.wait())"""),
         meta.update(id=mine("gemma4-factory-smoke"), title="gemma4-factory-smoke", code_file=nb_name)
         meta["dataset_sources"].append(mine("gemma4-factory-v0"))
     if a.factory_rollout:  # GPU, offline; both factory datasets (fac_* + f1_*), one kernel per shard
-        meta.update(id=mine(f"gemma4-factory-rollout-s{a.shard}"), title=f"gemma4-factory-rollout-s{a.shard}",
-                    code_file=nb_name)
-        meta["dataset_sources"] += [shared("gemma4-factory-v0"), shared("gemma4-factory-v1")]  # owned by the source account
+        meta.update(id=mine(f"{roll_slug(a)}-s{a.shard}"), title=f"{roll_slug(a)}-s{a.shard}", code_file=nb_name)
+        meta["dataset_sources"] += [shared(f"gemma4-factory-{v}") for v in a.factory_set.split(",")]  # source account's
     if lora:  # T1's adapter; LP1 also needs the RS2 val episodes, G1 the R2 rewritten issues + factory snapshots
         slug = ("gemma4-lora-dry" if a.lora_dry else "gemma4-lora-probe" if a.lora_probe else
                 "gemma4-lora-timing" if a.lora_timing else "gemma4-lora-gate")
@@ -322,6 +326,7 @@ if __name__ == "__main__":
     ap.add_argument("--necessity", action="store_true", help="CPU kernel: A3 LOO necessity on new-60 + A4 completion counterfactual")
     ap.add_argument("--factory-smoke", action="store_true", help="GPU kernel: FS1 issue rewrite + rollouts on factory v0")
     ap.add_argument("--factory-rollout", action="store_true", help="GPU kernel: R2 rollouts on factory v0+v1, one shard")
+    ap.add_argument("--factory-set", default="v0,v1", help="--factory-rollout: factory datasets to attach (R3: v2)")
     ap.add_argument("--shard", type=int, default=0)
     ap.add_argument("--n-shards", type=int, default=2)
     ap.add_argument("--max-time-min", type=float, default=12, help="--factory-rollout: per-task agent time cap")
