@@ -1,5 +1,13 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — F2 result: factory v2 gives 527 verified tasks on 10 new libraries; decision rule met, November 10
+
+**527 verified / 574 built on 10 libraries** (3.8 h; report `results/runs/factory_v2/factory_report.json`). 144 singles, 312 pairs, 71 triples (73% multi-site); coupled 201/383 multi-site = 52% (class 109, identifier 92); issue styles full 215, terse 212, no-name 100; 47 gold fails (46 in schedule), 0 empty passes. Per library: bottle, dominate, h11, jmespath, pyasn1, validators 60; pydash 59; schema 55; xmltodict 39; schedule 14.
+
+Decision rule met (≥400 tasks on ≥10 libraries) → use for R3. Predictions: tasks ✓, multi-site share ✓, coupled share ✓, time ✓; **libraries ✗ (10, predicted ≥12)**. 11 libraries gave nothing: 4 lost the whole baseline to one collection error (pyrsistent, idna, markdown, pyparsing; pytest stops at the first one), 2 had no coverage data (pyflakes, pycodestyle), 2 built a pool but no task (lark, addict), click's baseline timed out, tomli and simpleeval had under 20 collected tests. Triples are only 19% of multi-site (target 33%): triple sets fail the checks more often. All of these are fixable on free CPU (F2b).
+
+**Quota (Shrey, Nov 10):** Shrey and Atul each have 24 h 50 min left this week. Proposed use, not yet approved: R3 rollouts of v14 on the 527 new tasks in two shards (one per account, ≈ 10–12 quota-h each at R2's 55 tasks/h), plus second-attempt rollouts on R2's failed multi-site tasks. Training and its gate wait for next week's quota.
+
 ## Shrey/Claude — dataset v3 started: factory v2 (F2) pre-registered and pushed on Kaggle CPU, November 10
 
 Shrey chose "dataset first" over the lean-v14 scaffold. Where the data is weak (T1/G1/R2 and the Oct 31 red team): 203 train episodes from 3 libraries, mostly singles; templated issues; multi-site bugs with unrelated sites; G1 flat (42/95 vs 40/95, p 0.75).
