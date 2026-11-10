@@ -1,20 +1,16 @@
 # Kaggle writeup form: field values
 
-**Title**
-Found, Not Fixed: Counterfactual Diagnostics of Partial Repairs in a Quantized Code Agent
+**Title** (form limit 80 characters; the full title is 89)
+Found, Not Fixed: Counterfactual Diagnostics of Partial Repairs in a Code Agent
 
-**Subtitle**
-Our Gemma-4 agent finds the code that must change; pre-registered counterfactuals show its edits, not its search, fail.
+**Subtitle** (limit 140)
+Our Gemma-4 agent nearly always finds the files to change; pre-registered counterfactuals show its edits there usually fail the tests.
 
-**Card and thumbnail image**
-A simple two-panel figure, for example:
-- left: "Found: 29/30 failures saw a gold file";
-- right: "Fixed? 43/51 agent functions still fail inside the gold patch".
-
-It needs to be a PNG or JPG; use the size the form asks for.
+**Card and thumbnail image** (560 × 280)
+`research_deliverables/writeup_assets/card_560x280.png` (a 2× version, `card_1120x560.png`, is next to it).
 
 **Submission track**
-Code Comprehension, if the form offers it; Graph Reasoning if the topic chosen on Sep 27 is locked. See the note in the session.
+The paper track has a single, preselected track.
 
 **Project description**
 Paste `research_deliverables/kaggle_writeup_body.md`: the paper from the Abstract through the References. The title goes in its own field. Before pasting, regenerate this file from `paper_draft.md` if the paper has changed.
