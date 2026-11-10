@@ -1,5 +1,13 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — R3 pushed (shard 0); rules update: four base models and a small-model bonus prize, November 10
+
+**R3 (pre-registered `b70fff1`).** v14 rollouts on the 527 factory v2 tasks, R2's pipeline unchanged (FS1 rewrite, 12 min cap, concurrency 6, budget 7 h). Tasks published as private dataset `shreysharma07/gemma4-factory-v2` (103 MB). Builder: `make_eval_notebook.py v14_thinking --factory-rollout --factory-set v2 --shard N --n-shards 2 --budget-h 7`; new kernel ids so R2's outputs (inputs of G1) are not replaced. Shard 0 (264 tasks: 81 singles, 146 pairs, 37 triples) **pushed** as `shreysharma07/gemma4-r3-rollout-s0` v1, ≤ 14.5 quota-h. Shard 1 (263: 63 / 166 / 34) is built as `atulbaliyan/gemma4-r3-rollout-s1` in `kaggle/eval_l4/r3_rollout_kernel_s1/`; Atul pushes it from his login after Shrey shares `gemma4-factory-v2` with him. schedule's 46 gold fails: required tests (`test_next_run_time` 39×, timezone tests) fail in the scorer env without any mutation; correctly dropped.
+
+**Rules update (pasted by Shrey from the competition page; not re-read by Claude).** Base model may now be `gemma-4-31b`, `-12b`, `-e4b` or `-e2b` (`-it-qat-w4a16-ct`), one per submission. New **$10,000 small-model bonus** for the highest-ranking submission on E2B or E4B; it must be one of the team's two final selections and stays eligible for the main board. Open decision (Shrey): whether one of our two finals goes to a small model. Nothing measured yet on 12B / E4B / E2B.
+
+**Training base (answer to Shrey).** We do not train on the served W4A16 file. T1 trained on the bf16 QAT weights quantised to NF4, and LP1 measured the result on the served base: val loss −41% on W4A16 (−34% on NF4), 40/40 episodes better. Plan for T2: same trainer and base, RS3 data (R2 + R3), then an LP1-style check on W4A16 (≈ 1.2 quota-h) before any gate.
+
 ## Shrey/Claude — F2 result: factory v2 gives 527 verified tasks on 10 new libraries; decision rule met, November 10
 
 **527 verified / 574 built on 10 libraries** (3.8 h; report `results/runs/factory_v2/factory_report.json`). 144 singles, 312 pairs, 71 triples (73% multi-site); coupled 201/383 multi-site = 52% (class 109, identifier 92); issue styles full 215, terse 212, no-name 100; 47 gold fails (46 in schedule), 0 empty passes. Per library: bottle, dominate, h11, jmespath, pyasn1, validators 60; pydash 59; schema 55; xmltodict 39; schedule 14.
