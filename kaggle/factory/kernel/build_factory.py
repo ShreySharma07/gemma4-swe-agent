@@ -206,27 +206,31 @@ import threading
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-LIBS = [  # name, GitHub repo, pinned tag, package, test dir (None = auto); new v1 libraries first, v0 ones last
-    {"name": "cachetools", "gh": "tkem/cachetools", "tag": "v7.2.6", "pkg": "cachetools", "tests": "tests"},
-    {"name": "toolz", "gh": "pytoolz/toolz", "tag": "1.2.0", "pkg": "toolz", "tests": "toolz/tests"},
-    {"name": "isodate", "gh": "gweis/isodate", "tag": "0.7.2", "pkg": "isodate", "tests": None},
-    {"name": "mistune", "gh": "lepture/mistune", "tag": "v3.4.0", "pkg": "mistune", "tests": "tests"},
-    {"name": "pathspec", "gh": "cpburnz/python-pathspec", "tag": "v1.1.1", "pkg": "pathspec", "tests": None},
-    {"name": "parse", "gh": "r1chardj0n3s/parse", "tag": "1.22.4", "pkg": "parse", "tests": None},
-    {"name": "tabulate", "gh": "astanin/python-tabulate", "tag": "v0.10.0", "pkg": "tabulate", "tests": "test"},
-    {"name": "marshmallow", "gh": "marshmallow-code/marshmallow", "tag": "4.3.1", "pkg": "marshmallow", "tests": "tests"},
-    {"name": "sortedcontainers", "gh": "grantjenks/python-sortedcontainers", "tag": "v2.4.0", "pkg": "sortedcontainers",
-     "tests": "tests"},
-    {"name": "tomlkit", "gh": "python-poetry/tomlkit", "tag": "0.15.2", "pkg": "tomlkit", "tests": "tests"},
-    {"name": "bidict", "gh": "jab/bidict", "tag": "v0.24.1", "pkg": "bidict", "tests": None},
-    {"name": "humanize", "gh": "python-humanize/humanize", "tag": "4.16.0", "pkg": "humanize", "tests": "tests"},
-    {"name": "inflection", "gh": "jpvanhal/inflection", "tag": "0.5.1", "pkg": "inflection", "tests": None},
-    {"name": "natsort", "gh": "SethMMorton/natsort", "tag": "8.4.0", "pkg": "natsort", "tests": "tests"},
-    {"name": "more-itertools", "gh": "more-itertools/more-itertools", "tag": "v11.2.1", "pkg": "more_itertools",
-     "tests": "tests"},
-    {"name": "sqlparse", "gh": "andialbrecht/sqlparse", "tag": "0.6.0", "pkg": "sqlparse", "tests": "tests"},
-    {"name": "boltons", "gh": "mahmoud/boltons", "tag": "26.2.0", "pkg": "boltons", "tests": "tests"},
+LIBS = [  # name, GitHub repo, pinned tag, package, tests (dir or file; None = auto). v2: only libraries not in v0/v1
+    {"name": "pydash", "gh": "dgilland/pydash", "tag": "v8.1.0", "pkg": "pydash", "tests": "tests"},
+    {"name": "click", "gh": "pallets/click", "tag": "8.5.1", "pkg": "click", "tests": "tests"},
+    {"name": "pyflakes", "gh": "PyCQA/pyflakes", "tag": "4.1.0", "pkg": "pyflakes", "tests": "pyflakes/test"},
+    {"name": "jmespath", "gh": "jmespath/jmespath.py", "tag": "1.1.0", "pkg": "jmespath", "tests": "tests"},
+    {"name": "h11", "gh": "python-hyper/h11", "tag": "v0.16.0", "pkg": "h11", "tests": "h11/tests"},
+    {"name": "pyrsistent", "gh": "tobgu/pyrsistent", "tag": "v0.21.0", "pkg": "pyrsistent", "tests": "tests"},
+    {"name": "xmltodict", "gh": "martinblech/xmltodict", "tag": "v1.0.4", "pkg": "xmltodict", "tests": "tests"},
+    {"name": "schema", "gh": "keleshev/schema", "tag": "v0.7.8", "pkg": "schema", "tests": "test_schema.py"},
+    {"name": "schedule", "gh": "dbader/schedule", "tag": "1.2.2", "pkg": "schedule", "tests": "test_schedule.py"},
+    {"name": "simpleeval", "gh": "danthedeckie/simpleeval", "tag": "1.0.8", "pkg": "simpleeval",
+     "tests": "test_simpleeval.py"},
+    {"name": "addict", "gh": "mewwts/addict", "tag": "v2.4.0", "pkg": "addict", "tests": "test_addict.py"},
+    {"name": "tomli", "gh": "hukkin/tomli", "tag": "2.5.0", "pkg": "tomli", "tests": "tests"},
+    {"name": "dominate", "gh": "Knio/dominate", "tag": "3.1.0", "pkg": "dominate", "tests": "tests"},
+    {"name": "validators", "gh": "python-validators/validators", "tag": "0.36.0", "pkg": "validators", "tests": "tests"},
+    {"name": "idna", "gh": "kjd/idna", "tag": "v3.20", "pkg": "idna", "tests": "tests"},
+    {"name": "pycodestyle", "gh": "PyCQA/pycodestyle", "tag": "2.15.0", "pkg": "pycodestyle", "tests": "tests"},
+    {"name": "bottle", "gh": "bottlepy/bottle", "tag": "0.13.4", "pkg": "bottle", "tests": "test"},
+    {"name": "pyasn1", "gh": "pyasn1/pyasn1", "tag": "v0.6.5", "pkg": "pyasn1", "tests": "tests"},
+    {"name": "markdown", "gh": "Python-Markdown/markdown", "tag": "3.11.3", "pkg": "markdown", "tests": "tests"},
+    {"name": "lark", "gh": "lark-parser/lark", "tag": "1.3.1", "pkg": "lark", "tests": "tests"},
+    {"name": "pyparsing", "gh": "pyparsing/pyparsing", "tag": "pyparsing_3.1.2", "pkg": "pyparsing", "tests": "tests"},
 ]
+ID_PREFIX = "f2"
 MAX_F2P = 10          # more failing tests than this = a global break, not an issue-sized bug
 MAX_TEST_FILES = 2
 MAX_F2P_MULTI, MAX_TEST_FILES_MULTI = 15, 3
@@ -235,6 +239,9 @@ OP_WEIGHT = {"cmp_swap": 3, "const_shift": 3, "drop_guard": 2, "drop_update": 2}
 HARD_FIRST = ["cmp_swap", "const_shift", "drop_guard", "drop_update", "drop_not", "boolop_swap", "arg_swap",
               "arith_swap", "exc_swap"]  # singles are kept in this order (FS1 solve rates, lowest first)
 WORKERS = 4
+TRIPLE_EVERY = 3      # every 3rd multi-site set is a triple, the rest pairs (R2: pairs 37% solved, triples 14%)
+COUPLED_SHARE = 0.5   # share of multi-site sets whose sites are coupled (same class / shared identifier)
+ISSUE_STYLES = ["full"] * 4 + ["terse"] * 4 + ["nosym"] * 2  # picked by task id
 GIT_ENV = dict(GIT_AUTHOR_NAME="dev", GIT_AUTHOR_EMAIL="dev@example.com", GIT_COMMITTER_NAME="dev",
                GIT_COMMITTER_EMAIL="dev@example.com", GIT_AUTHOR_DATE="2026-01-01T00:00:00",
                GIT_COMMITTER_DATE="2026-01-01T00:00:00")
@@ -342,7 +349,7 @@ def source_files(repo, lib):
 
 
 def coverage_map(repo, cov_file):
-    """-> {(rel_source_file, lineno): {test files whose tests executed that line}} from the baseline run."""
+    """-> {(rel_source_file, lineno): {test functions (node ids without parameters) that executed that line}}."""
     from coverage import CoverageData
     data = CoverageData(basename=str(cov_file))
     data.read()
@@ -353,16 +360,25 @@ def coverage_map(repo, cov_file):
         except ValueError:
             continue
         for ln, ctxs in data.contexts_by_lineno(f).items():
-            files = {c.split("::", 1)[0] for c in ctxs if "::" in c}
-            if files:
-                out[(rel, ln)] = files
+            nodes = {c.rsplit("|", 1)[0].split("[", 1)[0] for c in ctxs if "::" in c}
+            if nodes:
+                out[(rel, ln)] = nodes
     return out
 
 
+MAX_TARGET_NODES = 200  # above this, run the covering test files whole (keeps the pytest command line short)
+
+
 def targets_for(cov, rel, span):
-    """Test files covering the mutated lines (a deletion span covers its first line)."""
+    """Tests that execute the mutated lines: a test that never runs a line cannot be broken by changing it. Node-level
+    (v1 ran whole files: more-itertools' single huge test file made every mutant ~43 s)."""
     lines = range(span[0], (span[1] if len(span) == 2 else span[0]) + 1)
-    return sorted(set().union(*[cov.get((rel, ln), set()) for ln in lines]))
+    return compact_targets(set().union(*[cov.get((rel, ln), set()) for ln in lines]))
+
+
+def compact_targets(nodes):
+    nodes = sorted(nodes)
+    return nodes if len(nodes) <= MAX_TARGET_NODES else sorted({n.split("::", 1)[0] for n in nodes})
 
 
 # ------------------------------------------------------------------ mutations (one site inside one function)
@@ -516,7 +532,7 @@ def failure_line(msg):
     return re.sub(r"/[^\s:]*/(?=[A-Za-z_]+\.py)", "", text)[:400]
 
 
-def make_issue(lib, f2p, messages, test_sources, lib_defs):
+def make_issue(lib, f2p, messages, test_sources, lib_defs, style="full"):
     apis, obs = [], []
     for nid in f2p:
         _, cls, name = split_nodeid(nid)
@@ -528,6 +544,15 @@ def make_issue(lib, f2p, messages, test_sources, lib_defs):
             obs.append(line)
     subject = f"`{apis[0]}`" if apis else f"`{lib['pkg']}`"
     scen = ", ".join(sorted({split_nodeid(n)[2].removeprefix("test_").replace("_", " ") for n in f2p})[:3])
+    if style == "terse":  # one or two lines, no code block, no "expected" (real issues are often this short)
+        head = f"{subject}: {obs[0]}" if obs else f"{subject} gives wrong results"
+        return head + (f"\n\nSeen with: {scen}." if scen and obs else "")
+    if style == "nosym":  # the reporter does not know which function is at fault
+        body = [f"Wrong behaviour in {lib['pkg']}" + (f" ({scen})" if scen else ""), "",
+                "This worked before the last upgrade and I have not changed my code."]
+        if obs:
+            body += ["", "```"] + obs[:2] + ["```"]
+        return "\n".join(body)
     body = [f"{subject} returns the wrong result" + (f" ({scen})" if scen else ""), "",
             f"After upgrading `{lib['pkg']}`, {subject} no longer behaves as documented"
             + (f" when used for: {scen}." if scen else "."), ""]
@@ -621,6 +646,7 @@ def build_task(repo, lib, tid, edits, f2p, messages, base, files_text, out_snap_
     shutil.rmtree(work, ignore_errors=True)
     shutil.copytree(repo, work, ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache"))
     test_sources = {n: test_source(repo, n) for n in f2p}
+    style = ISSUE_STYLES[sum(tid.encode()) % len(ISSUE_STYLES)]
     by_file = {}
     for n in f2p:
         path, cls, name = split_nodeid(n)
@@ -651,7 +677,7 @@ def build_task(repo, lib, tid, edits, f2p, messages, base, files_text, out_snap_
     # PASS_TO_PASS stays empty: the verifier already runs the whole test files and needs 0 failures, and listing
     # every passing node trips its prefix matching on xfailed tests (sqlparse test_python vs test_python_*, v0 run)
     return {"instance_id": tid, "repo": f"{lib['gh']}", "base_commit": base_commit,
-            "problem_statement": make_issue(lib, f2p, messages, test_sources, lib_defs),
+            "problem_statement": make_issue(lib, f2p, messages, test_sources, lib_defs, style), "_style": style,
             "patch": gold, "test_patch": test_patch, "hints_text": "", "created_at": "2026-10-28T00:00:00Z",
             "FAIL_TO_PASS": json.dumps(f2p), "PASS_TO_PASS": "[]", "environment_setup_commit": base_commit}
 
@@ -695,33 +721,87 @@ def pick_singles(pool, n):
     return kept
 
 
-def multi_candidates(pool, files_text, n, rng, max_uses=2):
-    """Sets of 2 or 3 kept singles in different functions with disjoint failing tests (so every fix is needed),
-    half pairs and half triples; each single is used in at most max_uses sets."""
-    out, uses, seen = [], {}, set()
-    for attempt in range(n * 60):
-        if len(out) >= n:
-            break
-        k = 2 + attempt % 2
-        free = [i for i in range(len(pool)) if uses.get(i, 0) < max_uses]
-        if len(free) < k:
-            break
-        idx = tuple(sorted(rng.sample(free, k)))
+COMMON_IDS = {"self", "cls", "None", "True", "False", "len", "isinstance", "range", "list", "dict", "tuple", "type",
+              "args", "kwargs", "value", "values", "item", "items", "data", "result", "name", "index", "return",
+              "else", "elif", "raise", "while", "ValueError", "TypeError", "KeyError", "append", "getattr", "hasattr"}
+
+
+def site_ids(files_text, r):
+    """Identifiers (4+ chars, not generic) on the mutated lines of a kept single."""
+    sp = r["span"]
+    lines = files_text[r["file"]].splitlines()[sp[0] - 1:(sp[1] if len(sp) == 2 else sp[0])]
+    return {w for w in re.findall(r"[A-Za-z_][A-Za-z0-9_]{3,}", " ".join(lines)) if w not in COMMON_IDS}
+
+
+def coupling(files_text, a, b, ids):
+    """Why two sites belong together: 'class' (methods of one class), 'ident' (mutated lines share a name), else None."""
+    ca, cb = a["func"].rpartition(".")[0], b["func"].rpartition(".")[0]
+    if a["file"] == b["file"] and ca and ca == cb:
+        return "class"
+    return "ident" if ids(a) & ids(b) else None
+
+
+def multi_candidates(pool, files_text, n, rng, max_uses=3):
+    """Sets of 2 or 3 kept singles in different functions; every site has at least one failing test of its own, so a
+    partial fix still fails. About COUPLED_SHARE of the sets are coupled (see coupling), interleaved with random
+    ones. Each single is used in at most max_uses sets. -> [(parts, edits, union_f2p, coupling or None)]"""
+    uses, seen = {}, set()
+    cache = {}
+
+    def ids(r):
+        k = (r["file"], r["func"], tuple(r["span"]))
+        if k not in cache:
+            cache[k] = site_ids(files_text, r)
+        return cache[k]
+
+    def take(idx, tag, out):
+        idx = tuple(sorted(idx))
         parts = [pool[i] for i in idx]
-        if idx in seen or len({(r["file"], r["func"]) for r in parts}) < k:
-            continue
+        if idx in seen or any(uses.get(i, 0) >= max_uses for i in idx) or \
+                len({(r["file"], r["func"]) for r in parts}) < len(idx):
+            return False
         seen.add(idx)
         f2p = [set(r["f2p"]) for r in parts]
         union = sorted(set().union(*f2p))
-        if sum(map(len, f2p)) != len(union) or len(union) > MAX_F2P_MULTI or \
-                len({split_nodeid(x)[0] for x in union}) > MAX_TEST_FILES_MULTI:
-            continue
+        own = all(f2p[i] - set().union(*[f2p[j] for j in range(len(idx)) if j != i]) for i in range(len(idx)))
+        if not own or len(union) > MAX_F2P_MULTI or len({split_nodeid(x)[0] for x in union}) > MAX_TEST_FILES_MULTI:
+            return False
         edits = merge_edits(files_text, [r["edits"] for r in parts])
         if edits is None:
-            continue
+            return False
         for i in idx:
             uses[i] = uses.get(i, 0) + 1
-        out.append((parts, edits, union))
+        out.append((parts, edits, union, tag))
+        return True
+
+    pairs = [(i, j, t) for i in range(len(pool)) for j in range(i + 1, len(pool))
+             if (t := coupling(files_text, pool[i], pool[j], ids))]
+    rng.shuffle(pairs)
+    linked = {}
+    for i, j, _ in pairs:
+        linked.setdefault(i, []).append(j)
+        linked.setdefault(j, []).append(i)
+    coupled, want = [], int(n * COUPLED_SHARE)
+    for i, j, tag in pairs:
+        if len(coupled) >= want:
+            break
+        if len(coupled) % TRIPLE_EVERY == TRIPLE_EVERY - 1:
+            third = [k for k in linked[i] + linked[j] if k not in (i, j)]
+            if third and take((i, j, rng.choice(third)), tag, coupled):
+                continue
+        take((i, j), tag, coupled)
+    loose = []
+    for attempt in range(n * 60):
+        if len(loose) >= n - len(coupled):
+            break
+        k = 3 if attempt % TRIPLE_EVERY == TRIPLE_EVERY - 1 else 2
+        free = [i for i in range(len(pool)) if uses.get(i, 0) < max_uses]
+        if len(free) < k:
+            break
+        take(rng.sample(free, k), None, loose)
+    out = []
+    for x in range(max(len(coupled), len(loose))):  # interleave, so the first n kept are about half coupled
+        out += coupled[x:x + 1] + loose[x:x + 1]
     return out
 
 
@@ -732,7 +812,11 @@ def run_library(lib, root, out_snap_dir, n_try=300, n_single=20, n_multi=30, see
     plugin_dir = root / "_plugin"
     write_plugin(plugin_dir)
     cov_file = root / f"{lib['name']}.coverage"
-    base_res = run_tests(repo, lib, plugin_dir, root / f"{lib['name']}_base.json", timeout=1800, cov_file=cov_file)
+    # outcomes from a plain run: coverage tracing itself fails some tests (v1: 7 in more-itertools, which made its
+    # main test file look unclean and dropped every mutant); a second run records coverage for the target map only
+    base_res = run_tests(repo, lib, plugin_dir, root / f"{lib['name']}_base.json", timeout=1800)
+    if base_res is not None:
+        run_tests(repo, lib, plugin_dir, root / f"{lib['name']}_cov.json", timeout=1800, cov_file=cov_file)
     rep = {"lib": lib["name"], "tag": lib["tag"], "tests_dir": tests_dir(repo, lib)}
     if base_res is None:
         return [], dict(rep, error="baseline timeout")
@@ -740,7 +824,8 @@ def run_library(lib, root, out_snap_dir, n_try=300, n_single=20, n_multi=30, see
     rep["baseline"] = {s: sum(v == s for v in base.values()) for s in ("passed", "failed", "error", "skipped")}
     log(f"{lib['name']} baseline: {rep['baseline']}")
     if rep["baseline"]["passed"] < 20:
-        return [], dict(rep, error="baseline has too few passing tests")
+        bad = [f"{k}: {str(base_res['messages'].get(k, ''))[-300:]}" for k, v in base.items() if v in ("error", "failed")]
+        return [], dict(rep, error="baseline has too few passing tests", first_errors=bad[:3])
     cov = coverage_map(repo, cov_file) if cov_file.exists() else {}
     rep["covered_lines"] = len(cov)
     if not cov:
@@ -796,38 +881,42 @@ def run_library(lib, root, out_snap_dir, n_try=300, n_single=20, n_multi=30, see
         lib_defs = lib_def_names(repo, lib)
         tasks, slug = [], re.sub(r"[^a-z0-9]+", "_", lib["name"].lower())
         for j, r in enumerate(pick_singles(pool, n_single)):
-            t = build_task(repo, lib, f"fac_{slug}_{j:03d}", r["edits"], r["f2p"], r["messages"], base, files_text,
+            t = build_task(repo, lib, f"{ID_PREFIX}_{slug}_{j:03d}", r["edits"], r["f2p"], r["messages"], base, files_text,
                            out_snap_dir, lib_defs)
             if t:
-                t["_meta"] = {"kind": "single", "ops": [r["op"]], "funcs": [f"{r['file']}::{r['func']}"]}
+                t["_meta"] = {"kind": "single", "ops": [r["op"]], "funcs": [f"{r['file']}::{r['func']}"],
+                              "issue": t.pop("_style")}
                 tasks.append(t)
         # multi-site: 2-3 kept singles together; kept only if every part's failing tests still fail in the combination
         multis = multi_candidates(pool, files_text, int(n_multi * 1.5), rng)
         mrows = evaluate_mutants(
             repos, lib, base,
             [({"parts": [r["func"] for r in parts],
-               "targets": sorted(set().union(*[r["targets"] for r in parts]) | {split_nodeid(x)[0] for x in union})},
-              edits) for parts, edits, union in multis],
+               "targets": compact_targets(set().union(*[r["targets"] for r in parts]))},
+              edits) for parts, edits, union, _ in multis],
             plugin_dir, files_text, log=log, max_f2p=MAX_F2P_MULTI, max_files=MAX_TEST_FILES_MULTI)
         rep["multi_status"] = {s: sum(r["status"] == s for r in mrows) for s in sorted({r["status"] for r in mrows})}
         nm = 0
-        for (parts, edits, union), mr in zip(multis, mrows):
+        for (parts, edits, union, tag), mr in zip(multis, mrows):
             if nm >= n_multi or mr["status"] != "ok" or not set(union) <= set(mr["f2p"]):
                 continue
             if not all(file_clean(base, f) for f in mr["test_files"]):
                 continue
             msgs = {k: v for r in parts for k, v in r["messages"].items()}
             msgs.update({k: v for k, v in mr["messages"].items() if v})
-            t = build_task(repo, lib, f"fac_{slug}_m{nm:02d}", edits, mr["f2p"], msgs, base, files_text, out_snap_dir,
+            t = build_task(repo, lib, f"{ID_PREFIX}_{slug}_m{nm:02d}", edits, mr["f2p"], msgs, base, files_text, out_snap_dir,
                            lib_defs)
             if t:
                 t["_meta"] = {"kind": "pair" if len(parts) == 2 else "triple", "ops": [r["op"] for r in parts],
-                              "funcs": [f"{r['file']}::{r['func']}" for r in parts]}
+                              "funcs": [f"{r['file']}::{r['func']}" for r in parts], "coupled": tag,
+                              "issue": t.pop("_style")}
                 tasks.append(t)
                 nm += 1
     finally:
         for d in repos:
             shutil.rmtree(d, ignore_errors=True)
+    rep["multi_proposed"] = {"coupled_class": sum(m[3] == "class" for m in multis),
+                             "coupled_ident": sum(m[3] == "ident" for m in multis), "loose": sum(m[3] is None for m in multis)}
     rep.update(singles=sum(t["_meta"]["kind"] == "single" for t in tasks), multis=nm, tasks=len(tasks),
                ops={o: sum(o in t["_meta"]["ops"] for t in tasks) for o in sorted({o for t in tasks for o in t["_meta"]["ops"]})})
     return tasks, rep
@@ -838,7 +927,7 @@ VERIFY_ONLY = False
 # Output: /kaggle/working/factory/ = tasks.jsonl (verified only), tasks_all.jsonl, snapshots/<id>.tgz, task_meta.jsonl,
 # verify_{gold,empty}.jsonl, factory_report.json. Same task format as the competition data, so the eval runner can
 # point EvalConfig.tasks_path / snapshots_dir here for on-policy rollouts.
-CFG = {"N_TRY": 300, "N_SINGLE": 20, "N_MULTI": 30, "WANT_LIBS": len(LIBS), "MIN_TASKS_PER_LIB": 10, "CONCURRENCY": 4,
+CFG = {"N_TRY": 300, "N_SINGLE": 15, "N_MULTI": 45, "WANT_LIBS": len(LIBS), "MIN_TASKS_PER_LIB": 10, "CONCURRENCY": 4,
        "SESSION_H": 11.0, "VERIFY_SEC_PER_TASK": 15}  # v0 verify: 278 tasks x (gold + empty) in 46 min at concurrency 4
 OUT = pathlib.Path("/kaggle/working/factory")
 ROOT = pathlib.Path("/tmp/factory")
@@ -965,6 +1054,9 @@ report = {
     "gold_fail": sorted(i for i, v in verified.items() if not v["gold"]),
     "empty_pass": sorted(i for i, v in verified.items() if v["empty"]),
     "kinds_verified": {k: sum(meta[i]["kind"] == k for i in kept_ids) for k in ("single", "pair", "triple")},
+    "coupled_verified": {str(c): sum(meta[i]["kind"] != "single" and meta[i].get("coupled") == c for i in kept_ids)
+                         for c in ("class", "ident", None)},
+    "issue_styles_verified": {s: sum(meta[i].get("issue") == s for i in kept_ids) for s in ("full", "terse", "nosym")},
     "f2p_sizes": sorted(len(t["FAIL_TO_PASS"] if isinstance(t["FAIL_TO_PASS"], list) else json.loads(t["FAIL_TO_PASS"]))
                         for t in keep),
     "ops_verified": {o: sum(o in meta[i]["ops"] for i in kept_ids) for o in sorted({o for m in meta.values() for o in m["ops"]})},

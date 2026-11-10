@@ -2,7 +2,7 @@
 # Output: /kaggle/working/factory/ = tasks.jsonl (verified only), tasks_all.jsonl, snapshots/<id>.tgz, task_meta.jsonl,
 # verify_{gold,empty}.jsonl, factory_report.json. Same task format as the competition data, so the eval runner can
 # point EvalConfig.tasks_path / snapshots_dir here for on-policy rollouts.
-CFG = {"N_TRY": 300, "N_SINGLE": 20, "N_MULTI": 30, "WANT_LIBS": len(LIBS), "MIN_TASKS_PER_LIB": 10, "CONCURRENCY": 4,
+CFG = {"N_TRY": 300, "N_SINGLE": 15, "N_MULTI": 45, "WANT_LIBS": len(LIBS), "MIN_TASKS_PER_LIB": 10, "CONCURRENCY": 4,
        "SESSION_H": 11.0, "VERIFY_SEC_PER_TASK": 15}  # v0 verify: 278 tasks x (gold + empty) in 46 min at concurrency 4
 OUT = pathlib.Path("/kaggle/working/factory")
 ROOT = pathlib.Path("/tmp/factory")
@@ -129,6 +129,9 @@ report = {
     "gold_fail": sorted(i for i, v in verified.items() if not v["gold"]),
     "empty_pass": sorted(i for i, v in verified.items() if v["empty"]),
     "kinds_verified": {k: sum(meta[i]["kind"] == k for i in kept_ids) for k in ("single", "pair", "triple")},
+    "coupled_verified": {str(c): sum(meta[i]["kind"] != "single" and meta[i].get("coupled") == c for i in kept_ids)
+                         for c in ("class", "ident", None)},
+    "issue_styles_verified": {s: sum(meta[i].get("issue") == s for i in kept_ids) for s in ("full", "terse", "nosym")},
     "f2p_sizes": sorted(len(t["FAIL_TO_PASS"] if isinstance(t["FAIL_TO_PASS"], list) else json.loads(t["FAIL_TO_PASS"]))
                         for t in keep),
     "ops_verified": {o: sum(o in meta[i]["ops"] for i in kept_ids) for o in sorted({o for m in meta.values() for o in m["ops"]})},
