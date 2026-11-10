@@ -1,5 +1,18 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — dataset v3 started: factory v2 (F2) pre-registered and pushed on Kaggle CPU, November 10
+
+Shrey chose "dataset first" over the lean-v14 scaffold. Where the data is weak (T1/G1/R2 and the Oct 31 red team): 203 train episodes from 3 libraries, mostly singles; templated issues; multi-site bugs with unrelated sites; G1 flat (42/95 vs 40/95, p 0.75).
+
+**Plan for dataset v3 (three steps):**
+- **A, free CPU (running):** factory v2, kernel `shreysharma07/gemma4-task-factory-v2` v1, commit `3191a27`, pre-registered as F2 (`0b46cee`). 21 new libraries (none from v0/v1), coupled multi-site sets (same class or shared identifier on the mutated lines; each site keeps one failing test of its own), 15 singles + 45 multi per library with 2/3 pairs, three issue styles (full 40%, terse 40%, no API name 20%), ids `f2_*`. Prediction: 450–700 verified tasks on ≥12 libraries.
+- **B, GPU (needs Shrey's quota check):** R3 rollouts of v14 on the new tasks, ≈23 quota-h per 600 tasks; R2's rate (58%) would give ≈250–350 resolved episodes, fewer if coupled pairs are harder.
+- **C, free CPU:** RS3 render of R2 + R3 resolved runs with filters (pytest after the last edit, no stray files, peak context under 20k, pairs and triples oversampled).
+
+**Budget note.** One train + gate cycle costs ≈17–26 quota-h and one account gets ≈30 quota-h a week. With 22 days left, the full rollout of 600 tasks and two train/gate cycles fit only if both accounts contribute. Rolling out multi-site tasks first is the cheaper cut.
+
+Not run locally: only a sub-second synthetic check of the new set selection and issue text. The first real test of the 21 library entries is the kernel itself; a library with a wrong test path or missing test dependency fails in under a minute and now records its first error messages in `factory_report.json`.
+
 ## Shrey/Claude — paper check after Atul's Nov 4 pushes: draft v2 already covers his review; manifest gaps filled, November 4
 
 Pulled Atul's PRs #10 and #11 (T1 weight attribution; no code changes). `paper_draft.md` v2 (Nov 2–3 commits caf7d83 … 226c95f) already applies every Shrey-side item of his Nov 2 review: narrowed abstract and conclusion, a population table (41/51 swaps from old-54 v7 repeats), the checker gaps, the identity-control description, empty-patch counts instead of "16 wrong patches", the updated LoRA paragraph, verified reference titles, pre-registration deviations, and source-level plus blinded second reads. Body: 2,987 whitespace words with tables, 2,660 without (limit 3,000; the official editor's count still needs checking). **Fixed today in `evidence_manifest.md`:** rows for §6 adapter loss (T1, LP1), §8 edit timing (MM1), §8 blinded read, and the run and leaderboard numbers; plus deviation 8, since G1 was registered with the k_eq_v copy but ran the raw adapter after LP2. **Still for Shrey:** count words in the official paper-track editor and confirm the submission mechanics there (deadline Nov 12 23:59 UTC).
