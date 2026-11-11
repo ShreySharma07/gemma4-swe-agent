@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 12: v19b smoke result (gemma4-eval-v19b-smoke v1)
+- 8/10 resolved (same 10 tasks in v19: 5/10). All 5 previously resolved stay resolved; the 3 gains are within the ±5 noise.
+- Reviewer ran on 10/10 tasks, median 4.5 calls, mean 35 s per task. Every task ended with a non-empty patch and one submit.
+- Missed prediction: no PASS/FAIL verdict text on any task (predicted >=6). Reviewer edited source on 1 task (predicted 2-5): fastapi_14297, where the solver stopped after 3 calls with no edit and the reviewer wrote the fix.
+- Faults: write_file to /tmp/check.py returned an error on 6/10, so the reviewer wrote check.py into /workspace (stray-file risk, not yet checked in patches); 2 tasks were diff then submit with no check.
+- Decision rule met (reviewer >=8/10, broke 0). Not verified: time cost on 120 tasks, cap-hit run without submit.
+
 ### Publication clarification — October 16, 2026
 
 The planning notes above and in the training guide are retained as historical context. The subsequently completed Step D run resolved **0/114 tasks**, with **114 empty patches**. D0 was **not run** because the last measured remaining quota was approximately **2.88 quota-hours**, below its launch gate. The completed diagnosis and research recommendations above supersede earlier pending-evaluation status for this run; they do not authorize another evaluation or training job. This documentation branch preserves Shrey's latest upstream work and leaves the training guide unchanged.
