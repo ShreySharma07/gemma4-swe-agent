@@ -1,5 +1,9 @@
 # Gemma 4 Developer Agent — HQ
 
+## Shrey/Claude — v19b_repair built (solver without `submit_patch`); smoke not pushed: Kaggle CLI login expired, November 11
+
+Pre-registered as v19b-smoke (`ebc3b4e`). `submissions/v19b_repair/` = v19 with `submit_patch` removed from the solver's tools and the solver prompt's last step changed to "write a summary and stop; a reviewer submits". Smoke tasks (10, seed 0, `data/runs/v19b_smoke/valid_tasks.json`): fastapi_13537, 14297, 14349, 14361, 14479, 14482, 14791, 5624, requests_7505, rich_3296. Note: rich_3296 is in the list although in v19 its submit came from the reviewer, not the solver (the pre-registration says "solver submitted"). Compile check pushed (`gemma4-validate-submission` v15) but **its result is not read**: every Kaggle CLI call now answers "Authentication required" (OAuth `~/.kaggle/credentials.json`). Blocked until Shrey logs in again. Nothing pushed to GPU.
+
 ## Shrey/Claude — v19_repair new-60: 25/60 vs v14 30/60 (p 0.18), but the reviewer ran on 1 task only; run-to-run noise measured, November 11
 
 `shreysharma07/gemma4-eval-v19-new60` v1, 4.1 h ≈ 8.2 quota-h. **25/60 vs v14 30/60**: 23 both, 2 v19-only, 7 v14-only, exact McNemar p = 0.18. **The reviewer ran on 1 of 60 tasks**, so this is not a test of the reviewer. It started only on rich_3296, where the solver ended without `submit_patch`; in the 53 tasks where the solver submitted, the run ended with the solver's final text and the SequentialAgent never reached the reviewer (30 of them had calls left). On rich_3296 the wiring worked: fresh context, issue text filled, `git diff`, check script, `submit_patch` (task unresolved; it was resolved in v14's run). Mean task time 237 s vs 231 s; solver calls 23.0 vs 23.0; overflow errors 6 vs 8; empty patches 6 vs 5. Files: `results/runs/v19_new60/`.
