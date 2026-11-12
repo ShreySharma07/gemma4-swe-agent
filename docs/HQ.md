@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 12: v19d smoke result (gemma4-eval-v19d-smoke v1)
+- 8/10 resolved, the same 8 tasks as the v19b smoke. Not a score: 10 tasks.
+- Scratch handling (v19c) works: 0 `/tmp` errors, 0 stray files in patches. `VERDICT:` line on 7/10 (6 PASS, 1 FIXED).
+- Budget: no solver reached the warning (max 23 calls, mean 18 vs 21 in v19b), so the "stop at the warning" rule is untested. With cap 36 the reviewer had 0 BudgetExceeded and used 2-15 calls.
+- Cost: mean task time 315 s vs 255 s (v19b) and about 231 s (v14). 3 tasks hit the 8 min cap; on 2 the reviewer was still re-writing a crashing check script and never submitted (patch was collected anyway and resolved). Reviewer time per task: 13-175 s.
+- Value: the reviewer edited source on 0 tasks (its `VERDICT: FIXED` on requests_7505 has no source edit behind it). On the unresolved fastapi_14479 its check printed PASS on a wrong patch. fastapi_14482 ended in a solver context overflow (8192 output tokens requested), empty patch, reviewer never ran.
+- Reading: wiring is now clean, but across two smokes the reviewer changed an outcome once (fastapi_14297 in v19b, where the solver quit early) and it adds about 60-85 s per task, which the 12 h cap cannot absorb. Next cheap step: bound the check-repair loop (one retry, then submit UNVERIFIED). A full new-60 run needs about 8 quota-h; Shrey has about 3 h left this week.
+
 ### Nov 12: v19d smoke pushed (gemma4-eval-v19d-smoke v1)
 - Shrey said yes. Same 10 tasks as the v19b smoke, concurrency 1, 8 min cap, session budget 1.5 h. Expected about 1 h = 2 quota-h (worst 3.5).
 - Covers v19c (reviewer scratch handling) and v19d (cap 36 + solver stops at the warning). Predictions in experiments.md.
