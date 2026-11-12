@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 12: v19e smoke result -> drop the reviewer (v19 line closed)
+- 7/10 resolved (v19d 8/10, v19b 8/10). fastapi_5624 lost: with cap 36 the solver ran to 33 calls and hit context overflow.
+- Reviewer got slower, not faster: mean 96 s (v19d 70 s, target <= 40), max 17 calls, 2 tasks at the 8 min cap inside the reviewer without a submit. Mean task time 335 s (v14 about 231 s). The "one retry" and "read source only after FAIL" rules were ignored on 4 of 8 reviewer runs.
+- Across three smokes (30 task-runs) the reviewer edited source once and never converted a failing patch; its check printed PASS on the wrong fastapi_14479 patch twice.
+- Solver warning rule, first data: warning at 26 calls on 4 tasks; 0, 0, 2, 7 more calls. Two of those four overflowed, so raising the cap to 36 trades reviewer room for overflow risk.
+- **Decision (pre-registered rule): drop the reviewer.** A Gemma second pass that writes its own check is neither bounded by prompt nor discriminating. v14/v17 stay the LB candidates. Quota: Shrey about 1 h left this week. Next: RS3 training-set render (free CPU).
+- Cost of the v19 line: about 8 quota-h (v19 new-60) + 4 smokes at about 2 quota-h each.
+
 ### Nov 12: v19e smoke pushed (gemma4-eval-v19e-smoke v1)
 - Shrey said yes (I recommended waiting for the quota reset). Same 10 tasks, concurrency 1, 8 min cap, session budget 1.5 h; about 2 quota-h, leaving Shrey about 1 h this week.
 - Measures reviewer speed and submit rate only; predictions in experiments.md (v19e).
