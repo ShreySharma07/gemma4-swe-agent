@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 12: v19c_repair built (reviewer scratch handling); shared call budget found
+- Paper submitted by Shrey (Nov 12).
+- Reading the v19b smoke traces: `write_file` refuses any path outside `/workspace` ("Path traversal detected"), so `/tmp/check.py` could never be written with it. Stray scratch files reached 3/10 patches (`repro.py` x2 from the solver, `check_repro.py` x1 from the reviewer).
+- **Finding: `max_tool_calls: 28` is one budget for the whole run, not per agent.** On 5/10 smoke tasks the solver used all 28 calls; the reviewer's diff and check calls returned BudgetExceeded and only `submit_patch` went through. So the reviewer really worked on 5/10 tasks. Not fixed in v19c; needs its own experiment (raise the cap, or make the solver stop earlier).
+- v19c_repair = v19b + reviewer-only change: check written and run through a heredoc in one `run_command`, `write_file` removed from the reviewer, step 1 deletes untracked scratch scripts, final line starts `VERDICT:`. Compile check passed (validate kernel v16): reviewer tools = run_command, submit_patch.
+- Not run yet. Smoke pre-registered in experiments.md (v19c-smoke); needs Shrey's yes (about 2 quota-h).
+
 ### Nov 12: v19b smoke result (gemma4-eval-v19b-smoke v1)
 - 8/10 resolved (same 10 tasks in v19: 5/10). All 5 previously resolved stay resolved; the 3 gains are within the ±5 noise.
 - Reviewer ran on 10/10 tasks, median 4.5 calls, mean 35 s per task. Every task ended with a non-empty patch and one submit.
