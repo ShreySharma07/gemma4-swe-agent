@@ -671,6 +671,10 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 12: v19d smoke pushed (gemma4-eval-v19d-smoke v1)
+- Shrey said yes. Same 10 tasks as the v19b smoke, concurrency 1, 8 min cap, session budget 1.5 h. Expected about 1 h = 2 quota-h (worst 3.5).
+- Covers v19c (reviewer scratch handling) and v19d (cap 36 + solver stops at the warning). Predictions in experiments.md.
+
 ### Nov 12: v19d_repair built (call reserve for the reviewer)
 - Shrey: fix the budget before smoking. v19c is not smoked on its own; one smoke of v19d covers both changes.
 - From the v19b smoke traces: the harness warns at 10 calls remaining and repeats it each call. The 7 warned solvers made 2, 5, 8, 10, 10, 10, 11 more calls after the first warning. Solver call counts v19 vs v19b on the same tasks vary a lot run to run, so "the solver runs longer without a submit tool" is not established.
