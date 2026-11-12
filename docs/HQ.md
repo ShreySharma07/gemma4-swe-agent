@@ -671,6 +671,11 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 13: RS3 render pushed (gemma4-rftset-rs3 v1, CPU)
+- Shrey: start RS3. RS2's render on R2 + R3 resolved runs (541); one change = the data. Hold-out and caps unchanged.
+- Kit change: R2 and R3 archives share the name `eval_rollout_s<k>.tgz`, so shards are keyed by source kernel (`build.sh --rs3`, 4 shards expected). RS2 mode regenerated, behaviour unchanged apart from the extraction folder.
+- Inputs: factory v0/v1/v2 datasets; rollout kernels shreysharma07 s0 + atulbaliyan s1 for both R2 and R3.
+
 ### Nov 12: v19e smoke result -> drop the reviewer (v19 line closed)
 - 7/10 resolved (v19d 8/10, v19b 8/10). fastapi_5624 lost: with cap 36 the solver ran to 33 calls and hit context overflow.
 - Reviewer got slower, not faster: mean 96 s (v19d 70 s, target <= 40), max 17 calls, 2 tasks at the 8 min cap inside the reviewer without a submit. Mean task time 335 s (v14 about 231 s). The "one retry" and "read source only after FAIL" rules were ignored on 4 of 8 reviewer runs.
