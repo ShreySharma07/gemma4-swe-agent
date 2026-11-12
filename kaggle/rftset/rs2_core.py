@@ -105,8 +105,10 @@ def chunk_bounds(n_tok, cand):
     return out[::-1]
 
 
-def main_rs2(submission_dir, tools_base):
-    out_dir = pathlib.Path("/kaggle/working/rs2")
+def main_rs2(submission_dir, tools_base, tag="rs2", n_shards=2):
+    """tag rs2: R2's 2 shards. tag rs3 (n_shards=4): R2 + R3. Both rollouts name their archives eval_rollout_s<k>.tgz,
+    so shards are keyed by the kernel they come from (r3-rollout in the input path -> r3, else r2)."""
+    out_dir = pathlib.Path(f"/kaggle/working/{tag}")
     out_dir.mkdir(parents=True, exist_ok=True)
     WORK.mkdir(parents=True, exist_ok=True)
     model_dir = next(pathlib.Path(p).parent for p in sorted(glob.glob("/kaggle/input/**/tokenizer.json", recursive=True))
@@ -120,18 +122,19 @@ def main_rs2(submission_dir, tools_base):
     per_task, traces, done = {}, {}, set()
     for tgz in sorted(glob.glob("/kaggle/input/**/eval_rollout_s*.tgz", recursive=True)):
         name = pathlib.Path(tgz).stem.replace("eval_", "")
-        if name in done:
+        key = ("r3" if "r3-rollout" in tgz else "r2", name)
+        if key in done:
             continue
-        done.add(name)
+        done.add(key)
         with tarfile.open(tgz) as tf:
-            tf.extractall(WORK, filter="data")
-        root = WORK / f"eval_{name}" / "rep0"
+            tf.extractall(WORK / key[0], filter="data")
+        root = WORK / key[0] / f"eval_{name}" / "rep0"
         for l in open(root / "analysis" / "per_task.jsonl"):
             r = json.loads(l)
             per_task[r["instance_id"]] = r
         for p in (root / "merged" / "traces").glob("trace_*.json"):
             traces[p.stem.replace("trace_", "")] = p
-    assert len(done) == 2, f"expected 2 R2 shards, got {sorted(done)}"
+    assert len(done) == n_shards, f"expected {n_shards} shards, got {sorted(done)}"
     resolved = sorted(i for i, r in per_task.items() if r.get("resolved"))
 
     # pass 1: messages, tags, episode-level flags (fixed tagger)
@@ -198,7 +201,7 @@ def main_rs2(submission_dir, tools_base):
         ep_starts.append(ep_starts[-1] + len(ids))
         rows.append({k: v for k, v in e.items() if k != "msgs"} | {"ep_weight": ep_w, "n_tokens": len(ids),
                                                                     "trained_weight_sum": round(float(w.sum()), 1)})
-    np.savez_compressed(out_dir / "rs2.npz", ids=np.concatenate(ids_all), weight=np.concatenate(w_all),
+    np.savez_compressed(out_dir / f"{tag}.npz", ids=np.concatenate(ids_all), weight=np.concatenate(w_all),
                         ep_starts=np.asarray(ep_starts, dtype=np.int64), chunks=np.asarray(chunks, dtype=np.int64),
                         val=np.asarray([r["split"] == "val" for r in rows], dtype=np.uint8))
     (out_dir / "episodes.json").write_text(json.dumps(rows))
@@ -213,7 +216,10 @@ def main_rs2(submission_dir, tools_base):
     ch = np.asarray(chunks)
     tr_idx = {k for k, r in enumerate(rows) if r["split"] == "train"}
     ch_tr = [c for c in chunks if c[0] in tr_idx]
+    lens = np.diff(np.asarray(ep_starts))
     report = {
+        "inputs": {"shards": sorted("/".join(k) for k in done), "resolved_by_src": {v: sum(i[:3] == v for i in resolved) for v in sorted({i[:3] for i in resolved})}},
+        "episode_tokens": {"median": int(np.median(lens)), "max": int(lens.max()), "over_28672": int((lens > 28672).sum())},
         "episodes": {"resolved": len(resolved), "kept": len(eps), "train": len(tr), "val": sum(r["split"] == "val" for r in rows),
                      "capped_out": sum(e["split"] == "capped" for e in eps)},
         "tagger": {"call_mix_train": {k: round(v / tot_calls, 3) for k, v in sorted(calls.items(), key=lambda kv: -kv[1])},
@@ -228,5 +234,5 @@ def main_rs2(submission_dir, tools_base):
         "train_tokens": {"targets_S": int(sum(c[2] - c[1] for c in ch_tr)), "prefill_P": int(sum(c[1] for c in ch_tr)),
                          "weighted_trained": round(float(sum(w_all[c[0]][c[1]:c[2]].astype(np.float32).sum() for c in ch_tr)), 0)},
     }
-    (out_dir / "rs2_report.json").write_text(json.dumps(report, indent=1))
-    print("RS2 REPORT", json.dumps(report), flush=True)
+    (out_dir / f"{tag}_report.json").write_text(json.dumps(report, indent=1))
+    print(tag.upper() + " REPORT", json.dumps(report), flush=True)
