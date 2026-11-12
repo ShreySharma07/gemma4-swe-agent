@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 12: v19e_repair built (bounded check-repair loop)
+- Shrey: bound the loop rather than drop the reviewer.
+- v19e_repair = v19d + reviewer prompt only: a crashing check may be rewritten once, a second crash means submit at once with `VERDICT: UNVERIFIED`; source may be read only after a FAIL; `VERDICT: FIXED` only after a source edit.
+- Compile check passed (validate kernel v18). Not run: a 10-task smoke is about 2 quota-h and Shrey has about 3 h left this week. Pre-registered in experiments.md (v19e).
+- Still open from v19d: the solver's "stop at the warning" rule has not been exercised (no solver reached 26 calls).
+
 ### Nov 12: v19d smoke result (gemma4-eval-v19d-smoke v1)
 - 8/10 resolved, the same 8 tasks as the v19b smoke. Not a score: 10 tasks.
 - Scratch handling (v19c) works: 0 `/tmp` errors, 0 stray files in patches. `VERDICT:` line on 7/10 (6 PASS, 1 FIXED).
