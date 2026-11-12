@@ -671,6 +671,10 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 12: v19e smoke pushed (gemma4-eval-v19e-smoke v1)
+- Shrey said yes (I recommended waiting for the quota reset). Same 10 tasks, concurrency 1, 8 min cap, session budget 1.5 h; about 2 quota-h, leaving Shrey about 1 h this week.
+- Measures reviewer speed and submit rate only; predictions in experiments.md (v19e).
+
 ### Nov 12: v19e_repair built (bounded check-repair loop)
 - Shrey: bound the loop rather than drop the reviewer.
 - v19e_repair = v19d + reviewer prompt only: a crashing check may be rewritten once, a second crash means submit at once with `VERDICT: UNVERIFIED`; source may be read only after a FAIL; `VERDICT: FIXED` only after a source edit.
