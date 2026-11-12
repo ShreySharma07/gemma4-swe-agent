@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 13: RS3 result: training set ready (391 train / 40 val)
+- 541 resolved -> 532 kept -> train 391, val 40 (toolz + pathspec), capped out 101. Train multi-site 137 (RS2: 50). f2 episodes 188.
+- All pre-registered predictions held; 0 episodes over the trainer's 28,672-token limit; span mismatch 3.5%.
+- Size: 1,181 train chunks, 4.70M target tokens = 2.0x RS2. At T1's rate 2 epochs is about 19 quota-h, more than one account's weekly budget in one session (T1's session budget was 10.5 h), so T2 needs either 1 epoch, two accounts, or a resume across sessions. Not decided.
+- Decision rule met: RS3 is the T2 training set. Next: pre-register T2 (what changes vs T1, since G1 was flat) before spending GPU.
+
 ### Nov 13: RS3 render pushed (gemma4-rftset-rs3 v1, CPU)
 - Shrey: start RS3. RS2's render on R2 + R3 resolved runs (541); one change = the data. Hold-out and caps unchanged.
 - Kit change: R2 and R3 archives share the name `eval_rollout_s<k>.tgz`, so shards are keyed by source kernel (`build.sh --rs3`, 4 shards expected). RS2 mode regenerated, behaviour unchanged apart from the extraction folder.
