@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 12: v19d_repair built (call reserve for the reviewer)
+- Shrey: fix the budget before smoking. v19c is not smoked on its own; one smoke of v19d covers both changes.
+- From the v19b smoke traces: the harness warns at 10 calls remaining and repeats it each call. The 7 warned solvers made 2, 5, 8, 10, 10, 10, 11 more calls after the first warning. Solver call counts v19 vs v19b on the same tasks vary a lot run to run, so "the solver runs longer without a submit tool" is not established.
+- v19d_repair = v19c + `max_tool_calls` 28 -> 36 + a solver rule: a budget warning means the remaining calls are the reviewer's; at most 2 more calls, then summary and stop. Warning should fire at 26 used if the threshold is a fixed 10 (unverified).
+- Compile check passed (validate kernel v17). 8 min task cap unchanged, so worst-case runtime is unchanged; mean time will rise and v14 already has under 0.8 h margin, so this is not LB-ready without a solver decode cut.
+- Not run. Smoke pre-registered (v19d-smoke); needs Shrey's yes, about 2 quota-h.
+
 ### Nov 12: v19c_repair built (reviewer scratch handling); shared call budget found
 - Paper submitted by Shrey (Nov 12).
 - Reading the v19b smoke traces: `write_file` refuses any path outside `/workspace` ("Path traversal detected"), so `/tmp/check.py` could never be written with it. Stray scratch files reached 3/10 patches (`repro.py` x2 from the solver, `check_repro.py` x1 from the reviewer).
