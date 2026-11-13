@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 13: H1 result (211 usable corrected episodes); F3 mining kernel pushed
+- Shrey: start both free CPU steps.
+- **H1** (`gemma4-h1-corrected` v1): 587 failed runs; every gold function seen by some step on 323 (55%), median cut step 6; usable for corrected episodes 211 (100 multi-site). Rule met (>= 150). Three predictions missed: the hunk-uniqueness check passed on only 58% of tasks (expected >= 95%; cause not examined, RS4 should anchor edits by line number), so usable and multi-site counts are below prediction.
+- New fact: on 239 multi-site failures the run never saw all gold functions. For multi-site tasks the first gap is finding the second site, before any edit.
+- **F3** (`gemma4-task-factory-f3` v1, CPU, Internet on): mining real fix commits in 19 unseen libraries; RUNNING, expected 3-5 h. First run of new code; not smoke-tested (no local compute).
+- Competition's own data (Shrey asked): the 129 public tasks are our only real-issue set and are used for evaluation (new-60, old-54). Training on old-54 is possible with the corrected-episode method but would contaminate new-60 as a gate (same 3 repos); decide once F3 shows whether we have another real-issue gate.
+
 ### Nov 13: risk plan added to docs/training_plan_t2.md
 - Shrey asked for a plan against the three main risks before anything starts.
 - Transfer: F3 real-bug gate set (CPU, eval only) or new-60 x2 as a real-issue arm; adapter must gain on held-out factory tasks AND not lose on real issues; first passing adapter goes to the LB at once.
