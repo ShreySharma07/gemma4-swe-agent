@@ -33,7 +33,7 @@ def model_path(smoke):
 def data_path():
     if DATA_FILE.exists():
         return DATA_FILE
-    found = sorted(glob.glob(f"{INPUT}/**/train_*.npz", recursive=True)) + sorted(glob.glob(f"{INPUT}/**/rs2.npz", recursive=True))
+    found = sorted(glob.glob(f"{INPUT}/**/train_*.npz", recursive=True)) + sorted(glob.glob(f"{INPUT}/**/rs[234].npz", recursive=True))
     assert found, "no training data: embed it (notebook inputs cell) or attach a dataset with train_*.npz / rs2.npz"
     return found[0]
 
@@ -47,6 +47,7 @@ def main():
     mfile = OUT_DIR / "metrics.jsonl"
     rows = [json.loads(l) for l in open(mfile)] if mfile.exists() else []
     report["val"] = [r for r in rows if r.get("event") == "val"]
+    report["val_sets"] = [r for r in rows if r.get("event") == "val_set"]
     report["exports"] = [r for r in rows if r.get("event") == "export"]
     steps = [r for r in rows if r.get("event") == "step"]
     report["steps"] = {"n": len(steps), "first": steps[:3], "last": steps[-3:]}
@@ -63,7 +64,7 @@ def main():
         shutil.copytree(final, dest)
         report["adapter"] = str(dest)
     (WORK / "train_report.json").write_text(json.dumps(report, indent=1, default=str))
-    print("TRAIN_REPORT", json.dumps({k: report[k] for k in ("rc", "val", "exports", "prefix_probe", "lc_probe", "vablate") if k in report}), flush=True)
+    print("TRAIN_REPORT", json.dumps({k: report[k] for k in ("rc", "val", "val_sets", "exports", "prefix_probe", "lc_probe", "vablate") if k in report}), flush=True)
 
 
 if __name__ == "__main__":

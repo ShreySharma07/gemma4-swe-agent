@@ -119,21 +119,33 @@ class Trainer:
                 return self.fm(ids, lab, wts, norm)
         return self.fm(ids, lab, wts, norm)
 
-    def validate(self, data, tag):
-        """Weighted mean loss on the held-out tasks (every trained token counts the same); ranks split the windows."""
-        if not data.val_w:
-            return None
-        self.fm.eval()
+    def val_totals(self, data, ws):
+        """-> [weighted loss sum, weight sum] over the windows ws, all ranks."""
         tot = torch.zeros(2, device=self.dev, dtype=torch.float64)
-        mine = data.val_w[self.rank::self.world]
-        mine += mine[:1] * (len(data.val_w[::self.world]) - len(mine))  # equal counts per rank (FSDP); repeat, weight 0
+        n_real = len(ws[self.rank::self.world])
+        mine = ws[self.rank::self.world] + ws[:1] * (len(ws[::self.world]) - n_real)  # equal counts per rank (FSDP); repeat, weight 0
         with torch.no_grad():
             for k, w in enumerate(mine):
                 ids, lab, wts = data.example(w, self.dev)
-                real = k < len(data.val_w[self.rank::self.world])
+                real = k < n_real
                 loss = self.loss(ids, lab, wts, 1.0)
                 tot += torch.tensor([float(loss) * real, float(wts.sum()) * real], device=self.dev, dtype=torch.float64)
         dist.all_reduce(tot)
+        return tot
+
+    def validate(self, data, tag):
+        """Weighted mean loss on the held-out tasks (every trained token counts the same); ranks split the windows.
+        With corrected held-out episodes (rs4) the on-policy and corrected sets are also reported separately."""
+        if not data.val_w:
+            return None
+        self.fm.eval()
+        sets = {k: ws for k, ws in data.val_sets.items() if ws} or {"all": data.val_w}
+        tot = torch.zeros(2, device=self.dev, dtype=torch.float64)
+        for name, ws in sets.items():
+            t = self.val_totals(data, ws)
+            tot += t
+            if name != "all":
+                self.log(event="val_set", tag=tag, set=name, loss=round(float(t[0] / max(1e-6, float(t[1]))), 4), windows=len(ws))
         self.fm.train()
         v = float(tot[0] / max(1e-6, float(tot[1])))
         self.log(event="val", tag=tag, loss=round(v, 4), windows=len(data.val_w))
@@ -212,7 +224,8 @@ def main():
         probe(tr, s.smoke)
         tr.close()
         return
-    data = TrainData(sys.argv[2], s.max_windows, vocab=tr.vocab if s.smoke else None, seed=s.seed, max_len=s.max_len)
+    data = TrainData(sys.argv[2], s.max_windows, vocab=tr.vocab if s.smoke else None, seed=s.seed, max_len=s.max_len,
+                     corr=s.corr, corr_share=s.corr_share)
     if s.vablate:
         from .vablate import probe
         probe(tr, data, s.smoke)

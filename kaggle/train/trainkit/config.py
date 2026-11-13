@@ -36,6 +36,8 @@ class TrainSettings:
     save_every: int = 0               # optimizer steps between adapter exports (0 = only at the end)
     budget_h: float = 10.5            # stop taking steps after this, then export (session cap 12 h)
     seed: int = 0
+    corr: str = "keep"                # corrected episodes (rs4.npz): keep | exclude (T2a control)
+    corr_share: float = 0.0           # > 0: scale corrected episodes to this share of the train weight (T2b: 0.15)
     smoke: bool = False               # CPU, gloo, 2 ranks, tiny random model
     prefix_probe: bool = False        # PA1: run trainkit.prefix.probe instead of training (no data needed)
     lc_probe: bool = False            # LC1: run trainkit.lcprobe.probe (long-context fixes: exactness + memory)
