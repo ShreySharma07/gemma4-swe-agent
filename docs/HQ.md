@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 13: T2 trainer ready (CPU smoke passed); F3 gave 101 verified real-bug tasks
+- Shrey: prepare T2. Pre-registered as T2 in experiments.md. Both arms read `rs4.npz` (RS4c): T2a excludes corrected episodes, T2b scales them to 15% of train weight. 1 epoch.
+- trainkit: data modes rs3/rs4, `corr` keep/exclude, `corr_share`, validation split into on-policy and corrected sets (`val_set` events). Notebooks: `kaggle/train/l4_t2a_lora` (shreysharma07), `l4_t2b_lora` (atulbaliyan), **not pushed**.
+- CPU smoke `gemma4-train-smoke-t2b-lora` v1 (tiny model, real RS4 tokens, 12 episodes of which 2 corrected): rc 0, 6 steps, corrected share 6.0% -> 15.0% at scale 2.75, both val sets reported at start / step 3 / end, two adapter exports with correct shapes. Grad norm before clipping was 5.5 and 8.1 on two of six steps against about 2 on the others (not checked whether those were the steps with corrected episodes; clip is 1.0).
+- To run T2b on Atul's account: share kernel `gemma4-rftset-rs4` (and `gemma4-train-wheels` if not shared) with atulbaliyan.
+- **F3** (`gemma4-task-factory-f3` v1, 51 min): 101 verified real bug-fix tasks from 11 unseen libraries; all predictions held. Rule met: F3 is the real-issue arm of G2, so new-60 x2 is not needed for that. With a real-issue gate that shares no repo with the competition data, training on old-54 becomes possible without spoiling the gate; not decided.
+- Nothing on GPU yet. Quota resets Saturday Nov 14.
+
 ### Nov 13: RS4b and RS4c: corrected set stays at about 140; T2b uses RS4c with a higher weight
 - Shrey approved a re-render on my recommendation (allow scratch writes before the cut). **RS4b: 140 train corrected (predicted 220-330).** My reason was wrong: only 11 episodes gained a cleanup step.
 - RS4c (deviation from RS4b's stop rule, logged; free CPU) classified pre-cut writes by the snapshot instead of by file name. **141 train + 12 val.** The tagger was not the cause.
