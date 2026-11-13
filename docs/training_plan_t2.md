@@ -84,7 +84,65 @@ above v14's. If it is too slow, cut `max_time_minutes` 8 → 7 or the output-tok
 - Final 2: v17 (0.18), which is known to finish in time.
 - No new training after Nov 29: a final needs a full scorer run with a day to spare.
 
-## Risks
+## Risk plan (added Nov 13, before anything runs)
+
+Each risk gets a check that runs **before** the GPU hours it protects, and a rule for what happens if the check fails.
+
+### Risk 1: gains on factory tasks do not transfer to the hidden tasks
+
+Factory tasks are small injected bugs; the hidden tasks are real issues in private repos.
+
+| # | Action | Cost | Rule |
+|---|---|---|---|
+| 1a | **F3: a real-bug gate set (CPU).** Mine real bug-fix commits with tests from small libraries that are in neither the factory nor new-60; keep those where the test fails before the fix and passes after. Used for evaluation only, never training | 0 | ≥ 40 verified tasks by Nov 17 → F3 joins G2. Fewer → fall back to 1b |
+| 1b | **new-60 as the real-issue arm of the gate.** Memorisation is the same in both arms of a paired test, so the paired difference is still a real-issue signal. Two repeats (120 pairs), because one run varies by about ±5 | ≈ 16 quota-h, replaces the single confirmation run | adapter must not lose on real issues: paired difference ≥ 0 |
+| 1c | **Tilt the training set toward what real issues look like.** In RS4, corrected episodes are sampled multi-site and terse/no-name issues first; single-operator fixes from one library are capped | 0 | reported in the RS4 pre-registration |
+| 1d | **Ask the leaderboard early.** The first adapter that passes the gate and the timing check is submitted in week 2, day 1, not polished further. Leaderboard runs cost no quota | 0 | LB ≤ 0.18 with a local gain ≥ +6 → factory data does not transfer; stop training |
+
+The G2 rule changes accordingly: an adapter needs **both** a gain on the held-out factory tasks **and** no loss on the real-issue arm (F3 or new-60 ×2).
+
+### Risk 2: the appended correct steps are ours, not Gemma's
+
+| # | Action | Cost | Rule |
+|---|---|---|---|
+| 2a | **Execute every corrected episode (CPU).** Replay the appended edit commands in the task snapshot; keep the episode only if the resulting diff equals the gold patch and the hidden tests pass | 0 | unverified episodes are dropped, not repaired |
+| 2b | **Copy the format from Gemma.** The appended edit uses the heredoc exact-replace form v14 itself uses in resolved runs; the test command is the one the model already ran in that episode when there is one | 0 | — |
+| 2c | **Do not teach "skip thinking".** Appended steps have no thinking text, so loss is put only on the tool-call arguments, not on the first tokens of the turn where the model chooses between thinking and calling | 0 | — |
+| 2d | **Cap the share.** Corrected episodes carry at most 40% of the total training weight | 0 | — |
+| 2e | **Two validation sets.** Held-out on-policy episodes (RS3 val) and held-out corrected episodes. T2b must not be worse than T2a on the on-policy set | inside T2b | T2b on-policy val more than 5% above T2a's → corrected steps hurt; G2 runs T2a only |
+| 2f | **10-task behaviour smoke before G2.** Compare T2b with base on thinking tokens per step, malformed calls, calls per task and overflows | ≈ 2 quota-h | thinking per step down by more than half, or malformed calls up → fix the rendering before G2 |
+
+T2a (RS3 only) stays as the control arm throughout.
+
+### Risk 3: an adapter that resolves more but times out scores zero
+
+Facts: v14 finishes the scorer with under 0.8 h to spare; an adapter adds about 11% decode time (LT1), projected
++0.8 h; v18 timed out. A shorter per-task cap is a weak lever: on v14's new-60 run a 6-minute cap saves 2% of
+time and puts 3 resolved tasks at risk, a 5-minute cap saves 6% and risks 4. An output-token cut scored lower on
+the leaderboard once (v11: 0.10 vs 0.15).
+
+| # | Action | Cost | Rule |
+|---|---|---|---|
+| 3a | **One number decides.** Time the adapter variant and v14 on the same tasks at the scorer's settings (concurrency 1, 8 min). Ratio = adapter mean task time / v14 mean task time | ≈ 8 quota-h (the timing run already planned; run both arms interleaved on 30 tasks each if quota is short) | **ratio ≤ 1.03** → may be submitted. Above → 3b |
+| 3b | **Offsets, in this order, one at a time:** (1) the shorter trajectories that RS4 trains for: read calls per task and decode tokens per task from G2; (2) `max_tool_calls` 28 → 25; (3) thinking budget 4096 → 2048; (4) 6-minute cap | 0 for (1); each of the others needs a re-time | stop at the first that brings the ratio to ≤ 1.03 without losing more than 2 of 60 |
+| 3c | **Test the offset on the leaderboard without the adapter.** In week 1 the daily leaderboard slots are free. Submit v14 with offset (2), then (3), each as its own run | 0 quota | an offset that scores ≥ 0.15 and finishes ≥ 1 h earlier is safe to combine with an adapter |
+| 3d | **Never risk both finals.** One final is always v17 or v14 with a completed scorer run | 0 | fixed |
+| 3e | **First adapter submission is the timing probe.** It is submitted on a day when a timeout costs nothing but that day's slot, at least 5 days before Dec 2 | 0 | timeout → apply the next offset in 3b |
+
+### What this adds to week 1
+
+| | quota-h |
+|---|---|
+| Plan as written (H1, RS4, T2a, T2b, LP2, G2) | ≈ 38 |
+| 2f behaviour smoke | ≈ 2 |
+| Real-issue arm in G2 (F3, or new-60 ×2 in place of the confirmation run) | ≈ 8–16 |
+| Timing run (3a) | ≈ 8 |
+| **Total** | **≈ 56–64 of 60** |
+
+That is the whole week's budget. If it runs short, the timing run moves to the first day of week 2 (reset Nov 21);
+the gate is not cut.
+
+## Risks (summary)
 
 - **Synthetic tasks.** Factory tasks are small injected mutations; the hidden tasks are real issues in private repos.
   Local gains have failed to transfer before. G2 uses unseen libraries, but only the leaderboard measures transfer.

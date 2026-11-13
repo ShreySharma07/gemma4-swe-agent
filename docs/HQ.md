@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 13: risk plan added to docs/training_plan_t2.md
+- Shrey asked for a plan against the three main risks before anything starts.
+- Transfer: F3 real-bug gate set (CPU, eval only) or new-60 x2 as a real-issue arm; adapter must gain on held-out factory tasks AND not lose on real issues; first passing adapter goes to the LB at once.
+- Off-policy steps: every corrected episode is replayed and kept only if diff = gold and tests pass; loss on tool-call arguments only; corrected share <= 40% of weight; two val sets; 10-task behaviour smoke before G2.
+- Time: one criterion, adapter/v14 mean task time ratio <= 1.03 at concurrency 1. Checked from existing v14 new-60 data: a 6 min cap saves 2% (3 resolved tasks at risk), 5 min saves 6% (4 at risk), so the cap is a weak lever. Offsets tried in order; offsets tested on the LB without the adapter in week 1's free slots.
+- Note: v14's local projection is 7.7 h per 120 tasks while the scorer takes over 11 h, so local timing only supports ratios, not absolute times.
+- Week 1 now costs about 56-64 of 60 quota-h. Nothing started.
+
 ### Nov 13: T2 training plan written (docs/training_plan_t2.md)
 - Shrey: quota is 30 h per week per account (60 with Atul), reset Saturday Nov 14. LB today: top 0.29, large group at 0.24, ours 0.18.
 - Plan: change the training signal, not the trainer. T2a = 1 epoch on RS3 (control). T2b = 1 epoch on RS4 = RS3 + corrected failures (model's own trajectory to the gold function, then the gold edit in v14's format, test, submit; loss on appended steps only) + waste steps removed from context. Gate G2: 3 arms on the 95 held-out tasks; then a concurrency-1 timing run before any LB use.
