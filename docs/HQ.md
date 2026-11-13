@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 13: RS4 result: 129 train + 10 val corrected episodes, all replay-verified
+- Shrey: build RS4. `gemma4-rftset-rs4` v1 (CPU). RS3 part unchanged (391 train / 40 val).
+- Funnel: 587 failed -> 327 lost because the run wrote something (usually a repro script) before every needed line was visible; 163 reached replay; 145 passed (edit applies, equals gold, tests pass); 129 train + 10 val after render. Multi-site 72 of the kept train episodes.
+- Deviation from the plan (logged at pre-registration): no context trimming, so T2a and T2b differ by the corrected episodes only.
+- **Concern:** corrected episodes carry 32k trained tokens, 4.5% of train weight. The T2a/T2b contrast is small. Two ways to enlarge it, neither done: (1) allow a scratch write before the cut and add a cleanup step (recovers part of the 327); (2) raise the corrected weight (cap is 40%).
+- Rule met (>= 100). F3 still running.
+
 ### Nov 13: H1 result (211 usable corrected episodes); F3 mining kernel pushed
 - Shrey: start both free CPU steps.
 - **H1** (`gemma4-h1-corrected` v1): 587 failed runs; every gold function seen by some step on 323 (55%), median cut step 6; usable for corrected episodes 211 (100 multi-site). Rule met (>= 150). Three predictions missed: the hunk-uniqueness check passed on only 58% of tasks (expected >= 95%; cause not examined, RS4 should anchor edits by line number), so usable and multi-site counts are below prediction.
