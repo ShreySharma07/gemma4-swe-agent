@@ -671,6 +671,11 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 13: T2 training plan written (docs/training_plan_t2.md)
+- Shrey: quota is 30 h per week per account (60 with Atul), reset Saturday Nov 14. LB today: top 0.29, large group at 0.24, ours 0.18.
+- Plan: change the training signal, not the trainer. T2a = 1 epoch on RS3 (control). T2b = 1 epoch on RS4 = RS3 + corrected failures (model's own trajectory to the gold function, then the gold edit in v14's format, test, submit; loss on appended steps only) + waste steps removed from context. Gate G2: 3 arms on the 95 held-out tasks; then a concurrency-1 timing run before any LB use.
+- Week 1 cost about 38 of 60 quota-h. Not started; H1 and RS4 are free CPU steps and come first. Nothing pre-registered in experiments.md yet.
+
 ### Nov 13: RS3 result: training set ready (391 train / 40 val)
 - 541 resolved -> 532 kept -> train 391, val 40 (toolz + pathspec), capped out 101. Train multi-site 137 (RS2: 50). f2 episodes 188.
 - All pre-registered predictions held; 0 episodes over the trainer's 28,672-token limit; span mismatch 3.5%.
