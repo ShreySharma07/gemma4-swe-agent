@@ -105,7 +105,7 @@ def chunk_bounds(n_tok, cand):
     return out[::-1]
 
 
-def main_rs2(submission_dir, tools_base, tag="rs2", n_shards=2):
+def main_rs2(submission_dir, tools_base, tag="rs2", n_shards=2, corrected=False):
     """tag rs2: R2's 2 shards. tag rs3 (n_shards=4): R2 + R3. Both rollouts name their archives eval_rollout_s<k>.tgz,
     so shards are keyed by the kernel they come from (r3-rollout in the input path -> r3, else r2)."""
     out_dir = pathlib.Path(f"/kaggle/working/{tag}")
@@ -156,10 +156,13 @@ def main_rs2(submission_dir, tools_base, tag="rs2", n_shards=2):
         eps.append({"id": i, "lib": lib_of(i), "kind": m.get("kind"), "src": i[:3], "stray": sorted(stray), "tags": tags,
                     "pytest_after_last_edit": pytest_after, "n_edits": len(edits), "msgs": msgs,
                     "split": "val" if lib_of(i) in HOLDOUT else "train"})
+    corr_rep = {}
+    if corrected:  # RS4: corrected episodes from failed runs (rs4_core.py); never capped
+        eps += build_corrected(per_task, traces, meta, system, eps, corr_rep)
     # library cap on train: keep pytest-after and multi-site episodes first
     rng = random.Random(0)
     for lib, cap in LIB_CAP.items():
-        pool = [e for e in eps if e["lib"] == lib and e["split"] == "train"]
+        pool = [e for e in eps if e["lib"] == lib and e["split"] == "train" and not e.get("corrected")]
         rng.shuffle(pool)
         pool.sort(key=lambda e: not (e["pytest_after_last_edit"] or e["kind"] != "single"))
         for e in pool[cap:]:
@@ -168,25 +171,34 @@ def main_rs2(submission_dir, tools_base, tag="rs2", n_shards=2):
     # pass 2: render, token weights, chunks
     ids_all, w_all, ep_starts, chunks, rows = [], [], [0], [], []
     tag_tok, n_mismatch = {}, 0
-    for ei, e in enumerate(e for e in eps if e["split"] != "capped"):
-        ep_w = (W_PYTEST_EP if e["pytest_after_last_edit"] else 1.0) * (W_STRAY_EP if e["stray"] else 1.0)
-        sw, _ = step_weights(e["msgs"], e["kind"], set(e["stray"]), ep_w)
+    n_corr_mismatch = 0
+    for e in (e for e in eps if e["split"] != "capped"):
+        ei = len(rows)
+        corr = bool(e.get("corrected"))
+        ep_w = 1.0 if corr else (W_PYTEST_EP if e["pytest_after_last_edit"] else 1.0) * (W_STRAY_EP if e["stray"] else 1.0)
+        sw = list(e["sw"]) if corr else step_weights(e["msgs"], e["kind"], set(e["stray"]), ep_w)[0]
         text = g.render(e["msgs"], tools)
         # the whole run is one model turn; each span split at tool responses ends in its step's tool call, so tool-call
         # spans map in order onto tool-call steps; text-only spans (assistant text without a call) get W_OTHER
         spans = model_spans(text)
         has_call = ["<|tool_call>" in text[a:b] for a, b in spans]
+        if sum(has_call) != len(sw) and corr:
+            n_corr_mismatch += 1                         # corrected episodes need exact step mapping: drop
+            continue
         if sum(has_call) != len(sw):
             n_mismatch += 1
             sw = [("other", W_OTHER * ep_w)] * len(spans)
         else:
             it = iter(sw)
-            sw = [next(it) if c else ("text", W_OTHER * ep_w) for c in has_call]
+            sw = [next(it) if c else ("text", 0.0 if corr else W_OTHER * ep_w) for c in has_call]
         enc = g.tok.encode(text, add_special_tokens=False)
         ids, offs = enc.ids, enc.offsets
         w = np.zeros(len(ids), dtype=np.float32)
         starts = np.array([o[0] for o in offs])
         for (a, b), (t, wt) in zip(spans, sw):
+            if corr and wt:                              # loss only after the tool-call marker (risk 2c)
+                k = text.find("<|tool_call>", a, b)
+                a = b if k < 0 else k + len("<|tool_call>")
             sel = (starts >= a) & (starts < b)
             w[sel] = wt
             tag_tok[t] = tag_tok.get(t, 0) + int(sel.sum())
@@ -199,15 +211,31 @@ def main_rs2(submission_dir, tools_base, tag="rs2", n_shards=2):
         ids_all.append(np.asarray(ids, dtype=np.int32))
         w_all.append(w.astype(np.float16))
         ep_starts.append(ep_starts[-1] + len(ids))
-        rows.append({k: v for k, v in e.items() if k != "msgs"} | {"ep_weight": ep_w, "n_tokens": len(ids),
+        rows.append({k: v for k, v in e.items() if k not in ("msgs", "sw")} | {"ep_weight": ep_w, "n_tokens": len(ids),
                                                                     "trained_weight_sum": round(float(w.sum()), 1)})
+    if corrected:  # cap the corrected share of train weight (risk 2d)
+        is_c = [bool(r.get("corrected")) and r["split"] == "train" for r in rows]
+        is_t = [r["split"] == "train" for r in rows]
+        wc = sum(float(w_all[k].astype(np.float32).sum()) for k in range(len(rows)) if is_c[k])
+        wt_ = sum(float(w_all[k].astype(np.float32).sum()) for k in range(len(rows)) if is_t[k])
+        scale = 1.0
+        if wt_ and wc / wt_ > CORR_MAX_SHARE:
+            scale = CORR_MAX_SHARE * (wt_ - wc) / ((1 - CORR_MAX_SHARE) * wc)
+            for k in range(len(rows)):
+                if is_c[k]:
+                    w_all[k] = (w_all[k].astype(np.float32) * scale).astype(np.float16)
+        corr_rep.update({"weight_share_before_cap": round(wc / wt_, 4) if wt_ else None, "scale": round(scale, 3),
+                         "render_mismatch_dropped": n_corr_mismatch,
+                         "rendered_train": sum(is_c), "rendered_val": sum(bool(r.get("corrected")) and r["split"] == "val" for r in rows),
+                         "trained_tokens_train": int(sum((w_all[k] > 0).sum() for k in range(len(rows)) if is_c[k]))})
     np.savez_compressed(out_dir / f"{tag}.npz", ids=np.concatenate(ids_all), weight=np.concatenate(w_all),
+                        corrected=np.asarray([bool(r.get("corrected")) for r in rows], dtype=np.uint8),
                         ep_starts=np.asarray(ep_starts, dtype=np.int64), chunks=np.asarray(chunks, dtype=np.int64),
                         val=np.asarray([r["split"] == "val" for r in rows], dtype=np.uint8))
     (out_dir / "episodes.json").write_text(json.dumps(rows))
 
     # report + drift check: share of trained weight by step type (vs v14's own call mix)
-    tr = [r for r in rows if r["split"] == "train"]
+    tr = [r for r in rows if r["split"] == "train" and not r.get("corrected")]  # RS3-comparable part
     calls = {}
     for r in tr:
         for t in r["tags"]:
@@ -215,9 +243,12 @@ def main_rs2(submission_dir, tools_base, tag="rs2", n_shards=2):
     tot_calls = sum(calls.values())
     ch = np.asarray(chunks)
     tr_idx = {k for k, r in enumerate(rows) if r["split"] == "train"}
+    c_idx = {k for k, r in enumerate(rows) if r.get("corrected")}
     ch_tr = [c for c in chunks if c[0] in tr_idx]
     lens = np.diff(np.asarray(ep_starts))
     report = {
+        "corrected": corr_rep | ({"chunks_train": sum(c[0] in c_idx and c[0] in tr_idx for c in chunks),
+                                  "chunks_val": sum(c[0] in c_idx and c[0] not in tr_idx for c in chunks)} if corrected else {}),
         "inputs": {"shards": sorted("/".join(k) for k in done), "resolved_by_src": {v: sum(i[:3] == v for i in resolved) for v in sorted({i[:3] for i in resolved})}},
         "episode_tokens": {"median": int(np.median(lens)), "max": int(lens.max()), "over_28672": int((lens > 28672).sum())},
         "episodes": {"resolved": len(resolved), "kept": len(eps), "train": len(tr), "val": sum(r["split"] == "val" for r in rows),
