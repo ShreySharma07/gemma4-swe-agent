@@ -171,21 +171,32 @@ def build_corrected(per_task, traces, meta, system, resolved_eps, rep):
             continue
         need = {l.strip() for _, old, _ in edits for l in old.splitlines() if l.strip()}
         # cut = first tool-call step by which every old line has been shown; nothing written before it
-        seen, cut, wrote, k_step = "", None, False, -1
+        seen, cut, wrote, k_step, scratch, unknown = "", None, False, -1, [], False
         for k, mm in enumerate(msgs):
             if mm["role"] == "assistant" and mm.get("tool_calls"):
                 k_step += 1
                 fn = mm["tool_calls"][0]["function"]
-                if tag_step(fn.get("name"), fn.get("arguments"), set()) in ("edit", "scratch_write", "submit"):
+                tg = tag_step(fn.get("name"), fn.get("arguments"), set())
+                if tg in ("edit", "submit"):
                     wrote = True
                     break
+                if tg == "scratch_write":  # RS4b: allowed; the appended steps remove the file again
+                    a_ = fn.get("arguments") if isinstance(fn.get("arguments"), dict) else {}
+                    ps = [str(a_.get("filepath", ""))] if fn.get("name") == "write_file" else \
+                        [p_ for p_ in PATHS.findall(str(a_.get("command", ""))) if is_scratch(p_, set())]
+                    ps = [p_ for p_ in ps if p_]
+                    unknown = unknown or not ps
+                    scratch += [p_ for p_ in ps if not p_.startswith("/tmp/") and p_ not in scratch]
             elif mm["role"] == "tool":
                 seen += "\n" + tool_text(mm)
                 if all(n in seen for n in need) and (k + 1 == len(msgs) or msgs[k + 1]["role"] != "tool"):
                     cut = k + 1
                     break
         if cut is None:
-            drop("x_wrote_before_lines_visible" if wrote else "x_lines_never_visible")
+            drop("x_source_edit_or_submit_before_lines_visible" if wrote else "x_lines_never_visible")
+            continue
+        if unknown or any(not re.fullmatch(r"[\w./-]+", p_) or p_.startswith(("/", "..")) for p_ in scratch):
+            drop("x_scratch_path_unknown")
             continue
         f2p = tasks[tid]["FAIL_TO_PASS"]
         files = sorted({n.split("::")[0] for n in (json.loads(f2p) if isinstance(f2p, str) else f2p)})[:2]
@@ -194,12 +205,12 @@ def build_corrected(per_task, traces, meta, system, resolved_eps, rep):
             continue
         cmds = [EDIT_TMPL.format(path=p, old=o, new=n) for p, o, n in edits]
         test_cmd = "python3 -m pytest " + " ".join(files) + " -q 2>&1 | tail -5"
-        cands.append((tid, m, msgs[:cut], cmds, test_cmd, k_step + 1))
+        cands.append((tid, m, msgs[:cut], cmds, test_cmd, k_step + 1, scratch))
     funnel["reach_replay"] = len(cands)
     with ThreadPoolExecutor(4) as ex:
         res = list(ex.map(lambda c: replay(snaps[c[0]], c[3], tasks[c[0]]["patch"], c[4]), cands))
     out = []
-    for (tid, m, prefix, cmds, test_cmd, n_prefix), (ok, why, test_out) in zip(cands, res):
+    for (tid, m, prefix, cmds, test_cmd, n_prefix, scratch), (ok, why, test_out) in zip(cands, res):
         if not ok:
             drop("x_" + why)
             continue
@@ -219,11 +230,13 @@ def build_corrected(per_task, traces, meta, system, resolved_eps, rep):
         for c in cmds:
             add("run_command", {"command": c}, ed_t, "c_edit")
         add("run_command", {"command": test_cmd}, dict(py_t, stdout=test_out), "c_test")
+        if scratch:
+            add("run_command", {"command": "rm -f " + " ".join(scratch)}, ed_t, "c_cleanup")
         add("submit_patch", {}, sub_t, "c_submit")
         tags = [t for t, _ in sw]
         out.append({"id": tid, "lib": lib_of(tid), "kind": m.get("kind"), "src": tid[:3], "stray": [], "tags": tags,
                     "pytest_after_last_edit": True, "n_edits": len(cmds), "msgs": msgs, "sw": sw, "corrected": True,
-                    "n_prefix": n_prefix, "issue": m.get("issue"), "split": "val" if lib_of(tid) in HOLDOUT else "train"})
+                    "n_prefix": n_prefix, "issue": m.get("issue"), "n_scratch": len(scratch), "split": "val" if lib_of(tid) in HOLDOUT else "train"})
     funnel["kept"] = len(out)
     rep["funnel"] = funnel
     rep["kept_train"] = sum(e["split"] == "train" for e in out)
@@ -231,5 +244,6 @@ def build_corrected(per_task, traces, meta, system, resolved_eps, rep):
     tr = [e for e in out if e["split"] == "train"]
     rep["train_by"] = {k: {str(v): sum(str(e[k]) == str(v) for e in tr) for v in sorted({str(e[k]) for e in tr})}
                        for k in ("kind", "src", "issue", "lib")}
+    rep["with_cleanup_train"] = sum(e["n_scratch"] > 0 for e in tr)
     rep["n_prefix_median"] = statistics.median([e["n_prefix"] for e in out]) if out else None
     return out
