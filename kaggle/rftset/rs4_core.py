@@ -14,6 +14,30 @@ from concurrent.futures import ThreadPoolExecutor
 EDIT_TMPL = ("python3 - <<'PYEOF'\nimport pathlib\np = pathlib.Path(\"{path}\")\ns = p.read_text()\nold = \"\"\"{old}\"\"\"\n"
              "new = \"\"\"{new}\"\"\"\nassert s.count(old) == 1, s.count(old)\np.write_text(s.replace(old, new))\nPYEOF")
 W_CORR_MULTI = 3.0
+WRITE_TARGET = re.compile(r"(?:cat\s*>{1,2}\s*|\btee\s+(?:-a\s+)?)([\w./-]+)|open\(\s*['\"]([\w./-]+)['\"]\s*,\s*['\"][wa]|"
+                          r"Path\(\s*['\"]([\w./-]+)['\"]\s*\)\.write_text")
+
+
+def write_kind(fn, tracked):
+    """RS4c: classify a step by the snapshot. -> ('none'|'source'|'scratch'|'unknown', [new files created])."""
+    args = fn.get("arguments") if isinstance(fn.get("arguments"), dict) else {}
+    norm = lambda p: p[len("/workspace/"):] if p.startswith("/workspace/") else (p[2:] if p.startswith("./") else p)  # noqa: E731
+    if fn.get("name") == "submit_patch":
+        return "source", []
+    if fn.get("name") == "write_file":
+        p = norm(str(args.get("filepath", "")))
+        return ("source", []) if p in tracked else (("scratch", [p]) if p else ("unknown", []))
+    if fn.get("name") != "run_command":
+        return "none", []
+    c = str(args.get("command", ""))
+    if not EDIT_CMD.search(c):
+        return "none", []
+    targets = [norm(t) for m in WRITE_TARGET.finditer(c) for t in m.groups() if t]
+    if any(t in tracked for t in targets):
+        return "source", []
+    if re.search(r"sed\s+-i|git\s+apply|\bpatch\s+-p", c) or (not targets and any(norm(p) in tracked for p in PATHS.findall(c))):
+        return "source", []
+    return ("scratch", targets) if targets else ("unknown", [])
 CORR_MAX_SHARE = 0.40
 
 
@@ -154,6 +178,7 @@ def build_corrected(per_task, traces, meta, system, resolved_eps, rep):
         edits, bad = [], None
         with tarfile.open(snaps[tid]) as tf:
             names = {n[2:] if n.startswith("./") else n: n for n in tf.getnames()}
+            tracked = set(names)
             for path, lines in hs:
                 if path not in names:
                     bad = "x_file_not_in_snapshot"
@@ -176,16 +201,13 @@ def build_corrected(per_task, traces, meta, system, resolved_eps, rep):
             if mm["role"] == "assistant" and mm.get("tool_calls"):
                 k_step += 1
                 fn = mm["tool_calls"][0]["function"]
-                tg = tag_step(fn.get("name"), fn.get("arguments"), set())
-                if tg in ("edit", "submit"):
-                    wrote = True
+                wk, ps = write_kind(fn, tracked)
+                if wk == "source":
+                    wrote = "submit" if fn.get("name") == "submit_patch" else "source_edit"
                     break
-                if tg == "scratch_write":  # RS4b: allowed; the appended steps remove the file again
-                    a_ = fn.get("arguments") if isinstance(fn.get("arguments"), dict) else {}
-                    ps = [str(a_.get("filepath", ""))] if fn.get("name") == "write_file" else \
-                        [p_ for p_ in PATHS.findall(str(a_.get("command", ""))) if is_scratch(p_, set())]
-                    ps = [p_ for p_ in ps if p_]
-                    unknown = unknown or not ps
+                if wk == "unknown":
+                    unknown = True
+                if wk == "scratch":  # allowed; the appended steps remove the new files again
                     scratch += [p_ for p_ in ps if not p_.startswith("/tmp/") and p_ not in scratch]
             elif mm["role"] == "tool":
                 seen += "\n" + tool_text(mm)
@@ -193,7 +215,7 @@ def build_corrected(per_task, traces, meta, system, resolved_eps, rep):
                     cut = k + 1
                     break
         if cut is None:
-            drop("x_source_edit_or_submit_before_lines_visible" if wrote else "x_lines_never_visible")
+            drop(f"x_{wrote}_before_lines_visible" if wrote else "x_lines_never_visible")
             continue
         if unknown or any(not re.fullmatch(r"[\w./-]+", p_) or p_.startswith(("/", "..")) for p_ in scratch):
             drop("x_scratch_path_unknown")
