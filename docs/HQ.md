@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 13: RS4b and RS4c: corrected set stays at about 140; T2b uses RS4c with a higher weight
+- Shrey approved a re-render on my recommendation (allow scratch writes before the cut). **RS4b: 140 train corrected (predicted 220-330).** My reason was wrong: only 11 episodes gained a cleanup step.
+- RS4c (deviation from RS4b's stop rule, logged; free CPU) classified pre-cut writes by the snapshot instead of by file name. **141 train + 12 val.** The tagger was not the cause.
+- **Finding:** in 282 of 587 failed runs the model changes a tracked source file before every line it needed to change had been displayed (24 more submit before). Not yet split by kind; for multi-site tasks this includes fixing site 1 before finding site 2. This fits H1's 239 multi-site failures that never saw every gold function.
+- Decision (RS4c's rule): T2b trains on RS4c = kernel `gemma4-rftset-rs4` v3 output. No more re-renders. Corrected share is 4.9% of train weight (35k tokens); raise it to about 15% at training time (a trainer option, to be pre-registered with T2).
+- F3 still RUNNING. Quota resets Saturday Nov 14; next step is the T2a/T2b training pre-registration and kernels (GPU, needs Shrey's yes).
+
 ### Nov 13: RS4 result: 129 train + 10 val corrected episodes, all replay-verified
 - Shrey: build RS4. `gemma4-rftset-rs4` v1 (CPU). RS3 part unchanged (391 train / 40 val).
 - Funnel: 587 failed -> 327 lost because the run wrote something (usually a repro script) before every needed line was visible; 163 reached replay; 145 passed (edit applies, equals gold, tests pass); 129 train + 10 val after render. Multi-site 72 of the kept train episodes.
