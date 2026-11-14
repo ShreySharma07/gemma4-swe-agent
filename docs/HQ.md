@@ -671,6 +671,15 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: T2a training finished (gemma4-train-t2a-lora v1)
+- COMPLETE, rc 0. 48 optimizer steps in 283 min (about 9.4 quota-h on Shrey's account), peak 17.47 GiB per rank, no NaN. It got past model load at 10.6 min.
+- On-policy val (40 held-out toolz + pathspec episodes): 0.1011 at start, 0.0678 at step 24, **0.0657** at the end. Prediction was ≤ 0.0666: held. Most of the gain came in the first half.
+- Corrected val (12 held-out corrected episodes, none in this arm's training): 0.7073 at start, **0.7731** at the end, 9% worse. So T2b's bar (30% below T2a) is ≤ 0.541.
+- Pre-clip grad norm above 5 on 6 of 48 steps (22.8 at step 1, then 6.9, 13.8, 20.5, 28.6 and one more); clip is 1.0. This arm has no corrected episodes, so they are not the cause of such spikes. Cause not examined.
+- Adapters in the kernel output: `train_out/adapter_step24`, `train_out/adapter_final`, `adapters/t2a_lora`; 410 modules, 245 MB each. Small results in `results/runs/t2a/`.
+- Val loss says the adapter fits the data, not that it resolves more tasks (T1 had the same fit). That is G2's question.
+- Next: T2b on Atul's account (needs `gemma4-rftset-rs4` shared with atulbaliyan), then LP2 serving probe and G2. No GPU pushed.
+
 ### Nov 14: T2a training pushed (gemma4-train-t2a-lora v1, 4xL4)
 - Shrey said yes. Pushed 03:5x UTC Nov 14, status RUNNING. Settings as pre-registered (T2): rs4.npz with corrected episodes excluded, 1 epoch, val and export at step 24 and at the end, budget 10.5 h. Expected 48 steps, about 5 h = 10 quota-h; worst case 21 quota-h if it runs to the budget.
 - The first three `kaggle kernels push` calls failed with "Expecting value: line 1 column 1" and created nothing (the kernel did not exist afterwards); the same call through the Python API then returned HTTP 200 and version 1. Cause not found; only one version exists.
