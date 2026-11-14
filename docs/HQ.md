@@ -671,6 +671,11 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: G2 real-bug arm for T2b generated for Atul's account; not pushed
+- Shrey said yes to the F3 arm on Atul's quota. Deviation from the G2 row: the arm runs base + T2b only (T2a was dropped by the rule), as `atulbaliyan/gemma4-lora-gate-t2b-f3` (`kaggle/eval_l4/lora_gate_t2b_f3_kernel`, built with `KAGGLE_OWNER=atulbaliyan`). 2 arms × 101 tasks, about 4 h ≈ 8 quota-h.
+- Not pushed: this machine is logged in to Kaggle as shreysharma07 only, so Atul has to push it. He needs read access to `shreysharma07/gemma4-task-factory-f3` (new since his last run) besides `gemma4-scorer-env`, `gemma4-devset-build`, `gemma4-test-overlays` and `test-deps-wheels`.
+- Predictions are the ones already in the G2 row: base 25–45 of 101; T2b − base between −3 and +4; about 4 h ≈ 8 quota-h. F ≥ 0 → one confirmation before any LB run; F < 0 → stop.
+
 ### Nov 14: G2 held-out result: T2a −2, T2b +3, neither significant
 - `gemma4-lora-gate-t2a` v1, 5.6 h (about 11.2 quota-h; Shrey's week is at about 21.8 of 30). 95 held-out toolz+pathspec tasks: base 38, T2a 36 (3 gained, 5 lost, p 0.73), T2b 41 (4 gained, 1 lost, p 0.38). T2b vs T2a: 8 vs 3, p 0.23.
 - Predictions: base held; T2a missed (predicted +1 to +5, got −2); T2b held.
