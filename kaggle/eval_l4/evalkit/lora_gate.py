@@ -152,21 +152,24 @@ def main(dry=False):
     log(f"gate[{s.gate_set}] adapter {s.lora_adapter}: {len(ids)} tasks "
         f"({', '.join(f'{h} {sum(lib_of(i) == h for i in ids)}' for h in libs)}), "
         f"cap {s.max_time_minutes} min, concurrency {CONC}, blocks of {BLOCK}")
-    names = s.lora_adapter.split(",")  # one arm per adapter; a single adapter keeps G1's arm name "lora"
+    # one arm per adapter; a single adapter keeps G1's arm name "lora"; "none" = a prompt variant with no adapter
+    names = [] if s.lora_adapter == "none" else s.lora_adapter.split(",")
     arm_of = {n: ("lora" if len(names) == 1 else n) for n in names}
-    loras = [arm_of[n] for n in names]
+    loras = [arm_of[n] for n in names] or ["variant"]
     subs = {"base": Submission(BASE_ZIP, WORK / "sub_base").unpack(),
-            **{arm_of[n]: v for n, v in arm_subs(names).items()}}
+            **({arm_of[n]: v for n, v in arm_subs(names).items()} if names else
+               {"variant": Submission(SUBMISSION_ZIP, WORK / "sub_variant").unpack()})}
     mans = {a: sub.adapters() for a, sub in subs.items()}
     declared = {a: sub.declared_model() for a, sub in subs.items()}
     assert len(set(declared.values())) == 1, declared
     declared["lora"] = declared["base"]
-    all_man = server_manifest({n: subs[arm_of[n]] for n in names}, names)
+    all_man = server_manifest({n: subs[arm_of[n]] for n in names}, names) if names else mans["base"]
     report = {"gate_set": s.gate_set, "adapter": s.lora_adapter, "tasks": ids, "declared": declared["lora"],
               "adapters": {a: sorted(getattr(m, "adapters", {}) or {}) for a, m in mans.items()}}
     log("G1 setup", json.dumps({k: v for k, v in report.items() if k != "tasks"}))
     report["server_adapters"] = sorted(getattr(all_man, "adapters", {}) or {})
     assert all(report["adapters"][arm_of[n]] == [n] for n in names) and not report["adapters"]["base"], report["adapters"]
+    assert names or not report["adapters"]["variant"], report["adapters"]
     assert report["server_adapters"] == sorted(names), report["server_adapters"]
     if dry:  # CPU: gold must resolve and the empty patch must not, in this kernel's own task sandbox
         from .preflight import verify

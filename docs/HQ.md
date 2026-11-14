@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: v21_readfirst built and pre-registered (prompt variant gated on F3); plan after it: train on real bugs
+- Shrey: push probe and gate, make a submission from the prompt option, then train on real bugs (mine more libraries with the F3 pipeline).
+- `submissions/v21_readfirst` = v14 + one prompt section (step 1b: read every line before editing, one grep for sibling sites, list sites, edit all before testing). Pre-registered as v21; gate = v14 vs v21 on the 101 F3 tasks, `gemma4-lora-gate-v21-f3`, about 8 quota-h. **Not pushed to GPU.**
+- evalkit gate: `lora_adapter: none` runs a prompt variant against the base with no adapter.
+- Local compile check is not possible (no adk_submission on the Mac); `gemma4-validate-submission` v19 on Kaggle compiles v21 and v14.
+- Time risk logged in the row: v21 adds calls and v14 has under 0.8 h margin.
+
 ### Nov 14: Deviation: T2b added to G2 as a third arm (Shrey)
 - Shrey reversed the T2a-only decision before any GPU run: G2 and LP3 now have arms base, T2a, T2b. This deviates from T2's pre-registered rule (T2b on-policy val 5.8% above T2a's -> T2a only). Reason: the miss is 0.8 points on one seed, and T2a alone only repeats T1's signal.
 - Cost: held-out arm about 11 quota-h instead of 7.4; probe about 1.2 instead of 0.9.
