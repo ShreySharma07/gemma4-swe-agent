@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: LP3 result: both adapters survive serving; G2 held-out gate running
+- `gemma4-lora-probe-t2a` v1, 36 min (about 1.2 quota-h). Served W4A16 base, 40 on-policy val episodes: base 0.0866, T2a 0.0517 (−40.4%, 40/40 episodes better), T2b 0.0566 (−34.7%, 40/40). All LP3 predictions held; rule met for both, so the gate keeps all three arms.
+- T2b is worse than T2a on 38 of 40 episodes, 9.5% pooled (5.8% on the NF4 training base). The probe does not score the corrected episodes, so it shows only T2b's cost, not its benefit.
+- `gemma4-lora-gate-t2a` v1 was RUNNING at 12:18 UTC (it left the queue when the probe ended or before; start time not known).
+- Correction to the dry-run note: `ModuleNotFoundError: wrapt` is a sitecustomize message printed in every run of this kernel family, so it is not the reason `f3_jsonpathng_001`'s gold fails; that reason is unknown.
+
 ### Nov 14: LP3 probe and G2 held-out gate pushed to GPU (Shrey's account)
 - Three-arm dry run (`gemma4-lora-dry-t2a` v2, setup only) passed: per-arm manifests base [], t2a_lora, t2b_lora; server manifest holds both adapters; 95 and 101 tasks load.
 - Shrey said push both. Pushed 11:41 UTC: `gemma4-lora-probe-t2a` v1 (RUNNING; base, T2a, T2b; about 35 min, 1.2 quota-h) and `gemma4-lora-gate-t2a` v1 (QUEUED at push; base, T2a, T2b on the 95 held-out tasks; about 5.5 h, 11 quota-h; budget 10.5 h).
