@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: T2a training pushed (gemma4-train-t2a-lora v1, 4xL4)
+- Shrey said yes. Pushed 03:5x UTC Nov 14, status RUNNING. Settings as pre-registered (T2): rs4.npz with corrected episodes excluded, 1 epoch, val and export at step 24 and at the end, budget 10.5 h. Expected 48 steps, about 5 h = 10 quota-h; worst case 21 quota-h if it runs to the budget.
+- The first three `kaggle kernels push` calls failed with "Expecting value: line 1 column 1" and created nothing (the kernel did not exist afterwards); the same call through the Python API then returned HTTP 200 and version 1. Cause not found; only one version exists.
+- Not yet confirmed: that the trainer got past model load (logs are not readable while the kernel runs).
+- T2b (Atul's account) not pushed: needs `gemma4-rftset-rs4` shared with atulbaliyan.
+
 ### Nov 13: T2 trainer ready (CPU smoke passed); F3 gave 101 verified real-bug tasks
 - Shrey: prepare T2. Pre-registered as T2 in experiments.md. Both arms read `rs4.npz` (RS4c): T2a excludes corrected episodes, T2b scales them to 15% of train weight. 1 epoch.
 - trainkit: data modes rs3/rs4, `corr` keep/exclude, `corr_share`, validation split into on-policy and corrected sets (`val_set` events). Notebooks: `kaggle/train/l4_t2a_lora` (shreysharma07), `l4_t2b_lora` (atulbaliyan), **not pushed**.
