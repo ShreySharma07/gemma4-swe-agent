@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: G2 held-out result: T2a −2, T2b +3, neither significant
+- `gemma4-lora-gate-t2a` v1, 5.6 h (about 11.2 quota-h; Shrey's week is at about 21.8 of 30). 95 held-out toolz+pathspec tasks: base 38, T2a 36 (3 gained, 5 lost, p 0.73), T2b 41 (4 gained, 1 lost, p 0.38). T2b vs T2a: 8 vs 3, p 0.23.
+- Predictions: base held; T2a missed (predicted +1 to +5, got −2); T2b held.
+- Time at concurrency 6: arm wall 99.7 / 113.7 / 110.7 min (T2a +14%, T2b +11%); 12-min cap hits 1 / 6 / 8. v14 has under 0.8 h (about 7%) of margin on the scorer, so either adapter needs a budget cut to fit.
+- Rule applied: T2a is dropped. T2b is in the +2 to +5 band, so the next step is its F3 arm (about 7.5 quota-h, needs Shrey's yes); not pushed.
+- Reading: on-policy loss does not predict resolves (T1: +2 of 95, p 0.75; T2a: −40% loss, −2 resolves). The only difference between T2a and T2b is the corrected-step data, and that is the arm that moved up.
+
 ### Nov 14: LP3 result: both adapters survive serving; G2 held-out gate running
 - `gemma4-lora-probe-t2a` v1, 36 min (about 1.2 quota-h). Served W4A16 base, 40 on-policy val episodes: base 0.0866, T2a 0.0517 (−40.4%, 40/40 episodes better), T2b 0.0566 (−34.7%, 40/40). All LP3 predictions held; rule met for both, so the gate keeps all three arms.
 - T2b is worse than T2a on 38 of 40 episodes, 9.5% pooled (5.8% on the NF4 training base). The probe does not score the corrected episodes, so it shows only T2b's cost, not its benefit.
