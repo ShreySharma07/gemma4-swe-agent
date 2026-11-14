@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: Decision: G2 runs T2a only; LP3 and G2 pre-registered, kernels prepared (no GPU)
+- Shrey: T2a only, following T2's rule. T2b's adapter stays in Atul's kernel output, unused.
+- Consequence to keep in view: T2a is the control (the same signal as T1 on more data), and T1 gave +2 in G1. The corrected-episode signal, which the plan was built around, is not tested by this gate.
+- Pre-registered: **LP3** (serving probe of T2a; the plan calls it LP2, that ID was taken) and **G2** (arm H = 95 held-out factory tasks, arm F = 101 F3 real-bug tasks, F only if H ≥ +2).
+- evalkit: `lora_adapter`, `lora_data`, `gate_set` settings; probe reads any rftset file and skips corrected val episodes; gate has an F3 loader; `lora_gate --dry` now runs gold and empty patches through the kernel's own sandbox. Generator flags `--lora-adapter`, `--lora-from`, `--lora-data`, `--gate-set`; T2 kernels get their own slugs, T1's are untouched.
+- New submission `submissions/v20_t2a_lora` = v14 + `adapter: t2a_lora` (the only difference from v14).
+- Open risk the dry run checks: F3 was verified in the factory harness, which fills missing requirements from PyPI; the eval kernel is offline.
+
 ### Nov 14: T2b training finished (atulbaliyan/gemma4-train-t2b-lora); rule says G2 runs T2a only
 - COMPLETE, rc 0. 66 optimizer steps in 355 min (about 11.8 quota-h on Atul's account), peak 17.47 GiB per rank, no NaN. 532 train episodes of which 141 corrected; corrected share 4.88% raised to 15.0% (scale 3.44), as pre-registered.
 - On-policy val: 0.1011 -> 0.0719 (step 33) -> **0.0695**. T2a ended at 0.0657, so T2b is **5.8% above**. Predictions "≤ 0.0666" and "within 5% of T2a" both missed.

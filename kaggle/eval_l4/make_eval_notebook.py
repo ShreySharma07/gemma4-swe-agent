@@ -134,6 +134,10 @@ def build(a):
                 "session_budget_h": a.budget_h, "sweep": a.sweep, "valid_only": a.valid_only}
     if a.factory_rollout or a.lora_gate or a.lora_dry:
         settings.update(shard=a.shard, n_shards=a.n_shards, max_time_minutes=a.max_time_min)
+    t2 = a.lora_adapter != "rs2_lora"  # T2 adapters: own kernels (suffix = adapter tag, + gate set), T1's stay as they are
+    sfx = ("-" + a.lora_adapter.replace("_lora", "") + ("-f3" if a.gate_set == "f3" and a.lora_gate else "")) if t2 else ""
+    if lora:
+        settings.update(lora_adapter=a.lora_adapter, lora_data=a.lora_data, gate_set=a.gate_set)
     gate_b64 = system_b64 = tools_b64 = ""
     if a.gate:  # behaviour gate: prefixes + v7's exact system prompt and declared tools
         import gzip
@@ -204,11 +208,14 @@ print("submission zip", len(base64.b64decode(SUBMISSION_B64)), "bytes")"""),
     for m in MODULES:
         cells.append(md(f"### `evalkit/{m}.py`\n{module_doc(m)}"))
         cells.append(code(f"%%writefile /kaggle/working/evalkit/{m}.py\n" + (KIT / f"{m}.py").read_text()))
-    step, result = ((["lora_probe --dry", "lora_gate --dry", "lora_timing --dry"],
+    gate_rep = "lora_gate_report.json" if a.gate_set == "heldout" else f"lora_gate_{a.gate_set}_report.json"
+    step, result = ((["lora_probe --dry", "lora_gate --dry --set=heldout", "lora_gate --dry --set=f3"],
+                     ["lora_probe_report.json", "lora_gate_report.json", "lora_gate_f3_report.json"]) if a.lora_dry and t2
+                    else (["lora_probe --dry", "lora_gate --dry", "lora_timing --dry"],
                      ["lora_probe_report.json", "lora_gate_report.json", "lora_timing_report.json"]) if a.lora_dry
                     else ("lora_timing", "lora_timing_report.json") if a.lora_timing
                     else ("lora_probe", "lora_probe_report.json") if a.lora_probe
-                    else ("lora_gate", "lora_gate_report.json") if a.lora_gate
+                    else ("lora_gate", gate_rep) if a.lora_gate
                     else ("gate", "gate_report.json") if a.gate else ("factory_rollout", "factory_rollout_report.json") if a.factory_rollout else ("factory_smoke", "factory_smoke_report.json") if a.factory_smoke else ("necessity", "necessity_report.json") if a.necessity
                     else ("regrade", "regrade_report.json") if a.regrade
                     else ("siteswap2", "siteswap2_report.json") if a.siteswap2
@@ -241,6 +248,8 @@ print("exit code", proc.wait())"""),
     wire = len(json.dumps({**nb, "cells": [{**c, "source": "".join(c["source"])} for c in cells]}).encode())
     assert wire < SOURCE_MAX_BYTES, f"notebook source {wire:,} bytes >= {SOURCE_MAX_BYTES:,}: move inputs to a dataset"
     out_dir = LDRY_DIR if a.lora_dry else LTIME_DIR if a.lora_timing else LPROBE_DIR if a.lora_probe else LGATE_DIR if a.lora_gate else ROLLOUT_DIR.with_name(f"{roll_slug(a).replace('gemma4-', '').replace('-', '_')}_kernel_s{a.shard}") if a.factory_rollout else FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
+    if lora and sfx:
+        out_dir = out_dir.with_name(out_dir.name.replace("_kernel", sfx.replace("-", "_") + "_kernel"))
     out_dir.mkdir(parents=True, exist_ok=True)
     nb_name = ("gemma4-lora-dry.ipynb" if a.lora_dry else "gemma4-lora-timing.ipynb" if a.lora_timing else "gemma4-lora-probe.ipynb" if a.lora_probe else "gemma4-lora-gate.ipynb" if a.lora_gate else
                f"{roll_slug(a)}-s{a.shard}.ipynb" if a.factory_rollout else "gemma4-factory-smoke.ipynb" if a.factory_smoke else "gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
@@ -288,14 +297,18 @@ print("exit code", proc.wait())"""),
     if lora:  # T1's adapter; LP1 also needs the RS2 val episodes, G1 the R2 rewritten issues + factory snapshots
         slug = ("gemma4-lora-dry" if a.lora_dry else "gemma4-lora-probe" if a.lora_probe else
                 "gemma4-lora-timing" if a.lora_timing else "gemma4-lora-gate")
+        slug += sfx
         meta.update(id=mine(slug), title=slug, code_file=nb_name)
-        meta["kernel_sources"] = [shared("gemma4-scorer-env"), shared("gemma4-devset-build"), shared(LORA_FROM)]
+        meta["kernel_sources"] = [shared("gemma4-scorer-env"), shared("gemma4-devset-build"), shared(a.lora_from)]
         if a.lora_probe or a.lora_dry or a.lora_timing:
-            meta["kernel_sources"].append(shared("gemma4-rftset-rs2"))
+            meta["kernel_sources"].append(shared(f"gemma4-rftset-{a.lora_data}"))
         if a.lora_gate or a.lora_dry:
-            meta["kernel_sources"] += [shared("gemma4-test-overlays"), shared("gemma4-factory-rollout-s0"),
-                                       R2_S1]
-            meta["dataset_sources"] += [shared("gemma4-factory-v0"), shared("gemma4-factory-v1")]
+            meta["kernel_sources"].append(shared("gemma4-test-overlays"))
+            if a.gate_set == "heldout" or a.lora_dry:
+                meta["kernel_sources"] += [shared("gemma4-factory-rollout-s0"), R2_S1]
+                meta["dataset_sources"] += [shared("gemma4-factory-v0"), shared("gemma4-factory-v1")]
+            if a.gate_set == "f3" or (a.lora_dry and t2):
+                meta["kernel_sources"].append(shared("gemma4-task-factory-f3"))
     if a.preflight:
         meta.pop("machine_shape", None)
     else:
@@ -335,5 +348,9 @@ if __name__ == "__main__":
     ap.add_argument("--lora-probe", action="store_true", help="GPU kernel: LP1 adapter logprob probe on the served base")
     ap.add_argument("--lora-gate", action="store_true", help="GPU kernel: G1 held-out gate, v14 vs <name> (v14 + adapter)")
     ap.add_argument("--lora-timing", action="store_true", help="GPU kernel: LT1 LoRA serving cost at concurrency 1")
+    ap.add_argument("--lora-adapter", default="rs2_lora", help="adapter under test (adapters/<name>/ in --lora-from)")
+    ap.add_argument("--lora-from", default=LORA_FROM, help="training kernel whose output holds the adapter")
+    ap.add_argument("--lora-data", default="rs2", help="--lora-probe: rftset kernel with the val episodes (rs2, rs4)")
+    ap.add_argument("--gate-set", default="heldout", choices=["heldout", "f3"], help="--lora-gate task set")
     ap.add_argument("--lora-dry", action="store_true", help="CPU kernel: LP1 + G1 with --dry (inputs, adapters, no model)")
     build(ap.parse_args())

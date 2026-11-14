@@ -17,20 +17,25 @@ import time
 
 import numpy as np
 
-from .config import INPUT, WORK
+from .config import INPUT, WORK, Settings
 from .inputs import Inputs
 from .kvdup import kv_dup
 from .util import log
 
-ADAPTER = "rs2_lora"
-NF4_VAL = {"start": 0.1011, "end": 0.0666}  # T1 (trainkit, NF4 base, HF attention path)
+CFG = Settings.load()
+ADAPTER, DATA = CFG.lora_adapter, CFG.lora_data
+# end-of-training on-policy val on the NF4 base (trainkit): T1, T2a, T2b
+NF4_VAL = {"start": 0.1011, "end": {"rs2_lora": 0.0666, "t2a_lora": 0.0657, "t2b_lora": 0.0695}.get(ADAPTER)}
+KV = ADAPTER == "rs2_lora"  # the k_eq_v copy arm: LP1 showed it does not help, later adapters ship raw only
 
 
 def episodes():
-    p = sorted(INPUT.rglob("rs2.npz"))
-    assert p, "attach kernel output gemma4-rftset-rs2"
+    p = sorted(INPUT.rglob(f"{DATA}.npz"))
+    assert p, f"attach kernel output gemma4-rftset-{DATA}"
     d = np.load(p[0])
     st, val = d["ep_starts"], d["val"].astype(bool)
+    if "corrected" in d.files:  # rs4: the on-policy val episodes only (the set NF4_VAL was measured on)
+        val &= ~d["corrected"].astype(bool)
     eps = [(d["ids"][st[i]:st[i + 1]].astype(np.int64).tolist(), d["weight"][st[i]:st[i + 1]].astype(np.float64))
            for i in range(len(st) - 1) if val[i]]
     return [(ids, w) for ids, w in eps if w[1:].sum() > 0], str(p[0])
@@ -40,6 +45,8 @@ def adapters():
     """-> {arm: dir}: the T1 export as trained (raw) and with the k_eq_v copy (kv)."""
     found = sorted(INPUT.glob(f"**/adapters/{ADAPTER}/adapter_model.safetensors"))
     assert len(found) == 1, f"expected one attached adapters/{ADAPTER}/, found {found}"
+    if not KV:
+        return {"raw": str(found[0].parent)}, {}
     kv = WORK / "adapters_kv" / ADAPTER
     info = kv_dup(found[0].parent, kv)
     log("kv_dup:", json.dumps(info))
@@ -68,7 +75,7 @@ def main(dry=False):
     eps, src = episodes()
     arms, info = adapters()
     lens = sorted(len(i) for i, _ in eps)
-    report = {"rs2": src, "episodes": len(eps), "tokens": sum(lens), "max_len": lens[-1], "kv_dup": info,
+    report = {"adapter": ADAPTER, "rs2": src, "episodes": len(eps), "tokens": sum(lens), "max_len": lens[-1], "kv_dup": info,
               "adapters": arms, "nf4_val": NF4_VAL, "arms": {}}
     log("LP1", json.dumps({k: v for k, v in report.items() if k != "arms"}))
     if not dry:
@@ -80,8 +87,8 @@ def main(dry=False):
                   dtype="bfloat16", enable_lora=True, max_loras=2, max_lora_rank=16, enable_prefix_caching=False,
                   max_num_batched_tokens=1024, max_num_seqs=1)
         report["load_s"] = round(time.time() - t)
-        loras = {"raw": LoRARequest("raw", 1, arms["raw"]), "kv": LoRARequest("kv", 2, arms["kv"])}
-        for arm in ("base", "kv", "raw"):
+        loras = {a: LoRARequest(a, i + 1, d) for i, (a, d) in enumerate(arms.items())}
+        for arm in ("base", "kv", "raw") if KV else ("base", "raw"):
             try:
                 report["arms"][arm] = score(llm, eps, loras.get(arm))
             except Exception as e:  # noqa: BLE001  keep the arms already scored
@@ -96,6 +103,11 @@ def main(dry=False):
                                                                      report["arms"]["base"]["per_episode"]))
         if r and k:
             report["raw_minus_kv"] = round(r - k, 5)
+        if b and r:
+            report["raw_gain"] = round(1 - r / b, 4)
+            report["nf4_gain"] = round(1 - NF4_VAL["end"] / NF4_VAL["start"], 4)
+            report["raw_episodes_better"] = sum(x < y for x, y in zip(report["arms"]["raw"]["per_episode"],
+                                                                      report["arms"]["base"]["per_episode"]))
     (WORK / "lora_probe_report.json").write_text(json.dumps(report, indent=1))
     log("LP1 REPORT", json.dumps({k: v for k, v in report.items() if k not in ("arms", "adapters")}))
 

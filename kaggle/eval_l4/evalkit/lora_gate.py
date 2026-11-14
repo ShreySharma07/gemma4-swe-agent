@@ -17,6 +17,8 @@ import sys
 import time
 
 from .compat import patch_sandbox_venv, use_scorer_sandbox
+from dataclasses import replace
+
 from .config import INPUT, SUBMISSION_ZIP, WORK, Settings
 from .factory_smoke import breakdown, phase
 from .inputs import Inputs
@@ -29,6 +31,8 @@ CONC, BLOCK = 6, 24
 BASE_ZIP = WORK / "base_src.zip"  # v14, written by the notebook's inputs cell
 TASKS_OUT = WORK / "gate_tasks.jsonl"
 SNAPS = pathlib.Path("/tmp/gate_snapshots")
+GATE_SET = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--set=")), None) or Settings.load().gate_set
+TAG = "lora_gate" if GATE_SET == "heldout" else f"lora_gate_{GATE_SET}"  # report + tgz names
 
 
 def lib_of(i):
@@ -37,6 +41,8 @@ def lib_of(i):
 
 def load_tasks():
     """Held-out tasks with R2's rewritten issues, their snapshots (symlinked into one dir) and factory meta."""
+    if GATE_SET == "f3":
+        return load_f3()
     rows = {}
     for p in sorted(INPUT.rglob("rollout_tasks.jsonl")):
         for l in open(p):
@@ -61,6 +67,31 @@ def load_tasks():
     return tasks, meta
 
 
+def load_f3():
+    """G2's real-issue arm: the verified F3 tasks (real bug-fix commits from libraries in no training set), with
+    their own issue text; tasks.jsonl + task_meta.jsonl + snapshots/ from the attached gemma4-task-factory-f3."""
+    tp = [p for p in sorted(INPUT.rglob("tasks.jsonl")) if (p.parent / "task_meta.jsonl").exists()]
+    rows = {}
+    for p in tp:
+        for l in open(p):
+            if l.strip() and json.loads(l)["instance_id"].startswith("f3_"):
+                rows.setdefault(json.loads(l)["instance_id"], (json.loads(l), p.parent))
+    assert rows, "attach kernel output gemma4-task-factory-f3"
+    meta = {}
+    SNAPS.mkdir(parents=True, exist_ok=True)
+    for i, (_, d) in rows.items():
+        meta.update({json.loads(l)["id"]: json.loads(l) for l in open(d / "task_meta.jsonl")
+                     if l.strip() and json.loads(l)["id"] == i})
+        assert (d / "snapshots" / f"{i}.tgz").exists(), f"missing snapshot for {i}"
+        (SNAPS / f"{i}.tgz").unlink(missing_ok=True)
+        (SNAPS / f"{i}.tgz").symlink_to(d / "snapshots" / f"{i}.tgz")
+    tasks = sorted((t for t, _ in rows.values()), key=lambda t: t["instance_id"])
+    random.Random(0).shuffle(tasks)
+    with open(TASKS_OUT, "w") as f:
+        f.writelines(json.dumps(t) + "\n" for t in tasks)
+    return tasks, meta
+
+
 def mcnemar(a, b):
     """Exact two-sided McNemar p from the discordant counts."""
     n = a + b
@@ -76,26 +107,40 @@ def summarize(rows, meta, budget):
 
 
 def main(dry=False):
-    s = Settings.load()
+    s = replace(Settings.load(), gate_set=GATE_SET)
     set_scorer_env()
     patch_sandbox_venv()
     comp = Inputs.locate(False, need_model=not dry)
     use_scorer_sandbox(comp.data)
     tasks, meta = load_tasks()
     ids = [t["instance_id"] for t in tasks]
-    log(f"G1: {len(ids)} held-out tasks ({', '.join(f'{h} {sum(lib_of(i) == h for i in ids)}' for h in HOLDOUT)}), "
+    libs = sorted({lib_of(i) for i in ids})
+    log(f"gate[{s.gate_set}] adapter {s.lora_adapter}: {len(ids)} tasks "
+        f"({', '.join(f'{h} {sum(lib_of(i) == h for i in ids)}' for h in libs)}), "
         f"cap {s.max_time_minutes} min, concurrency {CONC}, blocks of {BLOCK}")
     subs = {"base": Submission(BASE_ZIP, WORK / "sub_base").unpack(),
             "lora": Submission(SUBMISSION_ZIP, WORK / "sub_lora").unpack()}
     mans = {a: sub.adapters() for a, sub in subs.items()}
     declared = {a: sub.declared_model() for a, sub in subs.items()}
     assert len(set(declared.values())) == 1, declared
-    report = {"tasks": ids, "declared": declared["lora"],
+    report = {"gate_set": s.gate_set, "adapter": s.lora_adapter, "tasks": ids, "declared": declared["lora"],
               "adapters": {a: sorted(getattr(m, "adapters", {}) or {}) for a, m in mans.items()}}
     log("G1 setup", json.dumps({k: v for k, v in report.items() if k != "tasks"}))
-    assert report["adapters"]["lora"] == ["rs2_lora"] and not report["adapters"]["base"], report["adapters"]
-    if dry:
-        (WORK / "lora_gate_report.json").write_text(json.dumps(report, indent=1))
+    assert report["adapters"]["lora"] == [s.lora_adapter] and not report["adapters"]["base"], report["adapters"]
+    if dry:  # CPU: gold must resolve and the empty patch must not, in this kernel's own task sandbox
+        from .preflight import verify
+        make_sandbox_offline()
+        inp = Inputs(TASKS_OUT, comp.data, SNAPS, comp.model_path)
+        g = verify(inp, {t["instance_id"]: t.get("patch") or "" for t in tasks}, f"{TAG}_gold")
+        e = verify(inp, {i: "" for i in ids}, f"{TAG}_empty")
+        bad_gold = sorted(i for i in ids if not g.get(i, {}).get("resolved"))
+        bad_empty = sorted(i for i in ids if e.get(i, {}).get("resolved", True))
+        report["dry"] = {"n": len(ids), "gold_ok": len(ids) - len(bad_gold), "empty_fails": len(ids) - len(bad_empty),
+                         "gold_failed": bad_gold, "empty_resolved": bad_empty,
+                         "gold_fail_tails": {i: (g.get(i, {}).get("error") or g.get(i, {}).get("tail", ""))[-300:]
+                                             for i in bad_gold[:8]}}
+        log("GATE DRY", json.dumps({k: v for k, v in report["dry"].items() if k != "gold_fail_tails"}))
+        (WORK / f"{TAG}_report.json").write_text(json.dumps(report, indent=1))
         return
     import litellm
     litellm.drop_params = True
@@ -130,10 +175,10 @@ def main(dry=False):
                             "lora": sum(res["lora"][i] for i in both), "lora_only": lo, "base_only": bo,
                             "mcnemar_p": round(mcnemar(lo, bo), 4)}
         report["per_task"] = {i: [res["base"].get(i), res["lora"].get(i)] for i in ids}
-        (WORK / "lora_gate_report.json").write_text(json.dumps(report, indent=1))
+        (WORK / f"{TAG}_report.json").write_text(json.dumps(report, indent=1))
         log("G1 REPORT", json.dumps({"paired": report["paired"],
                                      **{a: {k: v for k, v in x.items() if k != "by"} for a, x in report["arms"].items()}}))
-        log.sh(f"cd {WORK} && tar -czf lora_gate.tgz lora_gate_report.json gate_tasks.jsonl run.log "
+        log.sh(f"cd {WORK} && tar -czf {TAG}.tgz {TAG}_report.json gate_tasks.jsonl run.log "
                f"$(ls eval_gate_*.tgz 2>/dev/null)")
         server.stop()
         log(f"RUN_DONE in {(time.time() - s.t0) / 3600:.1f} h")

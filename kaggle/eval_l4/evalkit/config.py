@@ -37,6 +37,9 @@ class Settings:
     sweep: bool = False               # preflight: gold + empty over ALL tasks -> valid_tasks.json (else 7-task smoke)
     gate_adapters: list | None = None  # behaviour gate: adapter names to compare with base (evalkit/gate.py)
     gate_samples: int = 4             # behaviour gate: samples per decision point
+    lora_adapter: str = "rs2_lora"    # LoRA probe / gate: adapter under test (attached adapters/<name>/)
+    lora_data: str = "rs2"            # LoRA probe: <data>.npz holding the val episodes (rs2 = T1, rs4 = T2)
+    gate_set: str = "heldout"         # LoRA gate tasks: heldout (95 toolz + pathspec, R2 issues) or f3 (real bugs)
     t0: float = field(default_factory=time.time)  # notebook start; budget counts from here across processes
 
     @property
