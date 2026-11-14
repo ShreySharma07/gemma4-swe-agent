@@ -171,6 +171,9 @@ def main(dry=False):
     assert all(report["adapters"][arm_of[n]] == [n] for n in names) and not report["adapters"]["base"], report["adapters"]
     assert names or not report["adapters"]["variant"], report["adapters"]
     assert report["server_adapters"] == sorted(names), report["server_adapters"]
+    if dry and "--no-gold" in sys.argv:  # setup only: tasks, submissions, per-arm and server adapter manifests
+        (WORK / f"{TAG}_report.json").write_text(json.dumps(report, indent=1))
+        return
     if dry:  # CPU: gold must resolve and the empty patch must not, in this kernel's own task sandbox
         from .preflight import verify
         make_sandbox_offline()

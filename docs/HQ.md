@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: Gate dry run passed (gemma4-lora-dry-t2a v1, CPU)
+- T2a adapter and `rs4.npz` found; 40 on-policy val episodes, 612k tokens, longest 26,446.
+- Gold and empty patches through the eval kernel's own offline sandbox: held-out 95/95 gold resolve, 0 empty resolve; F3 **100/101** gold resolve, 0 empty resolve. The F3 worry (requirements fetched from PyPI in the factory harness) did not materialise.
+- The one F3 failure is `f3_jsonpathng_001` (`ModuleNotFoundError: wrapt` in this sandbox). It stays in the task list (it fails in every arm, so paired results are unaffected) and is excluded when reporting base rates: F3 has 100 scorable tasks.
+- v2 of the dry run (setup only, `--no-gold`) checks the three-arm path: per-arm submissions and the server manifest holding both adapters.
+
 ### Nov 14: v21_readfirst submitted to the LB (ref 58340523), before its F3 gate
 - Shrey: submit v21 first so no GPU hours are spent if it performs poorly. Deviation from the v21 pre-registration (gate first), logged in the row with LB predictions and an LB rule.
 - Compile check on Kaggle (`gemma4-validate-submission` v19): v21 ok, same agent tree and declared tools as v14.

@@ -209,7 +209,8 @@ print("submission zip", len(base64.b64decode(SUBMISSION_B64)), "bytes")"""),
         cells.append(md(f"### `evalkit/{m}.py`\n{module_doc(m)}"))
         cells.append(code(f"%%writefile /kaggle/working/evalkit/{m}.py\n" + (KIT / f"{m}.py").read_text()))
     gate_rep = "lora_gate_report.json" if a.gate_set == "heldout" else f"lora_gate_{a.gate_set}_report.json"
-    step, result = ((["lora_probe --dry", "lora_gate --dry --set=heldout", "lora_gate --dry --set=f3"],
+    ng = " --no-gold" if a.dry_no_gold else ""
+    step, result = ((["lora_probe --dry", "lora_gate --dry --set=heldout" + ng, "lora_gate --dry --set=f3" + ng],
                      ["lora_probe_report.json", "lora_gate_report.json", "lora_gate_f3_report.json"]) if a.lora_dry and t2
                     else (["lora_probe --dry", "lora_gate --dry", "lora_timing --dry"],
                      ["lora_probe_report.json", "lora_gate_report.json", "lora_timing_report.json"]) if a.lora_dry
@@ -353,5 +354,6 @@ if __name__ == "__main__":
     ap.add_argument("--lora-from", default=LORA_FROM, help="training kernel whose output holds the adapter")
     ap.add_argument("--lora-data", default="rs2", help="--lora-probe: rftset kernel with the val episodes (rs2, rs4)")
     ap.add_argument("--gate-set", default="heldout", choices=["heldout", "f3"], help="--lora-gate task set")
+    ap.add_argument("--dry-no-gold", action="store_true", help="--lora-dry: skip the gold/empty sandbox check (setup only)")
     ap.add_argument("--lora-dry", action="store_true", help="CPU kernel: LP1 + G1 with --dry (inputs, adapters, no model)")
     build(ap.parse_args())
