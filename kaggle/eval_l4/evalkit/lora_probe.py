@@ -23,7 +23,8 @@ from .kvdup import kv_dup
 from .util import log
 
 CFG = Settings.load()
-ADAPTER, DATA = CFG.lora_adapter, CFG.lora_data
+ADAPTERS, DATA = CFG.lora_adapter.split(","), CFG.lora_data
+ADAPTER = ADAPTERS[0]
 # end-of-training on-policy val on the NF4 base (trainkit): T1, T2a, T2b
 NF4_VAL = {"start": 0.1011, "end": {"rs2_lora": 0.0666, "t2a_lora": 0.0657, "t2b_lora": 0.0695}.get(ADAPTER)}
 KV = ADAPTER == "rs2_lora"  # the k_eq_v copy arm: LP1 showed it does not help, later adapters ship raw only
@@ -45,8 +46,13 @@ def adapters():
     """-> {arm: dir}: the T1 export as trained (raw) and with the k_eq_v copy (kv)."""
     found = sorted(INPUT.glob(f"**/adapters/{ADAPTER}/adapter_model.safetensors"))
     assert len(found) == 1, f"expected one attached adapters/{ADAPTER}/, found {found}"
-    if not KV:
-        return {"raw": str(found[0].parent)}, {}
+    if not KV:  # T2: one raw arm per adapter ("raw" for the first, the adapter's name for the others)
+        arms = {"raw": str(found[0].parent)}
+        for n in ADAPTERS[1:]:
+            f = sorted(INPUT.glob(f"**/adapters/{n}/adapter_model.safetensors"))
+            assert len(f) == 1, f"expected one attached adapters/{n}/, found {f}"
+            arms[n] = str(f[0].parent)
+        return arms, {}
     kv = WORK / "adapters_kv" / ADAPTER
     info = kv_dup(found[0].parent, kv)
     log("kv_dup:", json.dumps(info))
@@ -84,11 +90,11 @@ def main(dry=False):
         model = Inputs.locate(False).model_path
         t = time.time()
         llm = LLM(model=model, tensor_parallel_size=4, max_model_len=32768, gpu_memory_utilization=0.80,
-                  dtype="bfloat16", enable_lora=True, max_loras=2, max_lora_rank=16, enable_prefix_caching=False,
+                  dtype="bfloat16", enable_lora=True, max_loras=max(2, len(arms)), max_lora_rank=16, enable_prefix_caching=False,
                   max_num_batched_tokens=1024, max_num_seqs=1)
         report["load_s"] = round(time.time() - t)
         loras = {a: LoRARequest(a, i + 1, d) for i, (a, d) in enumerate(arms.items())}
-        for arm in ("base", "kv", "raw") if KV else ("base", "raw"):
+        for arm in ("base", "kv", "raw") if KV else ("base", *arms):
             try:
                 report["arms"][arm] = score(llm, eps, loras.get(arm))
             except Exception as e:  # noqa: BLE001  keep the arms already scored
@@ -108,6 +114,8 @@ def main(dry=False):
             report["nf4_gain"] = round(1 - NF4_VAL["end"] / NF4_VAL["start"], 4)
             report["raw_episodes_better"] = sum(x < y for x, y in zip(report["arms"]["raw"]["per_episode"],
                                                                       report["arms"]["base"]["per_episode"]))
+            report["gains"] = {("raw" if a == "raw" else a): round(1 - v["loss"] / b, 4)
+                               for a, v in report["arms"].items() if a != "base" and v.get("loss")}
     (WORK / "lora_probe_report.json").write_text(json.dumps(report, indent=1))
     log("LP1 REPORT", json.dumps({k: v for k, v in report.items() if k not in ("arms", "adapters")}))
 

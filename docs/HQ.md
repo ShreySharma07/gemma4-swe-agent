@@ -671,6 +671,11 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: Deviation: T2b added to G2 as a third arm (Shrey)
+- Shrey reversed the T2a-only decision before any GPU run: G2 and LP3 now have arms base, T2a, T2b. This deviates from T2's pre-registered rule (T2b on-policy val 5.8% above T2a's -> T2a only). Reason: the miss is 0.8 points on one seed, and T2a alone only repeats T1's signal.
+- Cost: held-out arm about 11 quota-h instead of 7.4; probe about 1.2 instead of 0.9.
+- evalkit: `lora_adapter` may list several adapters; the gate builds one submission per adapter from the same zip and one server manifest with all of them; paired results for each adapter vs base and T2b vs T2a.
+
 ### Nov 14: Decision: G2 runs T2a only; LP3 and G2 pre-registered, kernels prepared (no GPU)
 - Shrey: T2a only, following T2's rule. T2b's adapter stays in Atul's kernel output, unused.
 - Consequence to keep in view: T2a is the control (the same signal as T1 on more data), and T1 gave +2 in G1. The corrected-episode signal, which the plan was built around, is not tested by this gate.

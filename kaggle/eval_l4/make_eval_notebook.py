@@ -135,7 +135,7 @@ def build(a):
     if a.factory_rollout or a.lora_gate or a.lora_dry:
         settings.update(shard=a.shard, n_shards=a.n_shards, max_time_minutes=a.max_time_min)
     t2 = a.lora_adapter != "rs2_lora"  # T2 adapters: own kernels (suffix = adapter tag, + gate set), T1's stay as they are
-    sfx = ("-" + a.lora_adapter.replace("_lora", "") + ("-f3" if a.gate_set == "f3" and a.lora_gate else "")) if t2 else ""
+    sfx = ("-" + a.lora_adapter.split(",")[0].replace("_lora", "") + ("-f3" if a.gate_set == "f3" and a.lora_gate else "")) if t2 else ""
     if lora:
         settings.update(lora_adapter=a.lora_adapter, lora_data=a.lora_data, gate_set=a.gate_set)
     gate_b64 = system_b64 = tools_b64 = ""
@@ -299,7 +299,8 @@ print("exit code", proc.wait())"""),
                 "gemma4-lora-timing" if a.lora_timing else "gemma4-lora-gate")
         slug += sfx
         meta.update(id=mine(slug), title=slug, code_file=nb_name)
-        meta["kernel_sources"] = [shared("gemma4-scorer-env"), shared("gemma4-devset-build"), shared(a.lora_from)]
+        meta["kernel_sources"] = [shared("gemma4-scorer-env"), shared("gemma4-devset-build")] + [
+            k if "/" in k else shared(k) for k in a.lora_from.split(",")]
         if a.lora_probe or a.lora_dry or a.lora_timing:
             meta["kernel_sources"].append(shared(f"gemma4-rftset-{a.lora_data}"))
         if a.lora_gate or a.lora_dry:
