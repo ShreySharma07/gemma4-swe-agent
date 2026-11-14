@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: v21_readfirst submitted to the LB (ref 58340523), before its F3 gate
+- Shrey: submit v21 first so no GPU hours are spent if it performs poorly. Deviation from the v21 pre-registration (gate first), logged in the row with LB predictions and an LB rule.
+- Compile check on Kaggle (`gemma4-validate-submission` v19): v21 ok, same agent tree and declared tools as v14.
+- Submitted Nov 14 10:48 UTC via the CLI, status PENDING; today's slot is used. Result expected in about 10-11 h.
+- Known risk: the variant adds calls and v14 has under 0.8 h margin on the 12 h cap; a timeout would score 0.00 and say nothing about the rule itself.
+- The v21 F3 gate notebook stays generated and unpushed.
+
 ### Nov 14: v21_readfirst built and pre-registered (prompt variant gated on F3); plan after it: train on real bugs
 - Shrey: push probe and gate, make a submission from the prompt option, then train on real bugs (mine more libraries with the F3 pipeline).
 - `submissions/v21_readfirst` = v14 + one prompt section (step 1b: read every line before editing, one grep for sibling sites, list sites, edit all before testing). Pre-registered as v21; gate = v14 vs v21 on the 101 F3 tasks, `gemma4-lora-gate-v21-f3`, about 8 quota-h. **Not pushed to GPU.**
