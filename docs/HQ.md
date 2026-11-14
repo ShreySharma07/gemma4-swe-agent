@@ -671,6 +671,17 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 14: T2b training finished (atulbaliyan/gemma4-train-t2b-lora); rule says G2 runs T2a only
+- COMPLETE, rc 0. 66 optimizer steps in 355 min (about 11.8 quota-h on Atul's account), peak 17.47 GiB per rank, no NaN. 532 train episodes of which 141 corrected; corrected share 4.88% raised to 15.0% (scale 3.44), as pre-registered.
+- On-policy val: 0.1011 -> 0.0719 (step 33) -> **0.0695**. T2a ended at 0.0657, so T2b is **5.8% above**. Predictions "≤ 0.0666" and "within 5% of T2a" both missed.
+- Corrected val: 0.7073 -> 0.0602 -> **0.0509**, 93% below T2a's 0.7731. Prediction (≥ 30% below) held by a wide margin.
+- **Pre-registered rule: T2b on-policy val more than 5% above T2a's -> G2 runs T2a only.** It triggers, by 0.8 points. One seed, 40 episodes, no noise estimate, so the miss is narrow; running T2b in G2 anyway would be a deviation and needs Shrey's decision.
+- The corrected tail (edit, test run, cleanup, submit) is templated, so a loss of 0.05 there is expected. It shows the signal trained, not that the model edits at the right moment on new tasks.
+- Pre-clip grad norm above 5 on 5 of 66 steps (max 17.5), the same rate as T2a.
+- Adapters in Atul's kernel output (`train_out/adapter_step33`, `adapter_final`, `adapters/t2b_lora`). Small results in `results/runs/t2b/`.
+- Quota used this week so far: Shrey about 9.4 of 30, Atul about 11.8 of 30.
+- Next: LP2 serving probe for T2a, then G2 (needs an eval kernel reading F3's output). No GPU pushed.
+
 ### Nov 14: T2a training finished (gemma4-train-t2a-lora v1)
 - COMPLETE, rc 0. 48 optimizer steps in 283 min (about 9.4 quota-h on Shrey's account), peak 17.47 GiB per rank, no NaN. It got past model load at 10.6 min.
 - On-policy val (40 held-out toolz + pathspec episodes): 0.1011 at start, 0.0678 at step 24, **0.0657** at the end. Prediction was ≤ 0.0666: held. Most of the gain came in the first half.
