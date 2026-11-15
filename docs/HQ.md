@@ -671,6 +671,10 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 15: N1 submitted: v17 unchanged, to measure LB noise (ref 58369800)
+- Shrey chose to spend today's slot on a repeat of v17. Zip `dist/v17_superagent/submission.zip` is byte-identical to the committed folder. Submitted 04:57 UTC, PENDING. Prediction 0.15–0.21; rule in the N1 row of experiments.md.
+- v21's 0.13 confirmed through the CLI after Shrey renewed the Kaggle login.
+
 ### Nov 15: v21_readfirst scored 0.13 on the LB; dropped
 - Ref 58340523, score reported by Shrey (the CLI login on the Mac had expired, so not re-read). Prediction was 0.15–0.21: missed low. v14 is 0.17, v17 0.18; the gap to v14 is about 5 of ~120 tasks, unpaired.
 - It did not time out, so the read-first rule fits inside the cap; it just did not help. The LB rule had no band below 0.15; decision: drop v21, do not run `gemma4-lora-gate-v21-f3` (saves about 8 quota-h). Finals remain v17 and v14.
