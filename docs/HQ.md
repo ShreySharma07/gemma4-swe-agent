@@ -671,6 +671,11 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 15: v21_readfirst scored 0.13 on the LB; dropped
+- Ref 58340523, score reported by Shrey (the CLI login on the Mac had expired, so not re-read). Prediction was 0.15–0.21: missed low. v14 is 0.17, v17 0.18; the gap to v14 is about 5 of ~120 tasks, unpaired.
+- It did not time out, so the read-first rule fits inside the cap; it just did not help. The LB rule had no band below 0.15; decision: drop v21, do not run `gemma4-lora-gate-v21-f3` (saves about 8 quota-h). Finals remain v17 and v14.
+- Not known: whether the loss comes from the rule spending calls (fewer edits/tests inside the call cap) or from worse fixes; there are no scorer traces to tell.
+
 ### Nov 14: G2 real-bug arm for T2b generated for Atul's account; not pushed
 - Shrey said yes to the F3 arm on Atul's quota. Deviation from the G2 row: the arm runs base + T2b only (T2a was dropped by the rule), as `atulbaliyan/gemma4-lora-gate-t2b-f3` (`kaggle/eval_l4/lora_gate_t2b_f3_kernel`, built with `KAGGLE_OWNER=atulbaliyan`). 2 arms × 101 tasks, about 4 h ≈ 8 quota-h.
 - Not pushed: this machine is logged in to Kaggle as shreysharma07 only, so Atul has to push it. He needs read access to `shreysharma07/gemma4-task-factory-f3` (new since his last run) besides `gemma4-scorer-env`, `gemma4-devset-build`, `gemma4-test-overlays` and `test-deps-wheels`.
