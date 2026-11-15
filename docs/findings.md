@@ -197,3 +197,9 @@ Mechanism:
 - Sanity check on rich HEAD: 954 of 957 tests still pass after renaming. The 3 failures are SVG/hash snapshot tests.
 - The runner's `DEVSET=True` mode evaluates on it.
 - **The hypothesis to test:** if Gemma relies on memorised public code, v5 on the renamed set scores well below 33/129, closer to the LB.
+
+## Harness mechanics read from source (Nov 16, swegemma 0.2.11 / adk_submission 0.2.13)
+- All agents in a submission share one `/workspace` tree and one `max_tool_calls` counter; tool calls are serialised, model calls are not.
+- The run ends when any agent returns a final text after `submit_patch`; a later agent runs only if nobody has submitted.
+- With no submit, the working-tree diff is taken as the patch (fallback), so capped runs that edited are still scored.
+- `ParallelAgent` is plain ADK: useful only for sub-agents that do not edit `/workspace`.
