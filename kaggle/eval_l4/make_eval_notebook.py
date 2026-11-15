@@ -41,6 +41,7 @@ ROLLOUT_DIR = REPO / "kaggle" / "eval_l4" / "factory_rollout_kernel"  # R2 rollo
 LPROBE_DIR = REPO / "kaggle" / "eval_l4" / "lora_probe_kernel"  # LP1 adapter logprob probe on the served base (--lora-probe)
 LGATE_DIR = REPO / "kaggle" / "eval_l4" / "lora_gate_kernel"  # G1 held-out gate, v14 vs v14 + adapter (--lora-gate)
 LDRY_DIR = REPO / "kaggle" / "eval_l4" / "lora_dry_kernel"  # LP1 + G1 + LT1 --dry on CPU (--lora-dry)
+TEACH_DIR = REPO / "kaggle" / "eval_l4" / "teacher_pilot_kernel"  # TP1 teacher pilot, CPU + Internet (--teacher-pilot)
 LTIME_DIR = REPO / "kaggle" / "eval_l4" / "lora_timing_kernel"  # LT1 LoRA serving cost at concurrency 1 (--lora-timing)
 LORA_BASE = "v14_thinking"  # G1's base arm; the submission under test is <name> (v14 + adapter)
 LORA_FROM = "gemma4-train-rs2-lora"  # T1 output: adapters/rs2_lora/
@@ -49,7 +50,7 @@ R2_S1 = "atulbaliyan/gemma4-factory-rollout-s1"  # R2 shard 1 ran on Atul's quot
 NEC_RUNS = ["eval_v7_new60/x/eval_v7_noedit/rep0", "eval_v14_new60_peek/x/eval_v14_thinking/rep0"] + \
     [f"rs_v7_valid/x/eval_v7_noedit/rep{i}" for i in range(5)]
 MODULES = ["__init__", "config", "util", "envsetup", "inputs", "submission", "compat", "server", "runner", "report",
-           "preflight", "overlays", "gate", "necessity", "siteswap", "siteswap2", "regrade", "factory_smoke", "factory_rollout", "kvdup", "lora_probe", "lora_gate", "lora_timing", "main"]
+           "preflight", "overlays", "gate", "necessity", "siteswap", "siteswap2", "regrade", "factory_smoke", "factory_rollout", "kvdup", "lora_probe", "lora_gate", "lora_timing", "teacher_rollout", "main"]
 GATE_PREFIXES = REPO / "data" / "runs" / "gate" / "prefixes.json"
 SOURCE_MAX_BYTES = 1_000_000  # Kaggle rejects notebook source above ~1 MB (HTTP 400; found by Atul, Oct 15)
 
@@ -126,9 +127,27 @@ def roll_slug(a):
     return "gemma4-factory-rollout" if a.factory_set == "v0,v1" else "gemma4-r3-rollout"
 
 
+def teacher_pilot_tasks(n):
+    """n R2 tasks outside the held-out gate libraries, half resolved by Gemma in R2 and half not (seed 0)."""
+    import random
+    rows = {}
+    for sh in ("r2_s0", "r2_s1"):
+        for l in open(REPO / "results" / "runs" / sh / "task_results.jsonl"):
+            r = json.loads(l)
+            if r["instance_id"].split("_", 1)[1].rsplit("_", 1)[0] not in ("toolz", "pathspec"):
+                rows[r["instance_id"]] = bool(r.get("resolved"))
+    rng = random.Random(0)
+    yes, no = sorted(i for i, v in rows.items() if v), sorted(i for i, v in rows.items() if not v)
+    rng.shuffle(yes)
+    rng.shuffle(no)
+    ids = sorted(yes[:n // 2] + no[:n - n // 2])
+    rng.shuffle(ids)
+    return ids, {i: rows[i] for i in ids}
+
+
 def build(a):
     a.siteswap = a.siteswap or a.siteswap2  # same payload
-    a.preflight = a.preflight or a.sweep or a.overlays or a.necessity or a.siteswap or a.regrade or a.lora_dry
+    a.preflight = a.preflight or a.sweep or a.overlays or a.necessity or a.siteswap or a.regrade or a.lora_dry or a.teacher_pilot
     lora = a.lora_probe or a.lora_gate or a.lora_dry or a.lora_timing
     settings = {"name": a.name, "max_tasks": a.max_tasks, "repeats": a.repeats, "devset": a.devset,
                 "session_budget_h": a.budget_h, "sweep": a.sweep, "valid_only": a.valid_only}
@@ -138,6 +157,10 @@ def build(a):
     sfx = ("-" + (a.name.split("_")[0] if a.lora_adapter == "none" else a.lora_adapter.split(",")[0].replace("_lora", "")) + ("-f3" if a.gate_set == "f3" and a.lora_gate else "")) if t2 else ""
     if lora:
         settings.update(lora_adapter=a.lora_adapter, lora_data=a.lora_data, gate_set=a.gate_set)
+    if a.teacher_pilot:
+        ids, ref = teacher_pilot_tasks(a.teacher_n)
+        settings.update(task_ids=ids, teacher_ref=ref, teacher_model=a.teacher_model, teacher_base=a.teacher_base,
+                        teacher_conc=a.teacher_conc, max_time_minutes=a.max_time_min)
     gate_b64 = system_b64 = tools_b64 = ""
     if a.gate:  # behaviour gate: prefixes + v7's exact system prompt and declared tools
         import gzip
@@ -214,6 +237,7 @@ print("submission zip", len(base64.b64decode(SUBMISSION_B64)), "bytes")"""),
                      ["lora_probe_report.json", "lora_gate_report.json", "lora_gate_f3_report.json"]) if a.lora_dry and t2
                     else (["lora_probe --dry", "lora_gate --dry", "lora_timing --dry"],
                      ["lora_probe_report.json", "lora_gate_report.json", "lora_timing_report.json"]) if a.lora_dry
+                    else ("teacher_rollout" + (" --dry" if a.teacher_dry else ""), "teacher_report.json") if a.teacher_pilot
                     else ("lora_timing", "lora_timing_report.json") if a.lora_timing
                     else ("lora_probe", "lora_probe_report.json") if a.lora_probe
                     else ("lora_gate", gate_rep) if a.lora_gate
@@ -237,6 +261,16 @@ print("exit code", proc.wait())"""),
             code("""print(open("/kaggle/working/overlays/report.json").read()[:20000])"""),
         ]
     else:
+        if a.teacher_pilot and not a.teacher_dry:  # the key never enters the notebook source or the log
+            cells += [md("## Teacher API key\nRead from the Kaggle Secret `" + a.teacher_secret + "` (Add-ons → Secrets, "
+                         "attached to this notebook) into the environment of the evaluator process only."),
+                      code(f"""import os
+try:
+    from kaggle_secrets import UserSecretsClient
+    os.environ["TEACHER_API_KEY"] = UserSecretsClient().get_secret({a.teacher_secret!r})
+    print("teacher key: loaded")
+except Exception as e:
+    print("teacher key: NOT available:", type(e).__name__)""")]
         cells += run_cells(a, step, result)
     for c in cells:  # every code cell must be valid Python before it costs a GPU session
         if c["cell_type"] == "code":
@@ -248,11 +282,11 @@ print("exit code", proc.wait())"""),
           "nbformat": 4, "nbformat_minor": 4}
     wire = len(json.dumps({**nb, "cells": [{**c, "source": "".join(c["source"])} for c in cells]}).encode())
     assert wire < SOURCE_MAX_BYTES, f"notebook source {wire:,} bytes >= {SOURCE_MAX_BYTES:,}: move inputs to a dataset"
-    out_dir = LDRY_DIR if a.lora_dry else LTIME_DIR if a.lora_timing else LPROBE_DIR if a.lora_probe else LGATE_DIR if a.lora_gate else ROLLOUT_DIR.with_name(f"{roll_slug(a).replace('gemma4-', '').replace('-', '_')}_kernel_s{a.shard}") if a.factory_rollout else FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
+    out_dir = TEACH_DIR if a.teacher_pilot else LDRY_DIR if a.lora_dry else LTIME_DIR if a.lora_timing else LPROBE_DIR if a.lora_probe else LGATE_DIR if a.lora_gate else ROLLOUT_DIR.with_name(f"{roll_slug(a).replace('gemma4-', '').replace('-', '_')}_kernel_s{a.shard}") if a.factory_rollout else FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
     if lora and sfx:
         out_dir = out_dir.with_name(out_dir.name.replace("_kernel", sfx.replace("-", "_") + "_kernel"))
     out_dir.mkdir(parents=True, exist_ok=True)
-    nb_name = ("gemma4-lora-dry.ipynb" if a.lora_dry else "gemma4-lora-timing.ipynb" if a.lora_timing else "gemma4-lora-probe.ipynb" if a.lora_probe else "gemma4-lora-gate.ipynb" if a.lora_gate else
+    nb_name = ("gemma4-teacher-pilot.ipynb" if a.teacher_pilot else "gemma4-lora-dry.ipynb" if a.lora_dry else "gemma4-lora-timing.ipynb" if a.lora_timing else "gemma4-lora-probe.ipynb" if a.lora_probe else "gemma4-lora-gate.ipynb" if a.lora_gate else
                f"{roll_slug(a)}-s{a.shard}.ipynb" if a.factory_rollout else "gemma4-factory-smoke.ipynb" if a.factory_smoke else "gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
                "gemma4-a3a4-necessity.ipynb" if a.necessity else "gemma4-r1-regrade.ipynb" if a.regrade else "gemma4-a12v-validate.ipynb" if a.siteswap2 else "gemma4-a12-siteswap.ipynb" if a.siteswap else
                "gemma4-eval-preflight.ipynb" if a.preflight else "check-l4.ipynb")
@@ -311,6 +345,11 @@ print("exit code", proc.wait())"""),
                 meta["dataset_sources"] += [shared("gemma4-factory-v0"), shared("gemma4-factory-v1")]
             if a.gate_set == "f3" or (a.lora_dry and t2):
                 meta["kernel_sources"].append(shared("gemma4-task-factory-f3"))
+    if a.teacher_pilot:  # CPU + Internet (teacher API); R2's rewritten issues + factory snapshots, no model, no GPU
+        meta.update(id=mine("gemma4-teacher-pilot"), title="gemma4-teacher-pilot", code_file=nb_name, enable_internet=True)
+        meta["kernel_sources"] = [shared("gemma4-scorer-env"), shared("gemma4-devset-build"), shared("gemma4-test-overlays"),
+                                  shared("gemma4-factory-rollout-s0"), R2_S1]
+        meta["dataset_sources"] += [shared("gemma4-factory-v0"), shared("gemma4-factory-v1")]
     if a.preflight:
         meta.pop("machine_shape", None)
     else:
@@ -355,5 +394,12 @@ if __name__ == "__main__":
     ap.add_argument("--lora-data", default="rs2", help="--lora-probe: rftset kernel with the val episodes (rs2, rs4)")
     ap.add_argument("--gate-set", default="heldout", choices=["heldout", "f3"], help="--lora-gate task set")
     ap.add_argument("--dry-no-gold", action="store_true", help="--lora-dry: skip the gold/empty sandbox check (setup only)")
+    ap.add_argument("--teacher-pilot", action="store_true", help="CPU+Internet kernel: TP1, the submission run by a teacher model behind an OpenAI-compatible API")
+    ap.add_argument("--teacher-dry", action="store_true", help="--teacher-pilot: setup only (tasks, submission, registry), no key, no API call")
+    ap.add_argument("--teacher-model", default="deepseek-ai/deepseek-v4.1-flash")
+    ap.add_argument("--teacher-base", default="https://integrate.api.nvidia.com/v1")
+    ap.add_argument("--teacher-secret", default="NVIDIA_API_KEY", help="name of the Kaggle Secret holding the API key")
+    ap.add_argument("--teacher-n", type=int, default=20)
+    ap.add_argument("--teacher-conc", type=int, default=2)
     ap.add_argument("--lora-dry", action="store_true", help="CPU kernel: LP1 + G1 with --dry (inputs, adapters, no model)")
     build(ap.parse_args())

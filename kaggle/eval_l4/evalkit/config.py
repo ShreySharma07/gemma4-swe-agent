@@ -40,6 +40,10 @@ class Settings:
     lora_adapter: str = "rs2_lora"    # LoRA probe / gate: adapter under test (attached adapters/<name>/)
     lora_data: str = "rs2"            # LoRA probe: <data>.npz holding the val episodes (rs2 = T1, rs4 = T2)
     gate_set: str = "heldout"         # LoRA gate tasks: heldout (95 toolz + pathspec, R2 issues) or f3 (real bugs)
+    teacher_model: str = ""           # teacher rollouts: model id at the OpenAI-compatible endpoint
+    teacher_base: str = ""            # teacher rollouts: endpoint base URL (key comes from env TEACHER_API_KEY)
+    teacher_conc: int = 2             # teacher rollouts: tasks in flight (bounded by the endpoint's rate limit)
+    teacher_ref: dict | None = None   # teacher rollouts: {task id: resolved by Gemma in R2} for the comparison
     t0: float = field(default_factory=time.time)  # notebook start; budget counts from here across processes
 
     @property
