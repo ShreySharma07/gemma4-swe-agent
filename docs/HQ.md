@@ -671,6 +671,10 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 16: N1 result: v17 repeat scored 0.18 again
+- Ref 58369800, COMPLETE, 0.18 (first run, Oct 23: 0.18). Prediction 0.15–0.21 held. Rule: within ±0.02 → v17 stays first final and v21's 0.13 counts as a real loss. It also did not time out, so v17 fits the 12 h cap twice.
+- Caveat kept: one repeat; in October v7 (0.15) and the near-identical v11 (0.10) differed by 0.05.
+
 ### Nov 16: G2 real-bug arm read: T2b −3 of 101 (p 0.61); rule says stop; no adapter final
 - Atul ran `atulbaliyan/gemma4-lora-gate-t2b-f3` on Nov 15 (COMPLETE, 9.4 quota-h by his account's counter) and reported it in `research_deliverables/atul_g2_t2b_f3_report_2026-11-15.md` (PR 14, merged). Re-read here from the kernel's `lora_gate_f3_report.json`: base 47/101, T2b 44/101; 6 gained, 9 lost; McNemar p 0.61. Same numbers as his report.
 - Predictions: base 25–45 missed (47); T2b − base between −3 and +4 held at the edge.
