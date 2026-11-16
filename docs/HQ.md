@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 16: TP1 v10 (editor run): both teacher models timed out; NVIDIA's free tier is unusable for rollouts
+- Key loaded, sampling fields stripped, host reachable (0.1 s, 39 models listed). Test requests, 90 s, no retries: `deepseek-v4.1-flash` timed out with and without a tool; `glm-5.3-flash` timed out with a tool and answered without one in 85.4 s. No model chosen, so the canary and the 20 tasks did not run. About 11 min of CPU.
+- Same request earlier today (v5): 71.6 s and 41.4 s. So latency on this free tier is 40 to more than 90 s for a one-line request, and varies within hours.
+- TP1 outcome under its rule: **endpoint unusable**. Five keyed runs, zero completed model calls inside a task; nothing measured about teacher strength. Of those five, two failed for reasons on my side (the `top_k` float I did not include in the first test request; the `!include` crash I did not dry-run).
+- Rule's next step: self-host Qwen3.8-27B on 4×L4 (quota, needs Shrey's yes). Not started. My recommendation is against spending more on the teacher route: even a successful campaign ends in an adapter, and three adapters have shown no gain while costing 11–15% of wall time against a 7% margin; G2's rule already said stop.
+- Report copied to `results/runs/tp1_v10/`.
+
 ### Nov 16: TP1 v7 (editor run) crashed in my own code before any request; fixed and dry-checked (v8)
 - v7 exited after 5 min: `teacher_sampling()` parsed every YAML with `yaml.safe_load`, and `agent.yaml` carries `!include` tags (ConstructorError). No API call, no teacher result. Cause: I uploaded v6 without running its dry mode first.
 - Fix: skip files containing `!include`. v8 = dry run pushed through the API (no key needed): exit 0, `sampling_removed: {"configs/sampling.yaml": ["top_k", "thinking_config"]}`, cap 30 min, concurrency 6.
