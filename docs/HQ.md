@@ -671,6 +671,22 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 16: FA1 result: the binding budget is context (24.5k usable), not the call cap; what is public about the top scores
+
+**FA1** (`gemma4-failure-analysis` v1, CPU, 2 min; base arm of both G2 gates, 196 tasks, 111 failures; `results/runs/fa1/`):
+- Failed runs ended at the call cap 49 (44%), submitted before the cap 36 (32%), crashed with context overflow 17 (15%), budget/no-submit errors 6, time cap 3.
+- 39 of the 49 capped failures had already seen the gold lines (35% of all failures). 35 of the 36 early-submit failures touch the gold file; 1 ran a test after its last edit.
+- **Every overflow happened between 21.5k and 24.5k prompt tokens.** The server rejects prompt + `max_output_tokens` > 32,768, and all our variants reserve 8,192, so the usable prompt is 24,576. Resolve rate: 67/103 when the agent submits before the cap, 18/67 at the cap, 0/17 after an overflow.
+- Time after the first `submit_patch`: median 5.8% of the run (fast exit saves little time).
+- Harness, read from source: after an overflow error the working-tree diff is still taken as the patch (`agent_runner.py` 1039–1078). This closes the open question from the Nov 16 harness notes.
+- **Consequence:** more calls (v22) mostly run into the context wall: about 660 prompt tokens per call, so 12 extra calls ≈ 8k tokens. Next candidate, one change: `max_output_tokens` 8192 → 4096. Not built; first check output tokens per step on the saved traces (CPU). v22's score decides the base.
+
+**Public information on the leaderboard** (read Nov 16; forum posts are other participants' claims, not verified):
+- Top: one team at 0.29 (18 entries), then 14 or more teams at exactly 0.24, most with 2–4 entries. Nobody at 0.29 or 0.24 has published a method.
+- A participant with 22 submissions reports that the public score moves by about ±3 tasks between identical runs and that the public leaderboard uses 58 tasks (1 task ≈ 1.7 points). Our scores (0.13, 0.18) are not multiples of 1/58, so the count is unconfirmed; our v17 repeated at 0.18 exactly.
+- The 0.22 notebook Shrey quoted is public (`bliverrigpdoge/lb-0-22-3-tweaks-40-tool-calls-no-training`): a single agent, all six tools plus graph tools, temperature 0.2, `max_output_tokens` 8192, thinking budget 4096, 40 calls, 8 min, 240 s per command, 80 turns; built on `verracodeguacas/gemma-4-agent-budget-fit-single-agent` v5. Another public notebook (`denpugovkin/...repair-lab...`) reports 0.22 for its base and 0.17, 0.12, 0.12 for three later single changes.
+- Reading: the 0.22–0.24 group is plausibly public configs plus draw-to-draw noise; 0.29 is one team's best of 18 entries. This is an inference.
+
 ### Nov 16: Decision (Shrey): the teacher route is stopped
 
 - **Decision:** no self-hosted Qwen3.8-27B pilot, no further teacher or adapter work. The remaining effort goes into config and prompt variants on the leaderboard (16 daily slots left).

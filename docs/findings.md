@@ -203,3 +203,9 @@ Mechanism:
 - The run ends when any agent returns a final text after `submit_patch`; a later agent runs only if nobody has submitted.
 - With no submit, the working-tree diff is taken as the patch (fallback), so capped runs that edited are still scored.
 - `ParallelAgent` is plain ADK: useful only for sub-agents that do not edit `/workspace`.
+
+## Context wall and failure endings (FA1, Nov 16)
+- The usable prompt is 32,768 − `max_output_tokens`. With 8,192 reserved (v14, v17, v22) runs crash with `ContextWindowExceededError` once the prompt passes about 24.5k tokens: 17 of 111 failures on the G2 base arms, none resolved.
+- After that error the harness still grades the working-tree diff (`agent_runner.py` 1039–1078).
+- Failures on unseen repos (196 tasks): 44% end at the call cap (80% of those had seen the gold lines), 32% submit a wrong fix before the cap (almost never tested), 15% overflow.
+- Prompt growth is about 660 tokens per call, so raising the call cap without lowering the output reservation mostly moves runs into the context wall.
