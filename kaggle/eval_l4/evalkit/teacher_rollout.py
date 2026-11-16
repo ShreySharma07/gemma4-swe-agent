@@ -20,6 +20,7 @@ import sys
 import threading
 import time
 import urllib.parse
+from dataclasses import replace
 
 from .compat import patch_sandbox_venv, use_scorer_sandbox
 from .config import INPUT, TARGET_MODEL, WORK, Settings
@@ -113,23 +114,62 @@ def registry(s, declared, key):
     return reg
 
 
-def ping(s, key):
-    """One tiny tool-call request: fails fast on a bad key, model id or missing tool support. Returns a short status."""
+def reach(s):
+    """Is the API host reachable at all? GET /models needs no key. Separates 'no network' from 'model does not answer'."""
+    import urllib.request
+    t = time.time()
+    try:
+        with urllib.request.urlopen(s.teacher_base.rstrip("/") + "/models", timeout=20) as r:
+            ids = {m.get("id") for m in json.load(r).get("data", [])}
+        return {"ok": True, "sec": round(time.time() - t, 1), "models": len(ids),
+                "listed": {m: m in ids for m in s.teacher_model.split(",")}}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "sec": round(time.time() - t, 1), "error": f"{type(e).__name__}: {str(e)[:200]}"}
+
+
+def ping(s, key, model=None, tools_on=True):
+    """One tiny request (with a tool unless tools_on is False), no retries, 90 s: fails fast on a bad key, model id,
+    missing tool support or an endpoint that does not answer. Returns a short status with the latency."""
     import litellm
+    model = model or s.teacher_model
+    t = time.time()
     tools = [{"type": "function", "function": {"name": "run_command", "description": "Run a shell command.",
                                                 "parameters": {"type": "object", "required": ["command"],
                                                                "properties": {"command": {"type": "string"}}}}}]
     try:
-        r = litellm.completion(model=f"openai/{s.teacher_model}", api_base=s.teacher_base, api_key=key, tools=tools,
+        r = litellm.completion(model=f"openai/{model}", api_base=s.teacher_base, api_key=key,
+                               **({"tools": tools} if tools_on else {}),
                                messages=[{"role": "user", "content": "List the files in the current directory "
                                                                      "by calling run_command."}],
-                               max_tokens=512, timeout=120, num_retries=2)
+                               max_tokens=512, timeout=90, num_retries=0, max_retries=0)
         msg = r.choices[0].message
         calls = getattr(msg, "tool_calls", None) or []
-        return {"ok": True, "tool_call": bool(calls), "tool": calls[0].function.name if calls else None,
-                "finish_reason": r.choices[0].finish_reason}
+        return {"ok": True, "sec": round(time.time() - t, 1), "tool_call": bool(calls),
+                "tool": calls[0].function.name if calls else None, "finish_reason": r.choices[0].finish_reason}
     except Exception as e:  # noqa: BLE001
-        return {"ok": False, "error": f"{type(e).__name__}: {str(e)[:300]}".replace(key, "<key>")}
+        return {"ok": False, "sec": round(time.time() - t, 1),
+                "error": f"{type(e).__name__}: {str(e)[:300]}".replace(key, "<key>")}
+
+
+def choose(s, key, report):
+    """Ping every allowed model (Settings.teacher_model, comma-separated, in order of preference) with and, if that
+    fails, without a tool; the first one that answers with a tool call is used. Everything is written to the report."""
+    report["reach"] = reach(s)
+    log("TEACHER reach", json.dumps(report["reach"]))
+    report["pings"] = {}
+    chosen = None
+    for m in s.teacher_model.split(","):
+        r = ping(s, key, m)
+        if not r["ok"]:
+            r["no_tools"] = ping(s, key, m, tools_on=False)
+        report["pings"][m] = r
+        log("TEACHER ping", m, json.dumps(r))
+        if chosen is None and r["ok"] and r.get("tool_call"):
+            chosen = m
+    report["chosen"] = chosen
+    with _LOCK:  # the pings are not rollout usage
+        USAGE.update(calls=0, prompt_tokens=0, completion_tokens=0, cached_tokens=0, failed={})
+    return chosen
 
 
 def main(dry=False):
@@ -151,17 +191,18 @@ def main(dry=False):
               "libs": {h: sum(lib_of(i) == h for i in ids) for h in sorted({lib_of(i) for i in ids})},
               "budget": budget, "concurrency": s.teacher_conc, "key_present": bool(key)}
     log("TEACHER setup", json.dumps({k: v for k, v in report.items() if k != "tasks"}))
-    models = registry(s, declared, key or "DRY")
     if dry:
+        registry(replace(s, teacher_model=s.teacher_model.split(",")[0]), declared, "DRY")
         report["dry"] = True
         (WORK / "teacher_report.json").write_text(json.dumps(report, indent=1))
         return
     assert key, f"{KEY_ENV} is empty: attach the Kaggle Secret to this notebook"
-    report["ping"] = ping(s, key)
-    log("TEACHER ping", json.dumps(report["ping"]))
     rows = []
     try:
-        assert report["ping"]["ok"], "teacher endpoint not usable (see ping)"
+        chosen = choose(s, key, report)
+        assert chosen, "no allowed teacher model answered with a tool call (see reach / pings)"
+        s = replace(s, teacher_model=chosen)
+        models = registry(s, declared, key)
         make_sandbox_offline()
         host = urllib.parse.urlparse(s.teacher_base).hostname
         os.environ["NO_PROXY"] = os.environ["no_proxy"] = f"localhost,127.0.0.1,{host}"

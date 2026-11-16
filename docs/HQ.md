@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 16: TP1 v3 (editor run): key loaded, test request to the teacher timed out; no task ran
+- Shrey started `gemma4-teacher-pilot` from the Kaggle editor. `teacher key: loaded` (so the secret works from the editor and stayed attached after an API push). The one test request to `deepseek-ai/deepseek-v4.1-flash` ended in `APITimeoutError` after about 10 min of retries; the runner stopped before any task. Usage: 0 calls completed.
+- Not a network problem on our side as far as can be told: the pulled metadata of that version has `enable_internet: true`, and `GET /v1/models` on the same host answers in 0.2 s from the Mac. Not established: whether this model is queued/unavailable on the free tier, or whether requests with tools hang.
+- Changed the check only (`teacher_rollout.reach/ping/choose`): model-list reachability, then a 90 s no-retry request per allowed model, with a tool and, if that fails, without; first model that returns a tool call is used. Allowed: `deepseek-ai/deepseek-v4.1-flash`, `z-ai/glm-5.3-flash`. Logged as a deviation in the TP1 row.
+- v4 has to be started from the editor again (API-pushed runs cannot read the secret).
+
 ### Nov 16: N1 result: v17 repeat scored 0.18 again
 - Ref 58369800, COMPLETE, 0.18 (first run, Oct 23: 0.18). Prediction 0.15–0.21 held. Rule: within ±0.02 → v17 stays first final and v21's 0.13 counts as a real loss. It also did not time out, so v17 fits the 12 h cap twice.
 - Caveat kept: one repeat; in October v7 (0.15) and the near-identical v11 (0.10) differed by 0.05.
