@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 16: G2 real-bug arm read: T2b −3 of 101 (p 0.61); rule says stop; no adapter final
+- Atul ran `atulbaliyan/gemma4-lora-gate-t2b-f3` on Nov 15 (COMPLETE, 9.4 quota-h by his account's counter) and reported it in `research_deliverables/atul_g2_t2b_f3_report_2026-11-15.md` (PR 14, merged). Re-read here from the kernel's `lora_gate_f3_report.json`: base 47/101, T2b 44/101; 6 gained, 9 lost; McNemar p 0.61. Same numbers as his report.
+- Predictions: base 25–45 missed (47); T2b − base between −3 and +4 held at the edge.
+- Time at concurrency 6: 125.9 vs 144.4 min (+15%); time-cap hits 9 vs 14.
+- **Rule applied (G2 row): F < 0 → stop.** Training on factory rollouts ends here; finals stay v17 and v14. What this does not test: an adapter trained on a stronger teacher's trajectories (TP1, running). It does lower the odds for that route too: any adapter pays the 11–15% time cost, and v14's margin on the scorer is about 7%.
+- Small result copied to `results/runs/g2_f3_t2b/`.
+
 ### Nov 16: TP1 v2 stopped at setup: the Kaggle Secret is not readable in an API-pushed run
 - Shrey stored the NVIDIA key as the Kaggle Secret and said push. `gemma4-teacher-pilot` v2 (CPU, about 5 min): the key cell printed `teacher key: NOT available: ConnectionError`, and the runner then stopped on its own assert (`TEACHER_API_KEY is empty`) before any API call or task. No teacher result; nothing spent.
 - This answers the open point from the build note: `UserSecretsClient` raised ConnectionError in the version pushed through the API. Whether that is because the secret is not attached to this notebook or because API-pushed runs cannot read secrets at all is not established; the run cannot tell the two apart.
