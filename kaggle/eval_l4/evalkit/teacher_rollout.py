@@ -77,7 +77,10 @@ def teacher_sampling(sub):
     import yaml
     removed = {}
     for f in sorted(sub.dir.rglob("*.yaml")):
-        d = yaml.safe_load(f.read_text())
+        text = f.read_text()
+        if "!include" in text or "temperature" not in text:  # agent files carry !include tags: not plain YAML
+            continue
+        d = yaml.safe_load(text)
         if isinstance(d, dict) and "temperature" in d and not ({"name", "evaluation"} & set(d)):
             gone = [k for k in ("top_k", "thinking_config") if k in d]
             if gone:

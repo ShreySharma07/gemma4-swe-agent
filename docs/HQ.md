@@ -671,6 +671,11 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 16: TP1 v7 (editor run) crashed in my own code before any request; fixed and dry-checked (v8)
+- v7 exited after 5 min: `teacher_sampling()` parsed every YAML with `yaml.safe_load`, and `agent.yaml` carries `!include` tags (ConstructorError). No API call, no teacher result. Cause: I uploaded v6 without running its dry mode first.
+- Fix: skip files containing `!include`. v8 = dry run pushed through the API (no key needed): exit 0, `sampling_removed: {"configs/sampling.yaml": ["top_k", "thinking_config"]}`, cap 30 min, concurrency 6.
+- v9 = the real pilot, uploaded; Shrey starts it from the editor. Rule for myself: every change to this runner gets a dry run before Shrey is asked to click.
+
 ### Nov 16: TP1 v5 (editor run): endpoint answers, every real request rejected (top_k sent as a float)
 - Reach OK (0.4 s). Pings: `deepseek-v4.1-flash` tool call in 71.6 s, `glm-5.3-flash` tool call in 41.4 s; DeepSeek chosen. So the v3 timeout was latency, not an outage: a trivial request takes 40–70 s on this free tier.
 - Rollouts: 10 tasks finished with 0 model calls and 0 tool calls; errors `BadRequestError 400 ... invalid type: floating point 40.0, expected i32` (our `top_k: 40`, serialised as a float by ADK/LiteLLM) or the 12 min cap after retries. The runner's health check aborted before the second chunk. 46 min of CPU, no teacher result.
