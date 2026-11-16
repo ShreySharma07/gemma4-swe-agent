@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 16: Decision (Shrey): the teacher route is stopped
+
+- **Decision:** no self-hosted Qwen3.8-27B pilot, no further teacher or adapter work. The remaining effort goes into config and prompt variants on the leaderboard (16 daily slots left).
+- **Why:** NVIDIA's free tier is unusable (TP1), the other free routes need a payment method or forbid this use, and any adapter costs 11–15% of wall time against a margin of about 7%. Three adapters (T1, T2a, T2b) showed no gain, and G2's rule already said to stop.
+- **Not learned:** whether a stronger teacher's trajectories would help. No teacher rollout ever completed.
+- **Kept:** `kaggle/eval_l4/evalkit/teacher_rollout.py` and the `--teacher-pilot` generator stay in the repo, unused.
+- **Next:** v22's score (ref 58418369, still pending at ~12:30 UTC) decides tomorrow's submission under its pre-registered rule.
+
 ### Nov 16: TP1 v10 (editor run): both teacher models timed out; NVIDIA's free tier is unusable for rollouts
 - Key loaded, sampling fields stripped, host reachable (0.1 s, 39 models listed). Test requests, 90 s, no retries: `deepseek-v4.1-flash` timed out with and without a tool; `glm-5.3-flash` timed out with a tool and answered without one in 85.4 s. No model chosen, so the canary and the 20 tasks did not run. About 11 min of CPU.
 - Same request earlier today (v5): 71.6 s and 41.4 s. So latency on this free tier is 40 to more than 90 s for a one-line request, and varies within hours.
