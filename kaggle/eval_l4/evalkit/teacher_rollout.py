@@ -70,6 +70,22 @@ def load_tasks(ids):
     return tasks, meta
 
 
+def teacher_sampling(sub):
+    """Drop the Gemma-specific sampling fields from the unpacked submission: the teacher endpoint rejects `top_k`
+    (ADK sends 40.0, NVIDIA expects an integer: HTTP 400 on every request in TP1 v5) and has its own reasoning
+    switch. Temperature, top_p and max_output_tokens stay. Returns the removed keys per file."""
+    import yaml
+    removed = {}
+    for f in sorted(sub.dir.rglob("*.yaml")):
+        d = yaml.safe_load(f.read_text())
+        if isinstance(d, dict) and "temperature" in d and not ({"name", "evaluation"} & set(d)):
+            gone = [k for k in ("top_k", "thinking_config") if k in d]
+            if gone:
+                f.write_text(yaml.safe_dump({k: v for k, v in d.items() if k not in gone}, sort_keys=False))
+                removed[str(f.relative_to(sub.dir))] = gone
+    return removed
+
+
 def _on_success(kwargs, response, start, end):
     try:
         u = getattr(response, "usage", None) or (response.get("usage") if isinstance(response, dict) else None)
@@ -110,7 +126,7 @@ def registry(s, declared, key):
     reg = ModelRegistry()
     for alias in dict.fromkeys([declared, TARGET_MODEL]):
         reg.register(alias, LiteLlm(model=f"openai/{s.teacher_model}", api_base=s.teacher_base, api_key=key,
-                                    num_retries=6, timeout=300))
+                                    num_retries=3, timeout=300))
     return reg
 
 
@@ -184,12 +200,13 @@ def main(dry=False):
     tasks, meta = load_tasks(list(s.task_ids))
     ids = [t["instance_id"] for t in tasks]
     sub = Submission().unpack()
+    removed = teacher_sampling(sub)
     declared, adapters = sub.declared_model(), sub.adapters()
     assert not (getattr(adapters, "adapters", None) or {}), "teacher runs take a submission without adapters"
     budget = {**sub.eval_budget(), **({"max_time_minutes": s.max_time_minutes} if s.max_time_minutes else {})}
     report = {"teacher_model": s.teacher_model, "teacher_base": s.teacher_base, "declared": declared, "tasks": ids,
               "libs": {h: sum(lib_of(i) == h for i in ids) for h in sorted({lib_of(i) for i in ids})},
-              "budget": budget, "concurrency": s.teacher_conc, "key_present": bool(key)}
+              "budget": budget, "concurrency": s.teacher_conc, "key_present": bool(key), "sampling_removed": removed}
     log("TEACHER setup", json.dumps({k: v for k, v in report.items() if k != "tasks"}))
     if dry:
         registry(replace(s, teacher_model=s.teacher_model.split(",")[0]), declared, "DRY")
@@ -207,7 +224,16 @@ def main(dry=False):
         host = urllib.parse.urlparse(s.teacher_base).hostname
         os.environ["NO_PROXY"] = os.environ["no_proxy"] = f"localhost,127.0.0.1,{host}"
         inp = Inputs(TASKS_OUT, comp.data, SNAPS, "")
-        report["run"], rows = phase(s, inp, sub, models, adapters, "teacher", ids, s.teacher_conc, chunk=10)
+        # canary: one task alone; a request-format error shows here in minutes instead of after a whole chunk
+        report["canary"], rows = phase(s, inp, sub, models, adapters, "teacher_canary", ids[:1], 1)
+        c = rows[0] if rows else {}
+        report["canary"] = {"id": ids[0], "resolved": bool(c.get("resolved")), "tool_calls": c.get("tool_calls"),
+                            "llm_calls": c.get("total_llm_calls"), "sec": c.get("duration_seconds"),
+                            "error": (c.get("error") or "")[:600]}
+        log("TEACHER canary", json.dumps(report["canary"]))
+        assert (c.get("tool_calls") or 0) > 0, "canary made no tool call (see canary.error)"
+        report["run"], more = phase(s, inp, sub, models, adapters, "teacher", ids[1:], s.teacher_conc, chunk=len(ids))
+        rows += more
     finally:
         ref = s.teacher_ref or {}
         res = {r["instance_id"]: bool(r.get("resolved")) for r in rows}
