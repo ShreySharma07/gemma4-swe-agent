@@ -45,10 +45,8 @@ Read `docs/plan.md` (the roadmap) and `docs/experiments.md` (every run so far) b
 2. **Budget overruns.** A localizer sub-agent ignores its call budget (asked ≤25, averaged 48) and starves the fixer.
 3. **Exact-repeat loops.** 28–48% of calls.
 4. **Wrong fix never tested** (v2: 47/129).
-5. **Graph tools.** `search_similar_code` is a lookup table keyed by fully qualified node name; there is no text encoder.
-   - Phrases and bare names return 0 results.
-   - The installed swegemma has no `resolve_node_name`.
-   - Agents mostly ignore the graph tools.
+5. **Graph tools.** No text encoder: embeddings are precomputed per node. In the scorer's swegemma 0.2.11 (source read Nov 18), bare names resolve by suffix (`resolve_node_name`), phrases fall back to keyword matching over names and function bodies, and output is capped at 5,000 chars.
+   - Agents mostly ignore the graph tools (v14: 4 calls in 60 tasks), and localisation is not our bottleneck.
 6. **Skill scripts are UNVERIFIED on the scorer.**
    - v6 made a skill the localizer's only tool and scored 0.00 in ~10 h, consistent with skill execution failing in the scorer's Docker sandbox.
    - v5 had the skill as an optional extra and scored the same as v2.
