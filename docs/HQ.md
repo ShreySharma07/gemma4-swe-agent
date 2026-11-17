@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 17: v24 smoke v1 ran no task (my session budget was too small); not re-pushed yet
+
+- `gemma4-eval-v24-smoke` v1 finished in 10 min with 0 tasks: the runner needs 6 × (8 + 1) min = 0.90 h free before it schedules a chunk (`runner.py` 98) and only 0.84 h of my 1 h session budget was left after setup. Server start, env and submission were fine. The v19e smoke had used 1.5 h for this reason; I did not check the arithmetic.
+- Cost: about 10 min of 4×L4 ≈ 0.35 quota-h, no result.
+- Fix: `--budget-h 1.5` (a cap on scheduling, not on cost; expected run still 40–50 min). A re-push brings the smoke's total to about 2 quota-h against the 'about 1' I quoted, so it waits for Shrey's yes.
+
 ### Nov 17: v24 smoke pushed (gemma4-eval-v24-smoke v1)
 
 - Shrey said yes to a short GPU smoke. `submissions/v24_nothoughts` = v17 with `include_thoughts: false` (one line in `configs/sampling.yaml`). Compile check passed (`gemma4-validate-submission` v22, same tree and tools as v17).
