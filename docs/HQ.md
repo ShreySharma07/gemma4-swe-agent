@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 17: v24 smoke pushed (gemma4-eval-v24-smoke v1)
+
+- Shrey said yes to a short GPU smoke. `submissions/v24_nothoughts` = v17 with `include_thoughts: false` (one line in `configs/sampling.yaml`). Compile check passed (`gemma4-validate-submission` v22, same tree and tools as v17).
+- 6 new-60 tasks, concurrency 1, 8 min cap, session budget 1 h: fastapi_14616, fastapi_14978, fastapi_14266, rich_4079 (v17: context overflow at 27–28 calls), requests_7502, fastapi_9425 (v17: resolved at 28 calls). Expected 40–50 min wall, 1.3–1.7 quota-h (I told Shrey about 1).
+- Question: does the setting drop thoughts from the history, do nothing, or switch thinking off? Predictions and rule in `docs/experiments.md` (v24-smoke).
+- Noted while picking tasks: 17 of v17's 18 overflows on new-60 are fastapi tasks, so the 30% overflow rate may not carry to the hidden repos.
+
 ### Nov 17: Correction to FA1/OT1: the context wall and the 4,096 cut were already known and tried (r10, Oct 17)
 
 - FA1 and OT1 reported the 24.5k wall as a new finding and proposed `max_output_tokens` 4096. Both were in `docs/experiments.md` already: r10 (Oct 17) measured 24,577 + 8,192 = 32,769 on v7 and submitted `v11_out4096`, which scored **0.10** against v7's 0.15 (read as noise at the time). Row v14-new60 (Oct 19) also recorded overflow rising 3.3% → 13.3% when thinking was turned on. I did not reread the table before proposing; second time this month (reproduce-first, Nov 15).

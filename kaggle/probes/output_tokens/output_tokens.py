@@ -9,7 +9,8 @@ import collections, json, pathlib, shutil, tarfile
 INPUT, WORK = pathlib.Path("/kaggle/input"), pathlib.Path("/kaggle/working")
 SOURCES = [("gemma4-lora-gate-t2a", "eval_gate_base_b*.tgz", "v14 held-out"),
            ("gemma4-lora-gate-t2b-f3", "eval_gate_base_b*.tgz", "v14 real-bug"),
-           ("gemma4-eval-v17-new60", "eval_v17_superagent*.tgz", "v17 new-60")]
+           ("gemma4-eval-v17-new60", "eval_v17_superagent*.tgz", "v17 new-60"),
+           ("gemma4-eval-v24-smoke", "eval_v24_nothoughts*.tgz", "v24 smoke (6 tasks)")]
 EDGES = (1024, 2048, 3072, 4096, 6144, 8000)
 
 
