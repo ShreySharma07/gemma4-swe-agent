@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 17: v22_calls40 timed out on the leaderboard; v23_exit_pin built per its rule
+
+- v22 (ref 58418369): no score, timeout (Shrey read it on the site; the CLI shows COMPLETE with an empty score). Prediction had put the timeout risk at about 1 in 3.
+- What it tells us: 40 calls at an 8 min cap do not fit in 12 h, while v17 (28 calls) finished twice. The call cap, not the 8 min cap, is what keeps our total runtime legal. No variant may raise calls or per-task time without cutting something else.
+- Rule applied: next slot = fast exit + pinned issue at 28 calls. Built as `submissions/v23_exit_pin` (v17 + two prompt changes, limits unchanged); row v23 in `docs/experiments.md`. FA1 says both changes are worth little, so this slot mainly closes v22's question; the variant with evidence behind it is `max_output_tokens` 4096, next in line.
+- Not submitted yet: needs the compile check and Shrey's go.
+
 ### Nov 16: FA1 result: the binding budget is context (24.5k usable), not the call cap; what is public about the top scores
 
 **FA1** (`gemma4-failure-analysis` v1, CPU, 2 min; base arm of both G2 gates, 196 tasks, 111 failures; `results/runs/fa1/`):
