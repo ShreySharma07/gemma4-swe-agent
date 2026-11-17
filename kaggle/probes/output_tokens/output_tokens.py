@@ -22,7 +22,7 @@ def main():
     report = {}
     for slug, pat, name in SOURCES:
         tgzs = [p for p in sorted(INPUT.rglob(pat)) if slug in str(p)]
-        steps, tasks = [], {}
+        steps, tasks, growth = [], {}, []
         for p in tgzs:
             dest = WORK / "x" / slug / p.stem
             dest.mkdir(parents=True, exist_ok=True)
@@ -39,7 +39,16 @@ def main():
                     iid = tp.stem[len("trace_"):]
                     r = res.get(iid) or res.get(iid.replace("__", "/")) or {}
                     big, maxp, n = 0, 0, 0
-                    for s in json.loads(tp.read_text()).get("steps") or []:
+                    all_steps = json.loads(tp.read_text()).get("steps") or []
+                    # v2: is thinking kept in the history? prompt growth after a step vs what that step generated
+                    ms = [s for s in all_steps if (s.get("metrics") or {}).get("prompt_tokens")]
+                    for s0, s1 in zip(ms, ms[1:]):
+                        m0, m1 = s0["metrics"], s1["metrics"]
+                        tcs0 = s0.get("tool_calls") or []
+                        vis = len(str(s0.get("message") or "")) + sum(len(json.dumps(tc.get("arguments") or {})) for tc in tcs0)
+                        obs = len(json.dumps(s0.get("observation") or ""))
+                        growth.append((int(m0.get("completion_tokens") or 0), int(m1["prompt_tokens"]) - int(m0["prompt_tokens"]), vis, obs))
+                    for s in all_steps:
                         m = s.get("metrics") or {}
                         c = int(m.get("completion_tokens") or 0)
                         maxp = max(maxp, int(m.get("prompt_tokens") or 0))
@@ -81,6 +90,20 @@ def main():
         out["overflow_tasks"] = len(ov)
         out["tasks_prompt_over_20k"] = sum(x >= 20000 for x in mp)
         print(f"  largest prompt per task: median {q(mp, .5)}, p90 {q(mp, .9)}, max {max(mp)}; overflow errors {len(ov)}; tasks over 20k: {out['tasks_prompt_over_20k']}")
+        # steps whose visible output and tool result are small: growth should be small unless thinking is kept
+        print("  prompt growth after a step with < 1200 visible chars and < 2000 result chars, by tokens generated:")
+        out["growth"] = {}
+        for lo, hi in ((0, 200), (200, 600), (600, 1500), (1500, 3000), (3000, 99999)):
+            g = [x for x in growth if lo <= x[0] < hi and x[2] < 1200 and x[3] < 2000 and x[1] > 0]
+            if g:
+                out["growth"][f"{lo}-{hi}"] = {"n": len(g), "generated_median": q([x[0] for x in g], .5), "growth_median": q([x[1] for x in g], .5),
+                                               "visible_chars_median": q([x[2] for x in g], .5), "result_chars_median": q([x[3] for x in g], .5)}
+                print(f"    generated {lo:4d}-{hi:5d}: n={len(g):4d}  generated median {q([x[0] for x in g], .5):5d}  growth median {q([x[1] for x in g], .5):5d}"
+                      f"  visible chars {q([x[2] for x in g], .5)}  result chars {q([x[3] for x in g], .5)}")
+        pos = [x for x in growth if x[1] > 0]
+        out["growth_per_step_median"] = q([x[1] for x in pos], .5)
+        out["generated_total_share_of_growth"] = round(sum(x[0] for x in pos) / max(1, sum(x[1] for x in pos)), 3)
+        print(f"  growth per step: median {out['growth_per_step_median']}; all generated tokens / all growth = {out['generated_total_share_of_growth']}")
         report[name] = out
     (WORK / "output_tokens.json").write_text(json.dumps(report, indent=1))
     shutil.rmtree(WORK / "x", ignore_errors=True)
