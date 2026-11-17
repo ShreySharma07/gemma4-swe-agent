@@ -209,3 +209,4 @@ Mechanism:
 - After that error the harness still grades the working-tree diff (`agent_runner.py` 1039–1078).
 - Failures on unseen repos (196 tasks): 44% end at the call cap (80% of those had seen the gold lines), 32% submit a wrong fix before the cap (almost never tested), 15% overflow.
 - Prompt growth is about 660 tokens per call, so raising the call cap without lowering the output reservation mostly moves runs into the context wall.
+- Thinking is kept in the history (OT1, Nov 17): the prompt grows by every generated token, and generated tokens are 43–48% of prompt growth. v17 overflows on 18 of 60 new-60 tasks. No step generates 6,144 tokens or more; 4,096 would cut a step in about 1 task in 10.

@@ -91,10 +91,10 @@ def main():
         out["tasks_prompt_over_20k"] = sum(x >= 20000 for x in mp)
         print(f"  largest prompt per task: median {q(mp, .5)}, p90 {q(mp, .9)}, max {max(mp)}; overflow errors {len(ov)}; tasks over 20k: {out['tasks_prompt_over_20k']}")
         # steps whose visible output and tool result are small: growth should be small unless thinking is kept
-        print("  prompt growth after a step with < 1200 visible chars and < 2000 result chars, by tokens generated:")
+        print("  prompt growth after a step with < 2000 result chars, by tokens generated:")
         out["growth"] = {}
         for lo, hi in ((0, 200), (200, 600), (600, 1500), (1500, 3000), (3000, 99999)):
-            g = [x for x in growth if lo <= x[0] < hi and x[2] < 1200 and x[3] < 2000 and x[1] > 0]
+            g = [x for x in growth if lo <= x[0] < hi and x[3] < 2000 and x[1] > 0]  # v3: no visible-chars filter (the message field holds the thinking text)
             if g:
                 out["growth"][f"{lo}-{hi}"] = {"n": len(g), "generated_median": q([x[0] for x in g], .5), "growth_median": q([x[1] for x in g], .5),
                                                "visible_chars_median": q([x[2] for x in g], .5), "result_chars_median": q([x[3] for x in g], .5)}

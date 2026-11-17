@@ -671,6 +671,16 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 17: OT1: thinking is kept in the context and is nearly half of its growth; v17 overflows on 18 of 60 new-60 tasks
+
+`gemma4-output-tokens` v1–v3 (CPU; v14 base arms of G2 + v17 on new-60; 6,558 steps; `results/runs/ot1/`):
+- One step generates a median of about 100 tokens; p99 about 3k; max 5,354. No step reaches 6,144, so `max_output_tokens` 6144 would truncate nothing we have seen. 4,096 would cut a step in 12% of v17's tasks.
+- The long steps are thinking (tiny tool arguments, 10–13k chars of message text). Of the 22 tasks with a step ≥ 4,096 tokens, 2 resolved.
+- **Everything generated stays in the history:** the next prompt grows by the generated tokens plus about 150. Generated tokens make up 43–48% of all prompt growth. All our variants set `include_thoughts: true`.
+- **v17 hits the context wall on 18 of 60 new-60 tasks** (median largest prompt 21.2k of 24.5k usable). The wall is a first-order problem for our leaderboard agent, not a tail effect.
+- v2's filter was wrong (it dropped exactly the long steps); v3 fixed it. Cost: one extra 2 min CPU run.
+- **Candidates, one change each, on v17:** (A) `include_thoughts: false`: largest possible effect, but unverified that the vLLM path then drops thoughts from the history, and unknown whether losing them costs resolves. (B) `max_output_tokens` 6144: safe, small (+2k tokens of room, about 5 calls). A needs evidence first: either a saved run that had thoughts off (free, CPU) or a short GPU smoke (Shrey's yes).
+
 ### Nov 17: v22_calls40 timed out on the leaderboard; v23_exit_pin built per its rule
 
 - v22 (ref 58418369): no score, timeout (Shrey read it on the site; the CLI shows COMPLETE with an empty score). Prediction had put the timeout risk at about 1 in 3.
