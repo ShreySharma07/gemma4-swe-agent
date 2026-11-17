@@ -671,6 +671,15 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 17: CS1: what fills the context (file reads, then thinking); rule points to a lower thinking budget
+
+`gemma4-context-sources` v1 (CPU; v17 new-60 + v14 G2 base arms; `results/runs/cs1/`):
+- v17, average task: system + issue 20%, model output 35%, tool results 45% of the context it adds (20.3k tokens).
+- **v17 overflow tasks (18):** tool results 54%; `read_file` is 82% of that, at a median 1,067 tokens per read (resolved tasks: 398), about 11 reads per task. Exact repeats 1%, re-reads 9%, test output under 1%.
+- v14 (shell reads) has the same shape: file reads are 58–82% of result tokens.
+- Rule outcome: neither read threshold met for v17, so the pre-registered next variant is `thinking_budget` 4096 → 2048 on v17 (never tried; our log has only 0 and 4,096). The read threshold sat at `read_file`'s 150-line cap, so it could barely trigger; my design error. A read-size variant would be a deviation from the rule.
+- Open on the thinking variant: whether vLLM enforces the budget strictly (OT1 saw steps up to 5,354 tokens under a 4,096 budget, the v24 smoke one at 8,192).
+
 ### Nov 17: Phase budget (Shrey's question): already in v17; the harness has no way to enforce it per agent
 
 - Shrey asked for a strict phase budget: first source edit by call 10–12, locate by exact strings, read only the target window. v17's prompt already says this (calls 1–8 locate, 9–12 edit, "MUST have edited a source file by call 12", one specific-string search, 40-line reads).

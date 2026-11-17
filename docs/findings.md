@@ -212,3 +212,5 @@ Mechanism:
 - Thinking is kept in the history (OT1, Nov 17): the prompt grows by every generated token, and generated tokens are 43–48% of prompt growth. v17 overflows on 18 of 60 new-60 tasks. No step generates 6,144 tokens or more; 4,096 would cut a step in about 1 task in 10.
 - `include_thoughts: false` works on the vLLM path (v24 smoke, Nov 17): thoughts are generated but not kept, and context overflow disappears; but on 6 tasks runs took 54% longer and 0 resolved (v17: 2). Not usable under the 12 h cap as is.
 - No per-agent step or call limit exists in the submission schema; callbacks are a closed registry with nothing registered; the harness adds a `budget_warning` to every tool result once 10 or fewer calls remain (cap ≥ 20). Phase deadlines can only be requested in the prompt (Nov 17, from source).
+
+- What fills the context (CS1, Nov 17): for v17, system + issue 20%, model output 35%, tool results 45%. In overflow tasks file reads are 82% of tool-result tokens, at about 1,070 tokens per read versus 400 in resolved tasks; repeats, re-reads and test output are small.
