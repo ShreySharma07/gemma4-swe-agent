@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 17: v24 smoke v2 result: thoughts are dropped and overflow disappears, but runs take 54% longer; not a candidate
+
+- `gemma4-eval-v24-smoke` v2 (0.8 h wall, about 1.6 quota-h; about 2 with v1): 0/6 resolved; v17 had resolved 2 of these 6.
+- **Mechanism confirmed:** with `include_thoughts: false` the model still thinks, and the thoughts are not kept. Prompt growth after a 1,500–3,000-token step: 326 tokens (v17: 2,041). No overflow error on the four tasks where v17 overflowed; largest prompts 12.7k–18.2k on the three fastapi ones.
+- **Cost:** total time 2,221 s vs 1,441 s for v17 on the same six (+54%); two tasks hit the 8 min cap; one step ran to the 8,192-token ceiling; requests_7502 made 65 model calls. Without its earlier reasoning in view the model appears to redo it (inference from token counts; traces not hand-read).
+- **Decision:** v24 is not submitted. On the scorer a 54% longer run would time out as v22 did. The context wall and the time wall trade against each other at our 28-call, 8-min settings.
+- Shrey's quota this week: about 5.5 h left by my count (not read from Kaggle).
+
 ### Nov 17: v24 smoke v1 ran no task (my session budget was too small); not re-pushed yet
 
 - `gemma4-eval-v24-smoke` v1 finished in 10 min with 0 tasks: the runner needs 6 × (8 + 1) min = 0.90 h free before it schedules a chunk (`runner.py` 98) and only 0.84 h of my 1 h session budget was left after setup. Server start, env and submission were fine. The v19e smoke had used 1.5 h for this reason; I did not check the arithmetic.

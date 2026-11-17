@@ -210,3 +210,4 @@ Mechanism:
 - Failures on unseen repos (196 tasks): 44% end at the call cap (80% of those had seen the gold lines), 32% submit a wrong fix before the cap (almost never tested), 15% overflow.
 - Prompt growth is about 660 tokens per call, so raising the call cap without lowering the output reservation mostly moves runs into the context wall.
 - Thinking is kept in the history (OT1, Nov 17): the prompt grows by every generated token, and generated tokens are 43–48% of prompt growth. v17 overflows on 18 of 60 new-60 tasks. No step generates 6,144 tokens or more; 4,096 would cut a step in about 1 task in 10.
+- `include_thoughts: false` works on the vLLM path (v24 smoke, Nov 17): thoughts are generated but not kept, and context overflow disappears; but on 6 tasks runs took 54% longer and 0 resolved (v17: 2). Not usable under the 12 h cap as is.
