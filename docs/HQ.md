@@ -741,6 +741,7 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 - What it tells us: 40 calls at an 8 min cap do not fit in 12 h, while v17 (28 calls) finished twice. The call cap, not the 8 min cap, is what keeps our total runtime legal. No variant may raise calls or per-task time without cutting something else.
 - Rule applied: next slot = fast exit + pinned issue at 28 calls. Built as `submissions/v23_exit_pin` (v17 + two prompt changes, limits unchanged); row v23 in `docs/experiments.md`. FA1 says both changes are worth little, so this slot mainly closes v22's question; the variant with evidence behind it is `max_output_tokens` 4096, next in line.
 - Compile check on Kaggle (`gemma4-validate-submission` v21): v23 ok, same agent tree and declared tools as v17. Zip: `dist/v23_exit_pin/submission.zip`. Shrey said yes; **submitted Nov 17 04:20 UTC, ref 58455693** (zip SHA-256 51f28dfb185fe03b…). Score due around 14:00–16:00 UTC.
+- Still PENDING at 19:13 UTC (14.9 h after submit). Not evidence of a timeout by itself: v22's timeout only showed up between ~12:30 UTC Nov 16 and Nov 17 morning, so the time from submit to result has run past 15 h before. Shrey expects a timeout. If it happens: v22's timeout was not caused by the 40 calls alone. None of v23's changes adds generation, so the likelier reading would be that v17's runtime sits close enough to 12 h that a run can tip over by chance.
 
 ### Nov 16: FA1 result: the binding budget is context (24.5k usable), not the call cap; what is public about the top scores
 
