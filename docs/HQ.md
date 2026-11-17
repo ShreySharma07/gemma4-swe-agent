@@ -676,7 +676,7 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 - v22 (ref 58418369): no score, timeout (Shrey read it on the site; the CLI shows COMPLETE with an empty score). Prediction had put the timeout risk at about 1 in 3.
 - What it tells us: 40 calls at an 8 min cap do not fit in 12 h, while v17 (28 calls) finished twice. The call cap, not the 8 min cap, is what keeps our total runtime legal. No variant may raise calls or per-task time without cutting something else.
 - Rule applied: next slot = fast exit + pinned issue at 28 calls. Built as `submissions/v23_exit_pin` (v17 + two prompt changes, limits unchanged); row v23 in `docs/experiments.md`. FA1 says both changes are worth little, so this slot mainly closes v22's question; the variant with evidence behind it is `max_output_tokens` 4096, next in line.
-- Not submitted yet: needs the compile check and Shrey's go.
+- Compile check on Kaggle (`gemma4-validate-submission` v21): v23 ok, same agent tree and declared tools as v17. Zip: `dist/v23_exit_pin/submission.zip`. Not submitted yet: needs Shrey's go.
 
 ### Nov 16: FA1 result: the binding budget is context (24.5k usable), not the call cap; what is public about the top scores
 
