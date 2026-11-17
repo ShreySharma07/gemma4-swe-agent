@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 17: Correction to FA1/OT1: the context wall and the 4,096 cut were already known and tried (r10, Oct 17)
+
+- FA1 and OT1 reported the 24.5k wall as a new finding and proposed `max_output_tokens` 4096. Both were in `docs/experiments.md` already: r10 (Oct 17) measured 24,577 + 8,192 = 32,769 on v7 and submitted `v11_out4096`, which scored **0.10** against v7's 0.15 (read as noise at the time). Row v14-new60 (Oct 19) also recorded overflow rising 3.3% → 13.3% when thinking was turned on. I did not reread the table before proposing; second time this month (reproduce-first, Nov 15).
+- **Rule for me:** before proposing any variant, grep `docs/experiments.md` for the config field and the mechanism.
+- What FA1/OT1 add that was not known: v17 overflows on 30% of new-60 tasks; all generated tokens, thinking included, stay in the history and are 43–48% of prompt growth; no step reaches 6,144 output tokens; the split of failure endings on unseen repos.
+- Consequence: a plain output-token cut is dropped as the next variant (one draw at 0.10 on v7, and 4,096 would cut steps in 12% of v17's tasks). The open candidate is reducing retained thinking on v17; it needs its mechanism verified first.
+
 ### Nov 17: OT1: thinking is kept in the context and is nearly half of its growth; v17 overflows on 18 of 60 new-60 tasks
 
 `gemma4-output-tokens` v1–v3 (CPU; v14 base arms of G2 + v17 on new-60; 6,558 steps; `results/runs/ot1/`):
