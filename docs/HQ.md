@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 17: v25_think2048 built (Shrey's choice after CS1)
+
+- `submissions/v25_think2048` = v17 with `thinking_budget` 4096 → 2048 (one line in `configs/sampling.yaml`). Compile check passed (`gemma4-validate-submission` v23). Zip: `dist/v25_think2048/submission.zip`.
+- No GPU smoke planned: six tasks cannot show a quality change and the field is already accepted by the scorer. Pre-registered as row v25 in `docs/experiments.md`.
+- Queue: tomorrow's slot (Nov 18) after v23's score is read. Not submitted yet.
+
 ### Nov 17: CS1: what fills the context (file reads, then thinking); rule points to a lower thinking budget
 
 `gemma4-context-sources` v1 (CPU; v17 new-60 + v14 G2 base arms; `results/runs/cs1/`):
