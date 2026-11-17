@@ -671,6 +671,17 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 17: Phase budget (Shrey's question): already in v17; the harness has no way to enforce it per agent
+
+- Shrey asked for a strict phase budget: first source edit by call 10–12, locate by exact strings, read only the target window. v17's prompt already says this (calls 1–8 locate, 9–12 edit, "MUST have edited a source file by call 12", one specific-string search, 40-line reads).
+- Compliance on v17's saved new-60 run (labels from `trace_analyzer`): first edit by call 12 in 30 of 60 tasks (19 resolved), later in 26 (8 resolved), never in 4. Median first edit: call 6 for resolved, 16 for failed. Correlational: harder tasks locate later.
+- **Schema and harness, read from source** (adk_submission 0.2.13 `schema.py`, `registry.py`; swegemma 0.2.11 `budget.py`, `tools/base.py`):
+  - No per-agent limit on model steps or tool calls. `LlmAgent` has tools, sub_agents, agent tools, output_key, include_contents, skills and callback names; `LoopAgent.max_iterations` counts passes over its sub-agents, not steps.
+  - Callbacks come from a closed registry and swegemma registers none, so no callback can count calls or block a tool.
+  - `eval_config.yaml` sets totals only (calls, minutes, turns, command timeout).
+  - The one built-in nudge: when 10 or fewer calls remain (and the cap is at least 20) every tool result carries `budget_warning: Only N tool call(s) remaining … Finalize your edits and call submit_patch soon.` At a cap of 28 it starts after call 18.
+- Consequence: a phase deadline can only be asked for in the prompt, or approximated by lowering the total cap so the harness warning starts earlier (cap 22 → warning from call 12). That also removes calls resolved runs use (7 of v17's 27 resolves on new-60 used 27–28 calls), so it is not proposed.
+
 ### Nov 17: v24 smoke v2 result: thoughts are dropped and overflow disappears, but runs take 54% longer; not a candidate
 
 - `gemma4-eval-v24-smoke` v2 (0.8 h wall, about 1.6 quota-h; about 2 with v1): 0/6 resolved; v17 had resolved 2 of these 6.
