@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 18: v27-smoke pushed (gemma4-eval-v27-smoke v1): v17 at the model card's sampling, 8 loop-prone tasks
+
+- Shrey chose an L4 smoke before any LB slot for the temperature variant. `submissions/v27_temp10` = v17 with temperature 0.2 → 1.0 and `top_k` 64 added (the Gemma 4 card's standard set); everything else unchanged. Pre-registered as row v27-smoke (`ef42158`): tasks, v17 baseline, predictions and decision rule there.
+- Compile check passed (`gemma4-validate-submission` v25): same agent tree and tools as v17.
+- Tasks (seed 0, `analysis/loop_scan.py`): 6 of the 9 new-60 tasks that had a long thinking step in both v17's and v14's runs (fastapi_5624, rich_3782, fastapi_13920, fastapi_14266, fastapi_14430, fastapi_14360) and 2 controls both resolved (fastapi_5077, fastapi_9555). One chunk of 8, concurrency 1, 8 min cap, session budget 1.5 h. Kernel folder `kaggle/probes/check_l4_v27/`.
+- Pushed v1 on Shrey's account (status RUNNING). Expected about 0.85 h ≈ 1.7 quota-h, worst case 1.75 h ≈ 3.5, against about 5.5 h left this week by my count (not read from Kaggle).
+- A background job on the Mac downloads the results into `data/runs/t27_smoke/` when the kernel ends and runs `analysis/loop_scan.py` on them.
+
 ### Nov 18: v26_e4b built, compiled, submit queued; temperature, context, graph tools and skills reviewed for the 31B
 
 **v26_e4b.** `v14_thinking` with the E4B model in root and `code_analyzer` (pre-registered `80d0863`). Compile check `gemma4-validate-submission` v24: ok, same tree and tools as v14, declared model `gemma-4-e4b-it-qat-w4a16-ct` (wheelhouse unchanged: swegemma 0.2.11, adk-submission 0.2.13, google-adk 1.36.1). The compiler registers any model name, so this does not prove the scorer serves E4B; the LB run does. Zip `dist/v26_e4b/submission.zip` (SHA-256 841578d3…). Nov 17's UTC slot was used by v23, so the submit is queued for 00:02 UTC Nov 18 (background job on the Mac). The Gemma 4 model card implies E2B/E4B support thinking.
