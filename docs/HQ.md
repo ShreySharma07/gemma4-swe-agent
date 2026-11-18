@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 18: v23 scored 0.18; v26 (E4B) submitted at 04:34 UTC
+
+- **v23_exit_pin: 0.18** (ref 58455693). It scored between 04:29 and 04:34 UTC, about 24 h after its submit. That ties both v17 runs (0.18, 0.18). Rule (row v23): 0.15–0.21 → no evidence for the fast exit or the pinned issue; drop both. It finished inside the 12 h cap at 28 calls, which fits v22's timeout being the call increase.
+- The rule's named next step (`max_output_tokens` 4096 on v17) was already out per OT1 (Nov 17). Next candidates: v27 (temperature 1.0) if its smoke passes, then v25 (thinking 2048).
+- **v26_e4b submitted** by the background job the moment v23 left PENDING: ref 58494565, 04:34:39 UTC. This uses the Nov 18 slot. If v26 also takes about 24 h, the next submit can go in around 04:30–05:00 UTC Nov 19.
+- **Slot timing:** with one pending submission per team and about 24 h from submit to score, each submit can go in only after the previous one has scored. The submit time drifts later each day, and any run over 24 h costs a day.
+
 ### Nov 18: v26 refused: only one pending submission per team; v26 now waits for v23
 
 - The queued submit ran at 01:12 UTC (later than the planned 00:02; the Mac was probably asleep) and got HTTP 400. A retry printed the server's reason: "Submission not allowed: Your team already has 1 pending submissions; please wait for one to finish scoring." (`FAILED_PRECONDITION`). v23 (ref 58455693) is still PENDING about 21 h after its submit.
