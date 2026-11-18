@@ -694,6 +694,7 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 - **v23_exit_pin: 0.18** (ref 58455693). It scored between 04:29 and 04:34 UTC, about 24 h after its submit. That ties both v17 runs (0.18, 0.18). Rule (row v23): 0.15–0.21 → no evidence for the fast exit or the pinned issue; drop both. It finished inside the 12 h cap at 28 calls, which fits v22's timeout being the call increase.
 - The rule's named next step (`max_output_tokens` 4096 on v17) was already out per OT1 (Nov 17). Next candidates: v27 (temperature 1.0) if its smoke passes, then v25 (thinking 2048).
 - **v26_e4b submitted** by the background job the moment v23 left PENDING: ref 58494565, 04:34:39 UTC. This uses the Nov 18 slot. If v26 also takes about 24 h, the next submit can go in around 04:30–05:00 UTC Nov 19.
+- A v25 submit job from a second session (scheduled for 00:02 UTC; the Mac woke it at 05:19 UTC) was refused with HTTP 400, because v26 was already pending. Nothing was submitted, and v25 is still unsubmitted.
 - **Slot timing:** with one pending submission per team and about 24 h from submit to score, each submit can go in only after the previous one has scored. The submit time drifts later each day, and any run over 24 h costs a day.
 
 ### Nov 18: v26 refused: only one pending submission per team; v26 now waits for v23
