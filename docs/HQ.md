@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 18: v26 refused: only one pending submission per team; v26 now waits for v23
+
+- The queued submit ran at 01:12 UTC (later than the planned 00:02; the Mac was probably asleep) and got HTTP 400. A retry printed the server's reason: "Submission not allowed: Your team already has 1 pending submissions; please wait for one to finish scoring." (`FAILED_PRECONDITION`). v23 (ref 58455693) is still PENDING about 21 h after its submit.
+- **New constraint:** one pending submission per team, on top of one per UTC day. We had never hit it, because every earlier submit came after the previous one had scored. A run that takes more than 24 h from submit to score (v22, and now v23) also costs the next day's slot, so the number of LB runs left before Dec 2 is lower than the 14 days suggest.
+- A background job on the Mac checks every 5 min and submits `dist/v26_e4b/submission.zip` as soon as v23 is no longer pending (up to 18 h).
+
 ### Nov 18: v27-smoke pushed (gemma4-eval-v27-smoke v1): v17 at the model card's sampling, 8 loop-prone tasks
 
 - Shrey chose an L4 smoke before any LB slot for the temperature variant. `submissions/v27_temp10` = v17 with temperature 0.2 → 1.0 and `top_k` 64 added (the Gemma 4 card's standard set); everything else unchanged. Pre-registered as row v27-smoke (`ef42158`): tasks, v17 baseline, predictions and decision rule there.

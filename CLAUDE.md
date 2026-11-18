@@ -17,7 +17,7 @@ Read `docs/plan.md` (the roadmap) and `docs/experiments.md` (every run so far) b
 - **Tools:** run_command, read_file, edit_file, write_file, submit_patch, get_status, plus graph tools (`search_similar_code`, `get_code_neighbors`, `get_code_subgraph`) when graph files exist.
   - Command output is capped at 5,000 chars; 300 s per command.
 - **Context:** the scorer's compaction is interval 15 / threshold 32768, so effectively **no compaction inside a task**. The context only grows. Keep tool outputs small and trajectories short.
-- **Leaderboard:** 1 submission per day; we pick 2 finals. Each submission is a full ~10 h scorer run. Never submit anything whose scorer path is unverified when it matters.
+- **Leaderboard:** 1 submission per UTC day, and only 1 pending at a time (a new submit is refused until the previous one has scored); we pick 2 finals. Each submission is a full ~10 h scorer run. Never submit anything whose scorer path is unverified when it matters.
 - **Generation config:** `thinking_budget: 0` is rejected by sub-agent validation. Use `thinking_config: {include_thoughts: false}`.
 - **ADK templating:** `{problem_description}` and optional `{var?}` work (ADK 1.36.1). `output_key` saves a sub-agent's final text to state. `include_contents: none` gives a fresh context.
 
