@@ -671,6 +671,24 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 18: v27-smoke result: fails its rule (4 repetitive long steps, 14% non-ok calls); temperature line dropped
+
+- Kernel `gemma4-eval-v27-smoke` v1 COMPLETE, 0.79 h ≈ 1.6 quota-h (Shrey's account; about 3.9 h left this week by my count, not read from Kaggle; reset Sat Nov 21). Results are in `data/runs/t27_smoke/`, scored with `analysis/loop_scan.py`.
+- **Against the pre-registered rule (row v27-smoke):**
+  - 4 repetitive long steps on the 6 loop tasks (bar ≤ 3; v17: 7 of 7).
+  - 27/191 tool calls not ok, 14% (bar ≤ 12%; v17: 14/189).
+  - Malformed `edit_file` 0/25 (bar ≤ 25%).
+  - Mean 278 s per task (bar ≤ 350 s).
+  - No new error type.
+  - The applicable branch is "≥ 4 → temperature is not the lever; drop the line". v27 gets no LB slot.
+- **What did change:**
+  - The extreme loops are gone: the most-repeated line appears 15 times at most (v17: 33), and the highest duplicate share is 0.24 (v17: 0.65).
+  - 0 overflows (v17: 3), and all 8 runs submitted (v17: 6).
+  - The four flagged steps sit at 0.20–0.24, just over the 0.2 bar, so this is a boundary result. The rule was fixed in advance, so it stands.
+  - Most of the extra non-ok calls are one control task calling `write_file` 8 times with `content` but no `filepath`, 6 of them in a row. That is a repeat loop of a malformed call, which is the risk the bar was there for.
+  - Severity and error-type numbers come from `analysis/smoke_compare.py` (v17 vs v27 on the 8 tasks).
+- **Next LB slot (after v26 scores, about 04:30–05:00 UTC Nov 19):** v25_think2048 (CS1's named variant, compiled in validate v23). It still needs Shrey's yes to submit.
+
 ### Nov 18: v23 scored 0.18; v26 (E4B) submitted at 04:34 UTC
 
 - **v23_exit_pin: 0.18** (ref 58455693). It scored between 04:29 and 04:34 UTC, about 24 h after its submit. That ties both v17 runs (0.18, 0.18). Rule (row v23): 0.15–0.21 → no evidence for the fast exit or the pinned issue; drop both. It finished inside the 12 h cap at 28 calls, which fits v22's timeout being the call increase.
