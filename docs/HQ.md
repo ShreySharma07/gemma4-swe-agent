@@ -694,7 +694,7 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 - **v26_e4b: 0.06** (ref 58494565, COMPLETE at the 04:00 UTC check). No serving error and no timeout, so the scorer serves E4B with our v14 scaffold.
 - **Rule (row v26):** 0.06–0.09 → a workable base, but behind the top. Next steps: port the trainer to E4B, and run one probe of v17's scaffold on E4B. The score is at the band's bottom edge, one task above "< 0.06" (which would have meant a 6-task local smoke first). Prediction 0.05–0.12 held; the most likely band, 0.07–0.09, missed low.
 - Small-model board (Nov 15): 0.06 sits below the 115 teams at 0.08.
-- **The LB slot is free now** (nothing pending). v25 is queued and waiting for Shrey's yes.
+- **v25_think2048 submitted** on Shrey's yes: ref 58540046, Nov 19 04:02 UTC (zip SHA-256 5b16a7ddccbf0f49…), PENDING. The score is due around 04:00 UTC Nov 20. The rule is in row v25.
 
 ### Nov 18: v23 scored 0.18; v26 (E4B) submitted at 04:34 UTC
 
