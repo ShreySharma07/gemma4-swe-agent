@@ -671,6 +671,30 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 19: strategy review to Dec 2 (Shrey: get us to the top); recommendation only, nothing decided
+
+Full note: `docs/strategy_20261119.md`. Summary:
+- **Reading of 27 submissions.**
+  - Only subtractive changes moved the LB (v2, v7). Every added rule, call or adapter scored at or below its base, or timed out.
+  - The three limits (12 h, 24.5k usable context, 28 calls) are all fed by generated tokens. Most long thinking steps are repetition loops (v17: 25 of 33).
+  - The 31B's prompt and config levers and its self-training are used up.
+  - The 0.24 group looks like best-of-N draws of v17's family. To win we need a real +0.04–0.06 in the mean.
+- **Hypothesis (unverified):** byte-identical submissions may score identically (v17 = N1 = 0.18 exactly; 14 teams at exactly 0.24). If so, N1 was not an independent draw. Repeats get a one-word change from now on.
+- **Open fact:** our notes say ~120 hidden tasks split 50/50 public/private, but every score is a multiple of 1/120. Shrey to read the Evaluation tab.
+- **Recommended plan, two tracks:**
+  - (A) 31B decode-diet ladder: after v25, stack temperature 1.0 / top_k 64 (v27 smoke: −13% time, 0 overflows); then a concurrency-1 timing run and calls raised to the largest time-neutral cap (about 32–34).
+  - (B) E4B small-model prize, made co-primary:
+    - B0 GPU kernel: an E4B LoRA serving probe plus a diagnosis on 24 tasks.
+    - A budget change sized for a fast model.
+    - Distil the 541 resolved 31B rollouts into an E4B LoRA, gated on F3.
+- **Stop:** prompt-rule variants, 31B adapters, reviewer designs, graph tools/skills, teacher APIs, byte-identical repeats.
+- **Process change proposed:** decision rules on outcomes (resolves, runtime, overflow), not on mechanism thresholds (v27's 0.20–0.24 vs a 0.2 bar dropped a variant whose outcomes all improved).
+- **Decisions for Shrey:**
+  1. Make E4B co-primary.
+  2. A1 stacking (deviates from one change per run and overrides v27's rule).
+  3. GPU for B0 (~2 quota-h) and A2 (~4 quota-h).
+  4. Team merger yes/no by Nov 24 (merger deadline Nov 25).
+
 ### Nov 18: v27-smoke result: fails its rule (4 repetitive long steps, 14% non-ok calls); temperature line dropped
 
 - Kernel `gemma4-eval-v27-smoke` v1 COMPLETE, 0.79 h ≈ 1.6 quota-h (Shrey's account; about 3.9 h left this week by my count, not read from Kaggle; reset Sat Nov 21). Results are in `data/runs/t27_smoke/`, scored with `analysis/loop_scan.py`.
