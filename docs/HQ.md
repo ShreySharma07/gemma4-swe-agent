@@ -671,6 +671,21 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 20: Shrey approved building both tracks; v28_diet built and compiled, B0 E4B kernel built
+
+- **v25 still PENDING** at 05:04 UTC Nov 20 (about 25 h after submit), so tomorrow's 31B branch is not chosen yet.
+- **v28_diet** = v25 + temperature 1.0 + top_k 64 (v27's sampling exactly). It compiles with the official compiler (`gemma4-validate-submission` v26: ok, same tree and tools as v17).
+  - Zip `dist/v28_diet/submission.zip` (SHA-256 87217b5cc86294ba…).
+  - Fallback branch zip `dist/v27_temp10/submission.zip` (bf52d9de43a58b14…).
+  - Pre-registered as row v28: v28 goes if v25 ≥ 0.15, v27 if v25 < 0.15. Rule on outcomes only.
+- **B0 (E4B)**, pre-registered as row B0.
+  - New module `evalkit/lora_serve.py`: the Phase-0 LoRA serving check (zero/noise adapters, routing) plus decode timing, run on whichever model the kernel attaches.
+  - `make_eval_notebook.py` gained `--lora-serve`, `--serve-dry` and `--model-source`.
+  - GPU kernel `gemma4-lora-serve`: the probe, then v26_e4b on 24 new-60 tasks at concurrency 1, budget 3 h. Built, **not pushed**: it needs Shrey's yes, about 3 quota-h (worst case 6.5).
+  - Free CPU dry run `gemma4-lora-serve-dry` v1 pushed.
+- Scorer source (adk_submission 0.2.13 `server.py`): vLLM gets `--enable-lora` only when a submission ships adapters. So the probe and the plain eval each start their own server.
+- Kaggle model handles: E4B W4A16 is `google/gemma-4/Other/gemma-4-e4b-it-qat-w4a16-ct/2`. The bf16 QAT weights for training are `gemma-4-e4b-it-qat-q4_0-unquantized` (v2), the same family as the 31B's training base.
+
 ### Nov 19: strategy review to Dec 2 (Shrey: get us to the top); recommendation only, nothing decided
 
 Full note: `docs/strategy_20261119.md`. Summary:

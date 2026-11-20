@@ -43,6 +43,8 @@ LGATE_DIR = REPO / "kaggle" / "eval_l4" / "lora_gate_kernel"  # G1 held-out gate
 LDRY_DIR = REPO / "kaggle" / "eval_l4" / "lora_dry_kernel"  # LP1 + G1 + LT1 --dry on CPU (--lora-dry)
 TEACH_DIR = REPO / "kaggle" / "eval_l4" / "teacher_pilot_kernel"  # TP1 teacher pilot, CPU + Internet (--teacher-pilot)
 LTIME_DIR = REPO / "kaggle" / "eval_l4" / "lora_timing_kernel"  # LT1 LoRA serving cost at concurrency 1 (--lora-timing)
+LSERVE_DIR = REPO / "kaggle" / "eval_l4" / "lora_serve_kernel"  # B0: LoRA serving probe on the attached model + eval (--lora-serve)
+MODEL_31B = "google/gemma-4/Other/gemma-4-31b-it-qat-w4a16-ct/2"
 LORA_BASE = "v14_thinking"  # G1's base arm; the submission under test is <name> (v14 + adapter)
 LORA_FROM = "gemma4-train-rs2-lora"  # T1 output: adapters/rs2_lora/
 R2_S1 = "atulbaliyan/gemma4-factory-rollout-s1"  # R2 shard 1 ran on Atul's quota; output shared read-only (HQ, Oct 30)
@@ -50,7 +52,7 @@ R2_S1 = "atulbaliyan/gemma4-factory-rollout-s1"  # R2 shard 1 ran on Atul's quot
 NEC_RUNS = ["eval_v7_new60/x/eval_v7_noedit/rep0", "eval_v14_new60_peek/x/eval_v14_thinking/rep0"] + \
     [f"rs_v7_valid/x/eval_v7_noedit/rep{i}" for i in range(5)]
 MODULES = ["__init__", "config", "util", "envsetup", "inputs", "submission", "compat", "server", "runner", "report",
-           "preflight", "overlays", "gate", "necessity", "siteswap", "siteswap2", "regrade", "factory_smoke", "factory_rollout", "kvdup", "lora_probe", "lora_gate", "lora_timing", "teacher_rollout", "main"]
+           "preflight", "overlays", "gate", "necessity", "siteswap", "siteswap2", "regrade", "factory_smoke", "factory_rollout", "kvdup", "lora_probe", "lora_gate", "lora_timing", "lora_serve", "teacher_rollout", "main"]
 GATE_PREFIXES = REPO / "data" / "runs" / "gate" / "prefixes.json"
 SOURCE_MAX_BYTES = 1_000_000  # Kaggle rejects notebook source above ~1 MB (HTTP 400; found by Atul, Oct 15)
 
@@ -147,7 +149,8 @@ def teacher_pilot_tasks(n):
 
 def build(a):
     a.siteswap = a.siteswap or a.siteswap2  # same payload
-    a.preflight = a.preflight or a.sweep or a.overlays or a.necessity or a.siteswap or a.regrade or a.lora_dry or a.teacher_pilot
+    a.lora_serve = a.lora_serve or a.serve_dry
+    a.preflight = a.preflight or a.sweep or a.overlays or a.necessity or a.siteswap or a.regrade or a.lora_dry or a.teacher_pilot or a.serve_dry
     lora = a.lora_probe or a.lora_gate or a.lora_dry or a.lora_timing
     settings = {"name": a.name, "max_tasks": a.max_tasks, "repeats": a.repeats, "devset": a.devset,
                 "session_budget_h": a.budget_h, "sweep": a.sweep, "valid_only": a.valid_only}
@@ -233,7 +236,9 @@ print("submission zip", len(base64.b64decode(SUBMISSION_B64)), "bytes")"""),
         cells.append(code(f"%%writefile /kaggle/working/evalkit/{m}.py\n" + (KIT / f"{m}.py").read_text()))
     gate_rep = "lora_gate_report.json" if a.gate_set == "heldout" else f"lora_gate_{a.gate_set}_report.json"
     ng = " --no-gold" if a.dry_no_gold else ""
-    step, result = ((["lora_probe --dry", "lora_gate --dry --set=heldout" + ng, "lora_gate --dry --set=f3" + ng],
+    step, result = ((["lora_serve --dry"], ["lora_serve_report.json"]) if a.serve_dry
+                    else (["lora_serve", "main"], ["lora_serve_report.json", "summary.json"]) if a.lora_serve
+                    else (["lora_probe --dry", "lora_gate --dry --set=heldout" + ng, "lora_gate --dry --set=f3" + ng],
                      ["lora_probe_report.json", "lora_gate_report.json", "lora_gate_f3_report.json"]) if a.lora_dry and t2
                     else (["lora_probe --dry", "lora_gate --dry", "lora_timing --dry"],
                      ["lora_probe_report.json", "lora_gate_report.json", "lora_timing_report.json"]) if a.lora_dry
@@ -282,11 +287,11 @@ except Exception as e:
           "nbformat": 4, "nbformat_minor": 4}
     wire = len(json.dumps({**nb, "cells": [{**c, "source": "".join(c["source"])} for c in cells]}).encode())
     assert wire < SOURCE_MAX_BYTES, f"notebook source {wire:,} bytes >= {SOURCE_MAX_BYTES:,}: move inputs to a dataset"
-    out_dir = TEACH_DIR if a.teacher_pilot else LDRY_DIR if a.lora_dry else LTIME_DIR if a.lora_timing else LPROBE_DIR if a.lora_probe else LGATE_DIR if a.lora_gate else ROLLOUT_DIR.with_name(f"{roll_slug(a).replace('gemma4-', '').replace('-', '_')}_kernel_s{a.shard}") if a.factory_rollout else FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
+    out_dir = (LSERVE_DIR.with_name("lora_serve_dry_kernel") if a.serve_dry else LSERVE_DIR) if a.lora_serve else TEACH_DIR if a.teacher_pilot else LDRY_DIR if a.lora_dry else LTIME_DIR if a.lora_timing else LPROBE_DIR if a.lora_probe else LGATE_DIR if a.lora_gate else ROLLOUT_DIR.with_name(f"{roll_slug(a).replace('gemma4-', '').replace('-', '_')}_kernel_s{a.shard}") if a.factory_rollout else FSMOKE_DIR if a.factory_smoke else GATE_DIR if a.gate else OVL_DIR if a.overlays else NEC_DIR if a.necessity else REGRADE_DIR if a.regrade else SWAP2_DIR if a.siteswap2 else SWAP_DIR if a.siteswap else CPU_DIR if a.preflight else GPU_DIR
     if lora and sfx:
         out_dir = out_dir.with_name(out_dir.name.replace("_kernel", sfx.replace("-", "_") + "_kernel"))
     out_dir.mkdir(parents=True, exist_ok=True)
-    nb_name = ("gemma4-teacher-pilot.ipynb" if a.teacher_pilot else "gemma4-lora-dry.ipynb" if a.lora_dry else "gemma4-lora-timing.ipynb" if a.lora_timing else "gemma4-lora-probe.ipynb" if a.lora_probe else "gemma4-lora-gate.ipynb" if a.lora_gate else
+    nb_name = (("gemma4-lora-serve-dry.ipynb" if a.serve_dry else "gemma4-lora-serve.ipynb") if a.lora_serve else "gemma4-teacher-pilot.ipynb" if a.teacher_pilot else "gemma4-lora-dry.ipynb" if a.lora_dry else "gemma4-lora-timing.ipynb" if a.lora_timing else "gemma4-lora-probe.ipynb" if a.lora_probe else "gemma4-lora-gate.ipynb" if a.lora_gate else
                f"{roll_slug(a)}-s{a.shard}.ipynb" if a.factory_rollout else "gemma4-factory-smoke.ipynb" if a.factory_smoke else "gemma4-gate.ipynb" if a.gate else "gemma4-test-overlays.ipynb" if a.overlays else
                "gemma4-a3a4-necessity.ipynb" if a.necessity else "gemma4-r1-regrade.ipynb" if a.regrade else "gemma4-a12v-validate.ipynb" if a.siteswap2 else "gemma4-a12-siteswap.ipynb" if a.siteswap else
                "gemma4-eval-preflight.ipynb" if a.preflight else "check-l4.ipynb")
@@ -302,7 +307,7 @@ except Exception as e:
         meta["kernel_sources"].append(k)
     if a.overlays_from and not a.overlays:  # extras + pins for the task sandboxes (the 114-task valid set needs them)
         meta["kernel_sources"].append(a.overlays_from)
-    meta["model_sources"] = [] if a.preflight else ["google/gemma-4/Other/gemma-4-31b-it-qat-w4a16-ct/2"]
+    meta["model_sources"] = [a.model_source] if (a.lora_serve or not a.preflight) else []
     meta["competition_sources"] = ["gemma-4-developer-agent"]
     if not a.preflight:
         meta["id"], meta["title"] = mine("check-l4"), "check L4"
@@ -350,6 +355,9 @@ except Exception as e:
         meta["kernel_sources"] = [shared("gemma4-scorer-env"), shared("gemma4-devset-build"), shared("gemma4-test-overlays"),
                                   shared("gemma4-factory-rollout-s0"), R2_S1]
         meta["dataset_sources"] += [shared("gemma4-factory-v0"), shared("gemma4-factory-v1")]
+    if a.lora_serve:  # B0: GPU probe + eval, or its CPU dry run; the model under test is attached either way
+        slug = "gemma4-lora-serve-dry" if a.serve_dry else "gemma4-lora-serve"
+        meta.update(id=mine(slug), title=slug, code_file=nb_name)
     if a.preflight:
         meta.pop("machine_shape", None)
     else:
@@ -401,5 +409,8 @@ if __name__ == "__main__":
     ap.add_argument("--teacher-secret", default="NVIDIA_API_KEY", help="name of the Kaggle Secret holding the API key")
     ap.add_argument("--teacher-n", type=int, default=20)
     ap.add_argument("--teacher-conc", type=int, default=2)
+    ap.add_argument("--lora-serve", action="store_true", help="GPU kernel: LoRA serving probe on the attached model (--model-source), then <name> evaluated")
+    ap.add_argument("--serve-dry", action="store_true", help="CPU kernel: --lora-serve steps 1-2 only (modules, adapters, discovery)")
+    ap.add_argument("--model-source", default=MODEL_31B, help="Kaggle model handle served by vLLM (E4B: google/gemma-4/Other/gemma-4-e4b-it-qat-w4a16-ct/2)")
     ap.add_argument("--lora-dry", action="store_true", help="CPU kernel: LP1 + G1 with --dry (inputs, adapters, no model)")
     build(ap.parse_args())
