@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 20: v25 (thinking 2048) scored 0.13; branch → v27, not v28
+
+- **v25_think2048: 0.13** (ref 58540046, COMPLETE at 05:10 UTC, about 25 h after submit; no timeout). v17's family scored 0.18 on all three draws, so this is 6 tasks lower, the same drop as v21.
+- **Rule (row v25):** < 0.15 → less thinking costs fixes; drop the thinking line.
+- **Reading:** on the hidden tasks the thinking budget is not mostly waste. A smaller budget cuts useful reasoning along with the loops. Loops have to be removed without capping thinking, i.e. by sampling (temperature 1.0, v27), not by the budget. This weakens the time-saving half of the Nov 19 plan (A2/A3 relied on cheaper steps). Whether temperature saves time on the hidden tasks is v27's question.
+- **Branch (row v28, pre-registered):** v25 < 0.15 → the next 31B slot is `v27_temp10` (zip `dist/v27_temp10/submission.zip`, compiled in validate v25); v28_diet is shelved. The slot is open now and needs Shrey's yes.
+- New `tools/submit_when_scored.py`: waits for a ref to score, then submits one of two pre-built zips by a score threshold. Dry-tested on the live listing; never run without Shrey's yes.
+
 ### Nov 20: Shrey approved building both tracks; v28_diet built and compiled, B0 E4B kernel built
 
 - **v25 still PENDING** at 05:04 UTC Nov 20 (about 25 h after submit), so tomorrow's 31B branch is not chosen yet.
