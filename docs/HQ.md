@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 20: v27 submitted (ref 58596777); B0 dry run passes; B0 GPU goes to Atul's account
+
+- **v27_temp10 submitted** on Shrey's yes: ref 58596777, 05:13:50 UTC (zip SHA-256 bf52d9de43a58b14…). Pre-registered rule: row v28, which applies to v27 under the branch. Score due around 05:30 UTC Nov 21.
+- **B0 CPU dry run** (`gemma4-lora-serve-dry` v1, 3.4 min): DRY_OK. The E4B W4A16 checkpoint (`Gemma4ForConditionalGeneration`) has 42 language layers and 258 LoRA target modules: q/o/gate/up/down in all 42, k/v in only 24 (the other 18 share KV). Hidden size 2560, MLP 10240, two attention widths (q 2048 or 4096). A rank-8 adapter is 35 MB. Both adapters are discovered by the official `discover_adapters`. Report: `results/runs/b0_dry/lora_serve_report.json`.
+- **B0 GPU on Atul's quota** (Shrey's choice): kernel regenerated as `atulbaliyan/gemma4-lora-serve` (`KAGGLE_OWNER=atulbaliyan`); the notebook is unchanged. Push steps for Atul: `docs/atul_b0_e4b.md`.
+
 ### Nov 20: v25 (thinking 2048) scored 0.13; branch → v27, not v28
 
 - **v25_think2048: 0.13** (ref 58540046, COMPLETE at 05:10 UTC, about 25 h after submit; no timeout). v17's family scored 0.18 on all three draws, so this is 6 tasks lower, the same drop as v21.
