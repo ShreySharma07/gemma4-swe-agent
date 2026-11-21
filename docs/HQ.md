@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 21: B0 pushed on Shrey's account (not Atul's)
+
+- Shrey asked to run B0 on his own GPU quota (the weekly reset was Saturday Nov 21). The kernel was regenerated as `shreysharma07/gemma4-lora-serve`; the notebook is identical, only the owner differs. Pushed as v1 at about 19:04 UTC; status RUNNING a minute later.
+- Expected about 1.5 h wall ≈ 3 quota-h; watchdog stop at 3.25 h ≈ 6.5. A background job on the Mac downloads the output into `data/runs/b0/` when it ends.
+- `docs/atul_b0_e4b.md` is no longer needed for this run.
+- v29 (ref 58658022) is still PENDING at 19:03 UTC.
+
 ### Nov 21: v29_e4b_v17 submitted (ref 58658022): v17's scaffold on E4B
 
 - `submissions/v29_e4b_v17` = v17 with only `model` swapped to `gemma-4-e4b-it-qat-w4a16-ct`. Compile check `gemma4-validate-submission` v27: ok, same tree and declared tools as v17. The first push failed with a CLI JSON error; the retry went through.
