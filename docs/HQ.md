@@ -671,6 +671,12 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 21: v29_e4b_v17 submitted (ref 58658022): v17's scaffold on E4B
+
+- `submissions/v29_e4b_v17` = v17 with only `model` swapped to `gemma-4-e4b-it-qat-w4a16-ct`. Compile check `gemma4-validate-submission` v27: ok, same tree and declared tools as v17. The first push failed with a CLI JSON error; the retry went through.
+- This is the step row v26's rule named for 0.06–0.09. Shrey chose it for the open Nov 21 slot, before B0's diagnosis, which it does not need. Pre-registered as row v29: prediction 0.04–0.10; ≥ 0.09 → v17's scaffold becomes the E4B base; otherwise keep v14's, which is the scaffold the distillation data uses.
+- **Submitted on Shrey's yes:** ref 58658022, 08:24:09 UTC (zip SHA-256 bd7800def79df446…). Score due around 08:30 UTC Nov 22.
+
 ### Nov 21: v27 (temperature 1.0) scored 0.10; the 31B decode-diet line is closed
 
 - **v27_temp10: 0.10** (ref 58596777, COMPLETE by 07:36 UTC Nov 21; no timeout). That is 8 tasks below the three v17-family draws (0.18 each) and below v25 (0.13).
