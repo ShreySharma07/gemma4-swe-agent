@@ -671,6 +671,17 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 21: v27 (temperature 1.0) scored 0.10; the 31B decode-diet line is closed
+
+- **v27_temp10: 0.10** (ref 58596777, COMPLETE by 07:36 UTC Nov 21; no timeout). That is 8 tasks below the three v17-family draws (0.18 each) and below v25 (0.13).
+- **Rule (row v28, applied to v27):** ≤ 0.15 → the change hurts; v17 stays the base. Thinking 2048 and temperature 1.0 have each lost when tested alone, so no untested half is left. The decode-diet line (strategy lever A, and A2/A3 with it) is closed.
+- **Reading:**
+  - The 8-task smoke (5/8 vs 3/8, −13% time) did not predict the hidden set.
+  - Its one warning sign was non-ok tool calls doubling (7% → 14%). More garbled calls at temperature 1.0 is the likely mechanism; not verified, since there are no hidden-set traces.
+  - Every departure from the v17 recipe since Nov 14 has scored below it: v21 0.13, v25 0.13, v27 0.10. The v23 tie was the exception.
+- **Consequence for the plan:** v17 is the 31B final. Remaining slots carry most value on the E4B track, so B0 (on Atul's account) is now on the critical path. Its status cannot be read from Shrey's login (private kernel); no push from Atul is visible in git yet.
+- The Nov 21 UTC slot is open (nothing pending).
+
 ### Nov 20: v27 submitted (ref 58596777); B0 dry run passes; B0 GPU goes to Atul's account
 
 - **v27_temp10 submitted** on Shrey's yes: ref 58596777, 05:13:50 UTC (zip SHA-256 bf52d9de43a58b14…). Pre-registered rule: row v28, which applies to v27 under the branch. Score due around 05:30 UTC Nov 21.
