@@ -671,6 +671,28 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 21: B0 result: E4B LoRA serving is GO; E4B quits early rather than running out of budget
+
+`gemma4-lora-serve` v1, 0.9 h wall ≈ 1.8 quota-h (Shrey's account). Files: `results/runs/b0/`. Row B0 in `docs/experiments.md` has the details.
+- **LoRA on E4B: GO.**
+  - zero_lora = base and noise_lora ≠ base; `adapter:` routes to `openai/noise_lora` through the official compiler.
+  - 258 target modules (q/o/MLP in 42 layers; k/v in 24).
+  - So training an E4B adapter is possible on the scorer path.
+- **Speed.** E4B decodes 108 tok/s (2.5k prompt) and 90 tok/s (14k), about 3× the 31B. The LoRA decode tax is 1.26–1.31×, larger than the 31B's 1.10–1.13×.
+- **v26 (E4B, v14 scaffold) on 24 new-60 tasks:** 4/24, against the 31B's 12/24 on the same tasks (v14 and v17 alike). E4B's 4 are a subset.
+  - Mean 100 s per task (31B ~265 s); median 11.5 tool calls of 28.
+  - **22/24 runs end with the agent's own submit before any cap**; 1 call cap, 1 overflow, 0 time cap.
+  - Failures (20): wrong fix never tested 10, edited the wrong file 7, other 3.
+  - 0 malformed tool arguments.
+- **Rule outcome.**
+  - (i) GO → build the E4B trainer (B2).
+  - (iii) No trigger fired, so the fallback is 'raise calls'. **Proposed deviation:** skip it. E4B stops at about 12 calls by itself, so a higher cap changes nothing.
+- **Reading.**
+  - E4B's problem is quitting early with a wrong or misplaced fix, the opposite of the 31B's cap-bound failures.
+  - That is what 31B trajectories demonstrate, so distillation is the lever.
+  - The 12 h cap leaves room (≈ 7.3 h projected). But a distilled E4B making 31B-like ~22 calls at the 1.3× LoRA tax could approach 11 h, so the gate must time it at concurrency 1.
+- **Next.** v29's score (v17 scaffold on E4B, due ~08:30 UTC Nov 22) picks the scaffold. B2 (E4B trainer) is the main build.
+
 ### Nov 21: B0 pushed on Shrey's account (not Atul's)
 
 - Shrey asked to run B0 on his own GPU quota (the weekly reset was Saturday Nov 21). The kernel was regenerated as `shreysharma07/gemma4-lora-serve`; the notebook is identical, only the owner differs. Pushed as v1 at about 19:04 UTC; status RUNNING a minute later.
