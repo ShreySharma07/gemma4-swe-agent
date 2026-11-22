@@ -6,6 +6,8 @@ Before: it sat in the FSDP root unit, which FULL_SHARD never reshards after forw
   loss       StreamCE: weighted next-token CE with Gemma's final-logit softcap, the vocabulary streamed through the
              GPU in tiles, two passes (1: running logsumexp + target logit, 2: dL/dh). Exact up to summation order;
              dL/dh is accumulated in fp32. ~5.6 GB of host->GPU copies per sequence (~0.5 s on PCIe 4).
+E4B also has a per-layer input embedding (262144 x 42*256 bf16 = 5.6 GB, frozen, looked up once per sequence):
+it gets the same host treatment, so no rank holds it in the never-resharded FSDP root.
 Loss normalisation is the caller's: loss = sum_t w_t * ce_t / norm (norm = the optimizer step's total weight, so
 every trained token counts the same however the step's sequences are split across ranks and micro-steps).
 """
@@ -23,7 +25,8 @@ class HostEmbedding(nn.Module):
         super().__init__()
         w = emb.weight.detach().to("cpu")
         self.w = w.pin_memory() if device.type == "cuda" else w
-        self.scale = emb.embed_scale.detach().to("cpu", w.dtype)  # HF: lookup * embed_scale in the weight dtype (L4 v1: was left on the GPU)
+        sc = getattr(emb, "embed_scale", None)  # HF: lookup * embed_scale in the weight dtype (L4 v1: was left on the GPU)
+        self.scale = (sc.detach() if torch.is_tensor(sc) else torch.tensor(1.0 if sc is None else float(sc))).to("cpu", w.dtype)
         self.device = device
 
     def forward(self, input_ids):
@@ -38,6 +41,9 @@ def move_to_host(m, device):
     head = base.get_output_embeddings()
     assert head.weight.data_ptr() == lm.embed_tokens.weight.data_ptr(), "expected tied embedding / lm_head"
     lm.embed_tokens = HostEmbedding(lm.embed_tokens, device)
+    ple = getattr(lm, "embed_tokens_per_layer", None)
+    if ple is not None and hasattr(ple, "weight"):  # E4B per-layer inputs (not tied to anything)
+        lm.embed_tokens_per_layer = HostEmbedding(ple, device)
     base.lm_head = nn.Identity()
     del head
     if device.type == "cuda":

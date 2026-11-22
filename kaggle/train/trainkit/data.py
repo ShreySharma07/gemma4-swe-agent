@@ -9,7 +9,7 @@ IGNORE = -100
 
 
 class TrainData:
-    def __init__(self, path, max_windows=None, vocab=None, seed=0, max_len=None, corr="keep", corr_share=0.0):
+    def __init__(self, path, max_windows=None, vocab=None, seed=0, max_len=None, corr="keep", corr_share=0.0, max_turn=0):
         d = np.load(path)
         self.ids = d["ids"]
         if "weight" in d:  # rs2.npz (kaggle/rftset/rs2_core.py): weight[t] = loss weight of token t, 0 = context
@@ -24,7 +24,9 @@ class TrainData:
         drop = set(self.dropped_long)
         w = [i for i in range(n) if i not in drop and self.weight_sum(i) > 0]
         random.Random(seed).shuffle(w)
-        self.train_w = [i for i in w if not val[i] and not (corr == "exclude" and self.corr[i])][:max_windows]
+        self.dropped_turn = [i for i in w if max_turn and not val[i] and self.longest_run(i) > max_turn]
+        dt = set(self.dropped_turn)  # train only: validation stays comparable across runs
+        self.train_w = [i for i in w if not val[i] and i not in dt and not (corr == "exclude" and self.corr[i])][:max_windows]
         self.val_w = [i for i in w if val[i]]
         self.val_sets = ({"onpolicy": [i for i in self.val_w if not self.corr[i]], "corrected": [i for i in self.val_w if self.corr[i]]}
                          if any(self.corr[i] for i in self.val_w) else {})
@@ -38,6 +40,14 @@ class TrainData:
 
     def length(self, w):
         return int(self.starts[w + 1] - self.starts[w])
+
+    def longest_run(self, w):
+        """Longest contiguous run of trained tokens in episode w (one model turn: thinking + text + tool call)."""
+        m = self.w[self.starts[w]:self.starts[w + 1]] > 0
+        if not m.any():
+            return 0
+        d = np.diff(np.concatenate([[0], m.astype(np.int8), [0]]))
+        return int((np.flatnonzero(d == -1) - np.flatnonzero(d == 1)).max())
 
     def weight_sum(self, w):
         """Total loss weight of window w's labels (tokens 1..T-1)."""
@@ -80,6 +90,7 @@ class TrainData:
     def stats(self):
         lens = [self.length(w) for w in self.train_w]
         return {"train_windows": len(self.train_w), "val_windows": len(self.val_w), "dropped_long": len(self.dropped_long),
+                "dropped_turn": len(self.dropped_turn),
                 "train_tokens": int(sum(lens)), "max_len": max(lens) if lens else 0,
                 "train_weight": round(sum(self.weight_sum(w) for w in self.train_w), 1),
                 "train_corrected": int(sum(self.corr[w] for w in self.train_w)), "val_corrected": len(self.val_sets.get("corrected", [])),

@@ -11,6 +11,7 @@ Masks are disabled by passing NO_MASKS (a dict) as attention_mask: HF then skips
 Anything else (a real mask, a KV cache with q_len != k_len, decoding) goes to HF's own sdpa_attention_forward.
 Also: the last full and sliding layer keep their full-length K/V in shared_kv_states for KV sharing; Gemma-4-31B
 has num_kv_shared_layers=0, so nothing reads them (0.75 GiB at 32k, held by the checkpoint kwargs) -> turned off.
+E4B has num_kv_shared_layers=18 (its last 18 layers have no k/v projections and read that store) -> kept on.
 """
 import torch
 import torch.nn.functional as F
@@ -104,4 +105,5 @@ def install(model):
         if type(mod).__name__ == "Gemma4TextAttention":
             if not hasattr(mod, "_hf_store_kv"):
                 mod._hf_store_kv = mod.store_full_length_kv
-            mod.store_full_length_kv = mod._hf_store_kv and not LC["no_kv_store"]
+            shared = getattr(getattr(mod, "config", None), "num_kv_shared_layers", 0) or 0
+            mod.store_full_length_kv = mod._hf_store_kv and not (LC["no_kv_store"] and shared == 0)

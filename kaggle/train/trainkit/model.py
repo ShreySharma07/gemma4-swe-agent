@@ -17,11 +17,15 @@ from .fix_head import StreamCE
 LORA_RE = r".*language_model.*\.(" + "|".join(TARGETS) + r")$"
 
 
-def load_base(path, rank, smoke):
-    """Every rank quantises the bf16 QAT weights to NF4 on its own GPU (~11 min); FSDP then shards them."""
+def load_base(path, rank, smoke, quant="nf4"):
+    """nf4 (31B): every rank quantises the bf16 QAT weights to NF4 on its own GPU (~11 min); FSDP then shards them.
+    bf16 (E4B, 16 GB): every rank loads the QAT weights as they are onto its GPU; FSDP then shards them."""
     from transformers import AutoModelForImageTextToText
     if smoke:
         return AutoModelForImageTextToText.from_pretrained(path, dtype=torch.float32, attn_implementation="sdpa")
+    if quant == "bf16":
+        return AutoModelForImageTextToText.from_pretrained(path, dtype=torch.bfloat16, attn_implementation="sdpa",
+                                                           device_map={"": rank})
     from transformers import BitsAndBytesConfig
     q = BitsAndBytesConfig(
         load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.bfloat16,
@@ -84,7 +88,8 @@ def wrap_fsdp(m, smoke, mlp_tile=4096):
     fix_lora.broadcast_init(lora)  # replicated tensors: every rank must start from the same init
     lm = next(mm for n, mm in m.named_modules() if n.endswith("language_model") and "vision" not in n)
     layer_cls = type(lm.layers[0])
-    vision = [mm for n, mm in m.named_modules() if n.endswith("vision_tower") or n.endswith("embed_vision")]
+    vision = [mm for n, mm in m.named_modules()  # E4B also has an audio tower: same treatment
+              if n.endswith(("vision_tower", "embed_vision", "audio_tower", "embed_audio"))]
     types = tuple({layer_cls} | {type(v) for v in vision})
     cap = getattr(m.config.get_text_config(), "final_logit_softcapping", None)
     fm = FSDP(LossWrap(m, cap, head), auto_wrap_policy=partial(lambda_auto_wrap_policy, lambda_fn=lambda x: isinstance(x, types)),

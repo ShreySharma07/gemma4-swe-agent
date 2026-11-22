@@ -95,7 +95,7 @@ class Trainer:
 
     def build(self):
         t = time.time()
-        m = load_base(self.model_path, self.rank, self.s.smoke)
+        m = load_base(self.model_path, self.rank, self.s.smoke, self.s.quant)
         load_s = round(time.time() - t)
         m = add_lora(m, self.s.rank, self.s.alpha, self.dt)
         n_lora = lora_modules(m)
@@ -168,6 +168,9 @@ class Trainer:
         plan = data.plan(data.train_w, self.world, self.s.grad_accum, self.s.epochs)
         total = len(plan)
         self.log(event="plan", optimizer_steps=total, micro_steps=total * self.s.grad_accum, **data.stats())
+        per_epoch = max(1, total // max(1, math.ceil(self.s.epochs)))  # -1 below = at each epoch end
+        val_every = per_epoch if self.s.val_every < 0 else self.s.val_every
+        save_every = per_epoch if self.s.save_every < 0 else self.s.save_every
         opt = ShardedAdamW(self.lora, lr=self.s.lr)
         self.validate(data, "start")
         for step, micro in enumerate(plan):
@@ -200,9 +203,9 @@ class Trainer:
                      tok_per_s=round(float(red[0]) / float(mx[0]), 1), peak_gb=round(float(mx[1]), 2),
                      max_len=max(data.length(w) for ws in micro for w in ws))
             last = step + 1 == total  # the end-of-run validation and export follow anyway
-            if self.s.val_every and (step + 1) % self.s.val_every == 0 and not last:
+            if val_every and (step + 1) % val_every == 0 and not last:
                 self.validate(data, f"step{step + 1}")
-            if self.s.save_every and (step + 1) % self.s.save_every == 0 and not last:
+            if save_every and (step + 1) % save_every == 0 and not last:
                 self.export(f"step{step + 1}")
         self.validate(data, "end")
         self.export("final")
@@ -225,7 +228,7 @@ def main():
         tr.close()
         return
     data = TrainData(sys.argv[2], s.max_windows, vocab=tr.vocab if s.smoke else None, seed=s.seed, max_len=s.max_len,
-                     corr=s.corr, corr_share=s.corr_share)
+                     corr=s.corr, corr_share=s.corr_share, max_turn=s.max_turn)
     if s.vablate:
         from .vablate import probe
         probe(tr, data, s.smoke)

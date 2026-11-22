@@ -16,12 +16,16 @@ TARGETS = ("q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down
 LC = {"attn": True,      # fix_attention: block-local sliding attention + per-KV-group global attention, no dense masks
       "mlp_tile": True,  # fix_mlp: MLP over sequence tiles, each tile its own checkpoint
       "norm_ckpt": True,  # fix_norm: RMSNorm checkpointed (saves its bf16 input, not fp32 copies)
-      "no_kv_store": True}  # fix_attention: drop the unused full-length K/V the last layers keep (num_kv_shared_layers=0)
+      "no_kv_store": True}  # fix_attention: drop the full-length K/V the last layers keep, only if nothing reads it
+                            # (num_kv_shared_layers = 0, the 31B; E4B shares K/V in 18 layers, so it is kept)
 
 
 @dataclass
 class TrainSettings:
     name: str = "conv_lora"           # adapter name (adapters/<name>/ in the submission)
+    model: str = "31b"                # base: 31b | e4b (picks the attached bf16 QAT checkpoint and the smoke config)
+    quant: str = "nf4"                # nf4 (31B recipe) | bf16 (E4B fits unquantized: the QAT weights as served)
+    max_turn: int = 0                 # > 0: drop TRAIN episodes with a contiguous trained run longer than this
     rank: int = 16
     alpha: int = 32
     lr: float = 1e-4
@@ -32,8 +36,8 @@ class TrainSettings:
     offload_from: int = 4097          # windows longer than this keep checkpoint activations in host RAM
     max_len: int = 28672              # episodes longer than this are dropped (never head-truncated: the task prompt is there)
     mlp_tile: int = 4096              # fix_mlp tile (tokens)
-    val_every: int = 0                # optimizer steps between validation passes (0 = only at the end)
-    save_every: int = 0               # optimizer steps between adapter exports (0 = only at the end)
+    val_every: int = 0                # optimizer steps between validation passes (0 = only at the end, -1 = each epoch end)
+    save_every: int = 0               # optimizer steps between adapter exports (0 = only at the end, -1 = each epoch end)
     budget_h: float = 10.5            # stop taking steps after this, then export (session cap 12 h)
     seed: int = 0
     corr: str = "keep"                # corrected episodes (rs4.npz): keep | exclude (T2a control)
