@@ -671,6 +671,26 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 22: T3 (E4B distillation) built; exactness smoke passes on a tiny E4B
+
+- **Trainer changes for E4B** (`kaggle/train/trainkit`, 31B behaviour unchanged):
+  - KV-shared layers keep their K/V store (E4B shares K/V in its last 18 of 42 layers; the 31B fix dropped that store).
+  - The per-layer input embedding (262k × 10,752, 5.6 GB) lives in host RAM like the main embedding.
+  - The audio tower gets its own never-gathered FSDP unit; there is a bf16 load path (no NF4).
+  - `max_turn` filter; validation and export at each epoch end (`-1`).
+  - `make_train_notebook.py` gained `--model`, `--quant`, `--rank`, `--alpha`, `--max-turn`, `--offload-from` and `--warmup-steps`.
+- **Data reuse checked on HF:**
+  - E4B's tokenizer is byte-identical to the 31B's (sha cc8d3a0c…).
+  - The chat templates differ only in the thinking-off generation prompt, so the 31B-rendered `rs4.npz` serves as E4B data unchanged.
+  - E4B config vs 31B: hidden 2560, 8 heads, 2 KV heads, sliding window 512, global layers 5, 11, …, 41, `hidden_size_per_layer_input` 256, `num_kv_shared_layers` 18, `attention_k_eq_v` false, audio tower present.
+  - Training checkpoint: `google/gemma-4/Transformers/gemma-4-e4b-it-qat-q4_0-unquantized/2` (15.9 GB, Apache 2.0).
+- **Exactness smoke** `gemma4-lc-probe-smoke-e4b`:
+  - v1 failed in the probe's own 3-layer real-width diagnostic, which kept E4B's 18 shared layers; HF cannot build that.
+  - v2 (sharing off for that one diagnostic) passed everything. The full patched stack equals plain HF autograd on a tiny E4B with KV sharing and per-layer inputs (cosine 1.0, worst tensor rel. 6e-6, loss diff 0) with every runtime fix toggled. The noise controls and the ShardedAdamW step both pass.
+  - The tiny train run exports 38 modules (6 × 7 − 2 shared layers × k/v: HF builds no k/v projections for shared layers, so the adapter matches the 258 modules vLLM serves).
+  - Report: `results/runs/t3_smoke/`.
+- **Real-data smoke** `gemma4-train-smoke-e4b-distill` (tiny E4B, real `rs4.npz`, 16 episodes, 2 epochs) is running. The L4 notebook `gemma4-train-e4b-distill` is built, **not pushed**.
+
 ### Nov 21: B0 result: E4B LoRA serving is GO; E4B quits early rather than running out of budget
 
 `gemma4-lora-serve` v1, 0.9 h wall ≈ 1.8 quota-h (Shrey's account). Files: `results/runs/b0/`. Row B0 in `docs/experiments.md` has the details.
