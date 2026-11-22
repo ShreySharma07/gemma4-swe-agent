@@ -689,7 +689,7 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
   - v2 (sharing off for that one diagnostic) passed everything. The full patched stack equals plain HF autograd on a tiny E4B with KV sharing and per-layer inputs (cosine 1.0, worst tensor rel. 6e-6, loss diff 0) with every runtime fix toggled. The noise controls and the ShardedAdamW step both pass.
   - The tiny train run exports 38 modules (6 × 7 − 2 shared layers × k/v: HF builds no k/v projections for shared layers, so the adapter matches the 258 modules vLLM serves).
   - Report: `results/runs/t3_smoke/`.
-- **Real-data smoke** `gemma4-train-smoke-e4b-distill` (tiny E4B, real `rs4.npz`, 16 episodes, 2 epochs) is running. The L4 notebook `gemma4-train-e4b-distill` is built, **not pushed**.
+- **Real-data smoke** `gemma4-train-smoke-e4b-distill` v1 (tiny E4B, real `rs4.npz`, 16 episodes, 2 epochs): rc 0. 8 steps, validation at start / epoch end / end, two exports of 38 modules at r32. `max_turn` 4096 drops 10 episodes. The L4 notebook `gemma4-train-e4b-distill` is built, **not pushed** (needs Shrey's yes; about 3–5 quota-h expected, 4 h budget).
 
 ### Nov 21: B0 result: E4B LoRA serving is GO; E4B quits early rather than running out of budget
 
