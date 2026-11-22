@@ -671,6 +671,17 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 22: T3 trained (on-policy val −37% → B4 gate); v29 scored 0.05 (keep v14's scaffold for E4B)
+
+- **v29_e4b_v17: 0.05** (ref 58658022, COMPLETE, no timeout). v26 (v14's scaffold) scored 0.06; one task apart. Row v29's rule, 0.05–0.08 band: v17's scaffold does not help E4B, so **v14's scaffold stays the E4B base**. It is also the scaffold of the distillation data.
+- **T3 L4 run** (`gemma4-train-e4b-distill` v1, rc 0, about 1.75 h wall ≈ 3.5 quota-h):
+  - 94 steps, no OOM or NaN, peak 15.05 GB per rank, median 1,831 tok/s.
+  - **On-policy val 0.369 → 0.234 (epoch 1) → 0.233 (end): −37%.** The rule's ≥ 25% band → B4 gate.
+  - Corrected val (excluded from training) rose 0.326 → 0.457, the same direction T2a showed on the 31B.
+  - Epoch 2 overfits: no on-policy gain, train loss down, corrected val up. The epoch-1 export `adapter_step47` is the conservative alternative to the final one.
+  - Adapter: 258 modules at r32, 140 MB (`data/runs/t3/adapters/e4b_distill`; small artefacts in `results/runs/t3/`).
+- The watcher's laptop slept between 06:55 and 17:42 UTC, so the result was read about 10 h after the run ended (report written about 08:00 UTC).
+
 ### Nov 22: T3 (E4B distillation) built; exactness smoke passes on a tiny E4B
 
 - **Trainer changes for E4B** (`kaggle/train/trainkit`, 31B behaviour unchanged):
