@@ -136,8 +136,13 @@ def _real_width_diag(tr, T=2100):
     tc = real["text_config"]
     tc.update(num_hidden_layers=3, layer_types=["sliding_attention", "sliding_attention", "full_attention"],
               vocab_size=1024, vocab_size_per_layer_input=1024)
+    if tc.get("num_kv_shared_layers"):  # E4B: 18 of 42 layers share K/V; 3 layers cannot (the tiny smoke model tests it)
+        tc["num_kv_shared_layers"] = 0
     real["vision_config"].update(hidden_size=32, intermediate_size=64, num_hidden_layers=1, num_attention_heads=2,
                                  num_key_value_heads=2, head_dim=16, global_head_dim=16)
+    if real.get("audio_config"):  # E4B: not used here; keep its init cheap
+        real["audio_config"].update(hidden_size=32, num_hidden_layers=1, num_attention_heads=2, output_proj_dims=32,
+                                    subsampling_conv_channels=[8, 4])
     torch.manual_seed(0)
     cfg = AutoConfig.for_model(**{k: v for k, v in real.items() if k != "transformers_version"})
     m = AutoModelForImageTextToText.from_config(cfg, attn_implementation="sdpa").eval()
