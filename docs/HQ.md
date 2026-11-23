@@ -689,7 +689,7 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
   - (a) sampling temperature 1.0 / top_k 64 (v27's pair; on the 31B smoke it removed the extreme loops), or
   - (b) the epoch-1 export `adapter_step47` (epoch 2 showed overfitting).
   If loops vanish, generation roughly halves, which puts the projection near 9 h.
-- **Shrey chose (a)** ("Temperature 1.0"). Built `submissions/v31_e4b_distill_t10` = v30 with temperature 1.0 and top_k 64 (two lines in `configs/sampling.yaml`), pre-registered as row v31; zip `dist/v31_e4b_distill_t10/submission.zip` (SHA-256 d9fabdcbfebdc069…). Compile check `gemma4-validate-submission` v29 pushed. **24-task check `check-l4` v12 pushed 08:25 UTC Nov 23** (same tasks and flags as v30).
+- **Shrey chose (a)** ("Temperature 1.0"). Built `submissions/v31_e4b_distill_t10` = v30 with temperature 1.0 and top_k 64 (two lines in `configs/sampling.yaml`), pre-registered as row v31; zip `dist/v31_e4b_distill_t10/submission.zip` (SHA-256 d9fabdcbfebdc069…). Compile check `gemma4-validate-submission` v29: ok (adapter resolved, model E4B, same tools as v30). **24-task check `check-l4` v12 pushed 08:25 UTC Nov 23** (same tasks and flags as v30).
 
 ### Nov 22: T3 trained (on-policy val −37% → B4 gate); v29 scored 0.05 (keep v14's scaffold for E4B)
 
