@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 23: T4 (E4B distillation on short teacher episodes) pushed
+
+- **Shrey chose** "Retrain, short episodes" over the rule's epoch-1 check.
+- **Data cut** (measured on the real `rs4.npz`, downloaded to `data/runs/rs4_npz/`): T3 trained on 381 resolved teacher episodes with a median of 18 model turns (p90 25). Keeping episodes with **≤ 16 turns** leaves 159 (42%), median 13 turns, median 9.5k tokens (p90 14.4k), 1.63M of 4.86M tokens. Adding a token cap on top changes little, so the cut is turns only.
+- **Trainer:** new train-only option `max_turns` (`trainkit/data.py` `n_turns`; `--max-turns` in `make_train_notebook.py`). Validation is untouched, so on-policy val stays comparable with T3. Checked locally on `rs4.npz`: off → 381 episodes / 94 steps (T3 exactly); 16 → 159 / 38 steps.
+- **Run:** `gemma4-train-e4b-short` v1 = T3's command plus `--name e4b_short --max-turns 16`. The notebook differs from T3's only in the settings, this filter and `lcprobe.py` (not used in training). Pushed 17:22 UTC Nov 23, RUNNING.
+- **Pre-registered** as rows T4 and v32: val end ≤ 0.295 → build v32 (v31 + `e4b_short`) and run the same 24-task check; v32 submits only at projection ≤ 9 h and resolves ≥ 5.
+
 ### Nov 23: v31 check: temperature 1.0 fixes the loops, but 4/24 and a 10.1 h projection; the student doesn't reach submit
 
 - **Run:** `check-l4` v12, v31 (= v30 with temperature 1.0 / top_k 64) on B0's 24 tasks at concurrency 1, rc 0, RUN_DONE 09:52 UTC Nov 23 (1.4 h). Artefacts: `results/runs/v31_check/`.

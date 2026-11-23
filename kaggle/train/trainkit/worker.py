@@ -228,7 +228,8 @@ def main():
         tr.close()
         return
     data = TrainData(sys.argv[2], s.max_windows, vocab=tr.vocab if s.smoke else None, seed=s.seed, max_len=s.max_len,
-                     corr=s.corr, corr_share=s.corr_share, max_turn=s.max_turn)
+                     corr=s.corr, corr_share=s.corr_share, max_turn=s.max_turn,
+                     max_turns=s.max_turns)
     if s.vablate:
         from .vablate import probe
         probe(tr, data, s.smoke)

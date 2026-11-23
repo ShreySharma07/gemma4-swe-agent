@@ -26,6 +26,7 @@ class TrainSettings:
     model: str = "31b"                # base: 31b | e4b (picks the attached bf16 QAT checkpoint and the smoke config)
     quant: str = "nf4"                # nf4 (31B recipe) | bf16 (E4B fits unquantized: the QAT weights as served)
     max_turn: int = 0                 # > 0: drop TRAIN episodes with a contiguous trained run longer than this
+    max_turns: int = 0                # > 0: drop TRAIN episodes with more model turns (trained runs) than this (T4)
     rank: int = 16
     alpha: int = 32
     lr: float = 1e-4
