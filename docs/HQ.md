@@ -671,6 +671,25 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 23: v30 check: 5/24 vs 4/24, but the adapter causes degenerate thinking loops; no LB as is
+
+- **Run:** `check-l4` v11, v30 (E4B + T3 adapter) on B0's 24 tasks at concurrency 1, rc 0, finished by 20:06 UTC Nov 22 (read Nov 23 05:20 UTC; the laptop slept again). Artefacts: `results/runs/v30_check/`.
+- **Outcome vs B0's plain E4B on the same tasks:**
+  - Resolved 5/24 vs 4/24 (2 vs 3 discordant, p = 1.0).
+  - Mean 215 s per task vs 100 s; median calls 19.5 vs 12.5.
+  - Malformed edits 0% vs 83%, so the adapter fixed the tool-call format. Wrong fixes submitted untested: 4 vs 10.
+  - **Context overflow 14/24 vs 1/24**; submitted 10/24 vs 23/24.
+- **Mechanism: degenerate thinking loops.**
+  - 15/24 tasks have a thinking turn that repeats itself (under 15% unique words; one reaches the 8,192-token output cap).
+  - The loops are **55% of all generated tokens**. Plain E4B: none. The 31B teacher on the same scaffold: 2/60 tasks, 2% of tokens.
+  - Ordinary steps are teacher-like (median 129 generated tokens per call; teacher 116). Only the tail runs away (p90 1,388; teacher 719).
+  - The training data renders the 31B's thinking as thinking, and the template keeps past thinking in the context, so each loop stays in the prompt. That drives both the overflows and the runtime.
+- **Rule outcome:** projected LB runtime (215 + 120) × 120 = 11.2 h > 9 h, so **no LB as is**. The rule's named next step (lower `max_time_minutes`) misses the cause: no task reached the 8-min cap (max 394 s).
+- **Proposed deviation (Shrey's call):** one change on v30 aimed at the loops, re-checked on the same 24 tasks (about 3 quota-h):
+  - (a) sampling temperature 1.0 / top_k 64 (v27's pair; on the 31B smoke it removed the extreme loops), or
+  - (b) the epoch-1 export `adapter_step47` (epoch 2 showed overfitting).
+  If loops vanish, generation roughly halves, which puts the projection near 9 h.
+
 ### Nov 22: T3 trained (on-policy val −37% → B4 gate); v29 scored 0.05 (keep v14's scaffold for E4B)
 
 - **v29_e4b_v17: 0.05** (ref 58658022, COMPLETE, no timeout). v26 (v14's scaffold) scored 0.06; one task apart. Row v29's rule, 0.05–0.08 band: v17's scaffold does not help E4B, so **v14's scaffold stays the E4B base**. It is also the scaffold of the distillation data.
