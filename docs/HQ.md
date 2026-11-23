@@ -678,6 +678,8 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 - **Trainer:** new train-only option `max_turns` (`trainkit/data.py` `n_turns`; `--max-turns` in `make_train_notebook.py`). Validation is untouched, so on-policy val stays comparable with T3. Checked locally on `rs4.npz`: off → 381 episodes / 94 steps (T3 exactly); 16 → 159 / 38 steps.
 - **Run:** `gemma4-train-e4b-short` v1 = T3's command plus `--name e4b_short --max-turns 16`. The notebook differs from T3's only in the settings, this filter and `lcprobe.py` (not used in training). Pushed 17:22 UTC Nov 23, RUNNING.
 - **Pre-registered** as rows T4 and v32: val end ≤ 0.295 → build v32 (v31 + `e4b_short`) and run the same 24-task check; v32 submits only at projection ≤ 9 h and resolves ≥ 5.
+- **T4 result** (`gemma4-train-e4b-short` v1, rc 0, about 40 min wall ≈ 1.3 quota-h): 38 steps, no OOM or NaN, peak 15.05 GB per rank. **On-policy val 0.369 → 0.257 (epoch 1) → 0.253 (end): −31%**, against T3's 0.233 on 2.4× the data. Corrected val 0.326 → 0.432. Artefacts: `results/runs/t4/`; adapter `data/runs/t4/adapters/e4b_short` (final export, 140 MB).
+- **Rule outcome:** gain ≥ 20% → v32 with the final export. `submissions/v32_e4b_short` = v31 with `adapter: e4b_short`; the compile check passes (`gemma4-validate-submission` v30, stub adapter: model E4B, same tools as v31). Zip `dist/v32_e4b_short/submission.zip` (8 files, 104 MiB, SHA-256 365c48b1609a8b1b…). **24-task check `check-l4` v13 pushed 18:09 UTC Nov 23**, RUNNING.
 
 ### Nov 23: v31 check: temperature 1.0 fixes the loops, but 4/24 and a 10.1 h projection; the student doesn't reach submit
 
