@@ -671,6 +671,21 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 23: v31 check: temperature 1.0 fixes the loops, but 4/24 and a 10.1 h projection; the student doesn't reach submit
+
+- **Run:** `check-l4` v12, v31 (= v30 with temperature 1.0 / top_k 64) on B0's 24 tasks at concurrency 1, rc 0, RUN_DONE 09:52 UTC Nov 23 (1.4 h). Artefacts: `results/runs/v31_check/`.
+- **Outcome (B0 plain E4B / v30 / v31, same 24 tasks):**
+  - Resolved 4 / 5 / 4. v31 vs B0: 2 vs 2 discordant, p = 1.0. v31 vs v30: 1 vs 2, p = 1.0.
+  - Mean per task 100 / 215 / 182 s, so the projection is 7.3 / 11.2 / **10.1 h**.
+  - Degenerate-loop tasks 0 / 15 / **3**; loop share of generated tokens 0 / 55 / **5%**; per-call p90 771 / 1,388 / 952 tokens.
+  - Overflow 1 / 14 / 9; 28-call budget exhausted 0 / 1 / 7; explicit submit 23 / 10 / 6; median tool calls 12.5 / 19.5 / 28.
+- **Predictions:** the loop numbers were met (≤ 5 tasks, ≤ 15%). Overflow ≤ 6 missed (9). Mean 120–180 s narrowly missed (182). Resolves 4, the bottom of 4–9.
+- **Mechanism (new): the student runs to the end.**
+  - 16/24 tasks end on overflow or the call budget, and none of them resolves. All 4 resolves come from the 8 tasks that ended cleanly.
+  - The student copies the teacher's trajectory length (31B v14 scaffold: median 24 calls, 88% submit) but makes less progress per call, so it doesn't reach `submit_patch` within 28 calls or the 24.5k prompt ceiling. Plain E4B stops at about 12 calls and submits 96%.
+- **Rule outcome:** projection 10.1 h > 9 h → **no LB**; the rule's next step is the epoch-1 adapter (`adapter_step47`) at temperature 1.0.
+- **Read:** epoch 1 has the same on-policy val as the final export (0.234 vs 0.233) and learned from the same 24-call teacher episodes, so I expect it to run just as long. The cause-aimed alternative is retraining (T4) on teacher episodes short enough for E4B. Across two checks the adapter has not beaten plain E4B on resolves (5 and 4 vs 4), so **v26 stays the E4B final** either way. Next step is Shrey's call (GPU).
+
 ### Nov 23: v30 check: 5/24 vs 4/24, but the adapter causes degenerate thinking loops; no LB as is
 
 - **Run:** `check-l4` v11, v30 (E4B + T3 adapter) on B0's 24 tasks at concurrency 1, rc 0, finished by 20:06 UTC Nov 22 (read Nov 23 05:20 UTC; the laptop slept again). Artefacts: `results/runs/v30_check/`.
