@@ -671,6 +671,19 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 24: v32 check: 6/24 (best E4B), but projection 10.4 h; rule says close the distillation line
+
+- **Run:** `check-l4` v13, v32 (v31 + T4's `e4b_short`) on B0's 24 tasks, concurrency 1, rc 0, RUN_DONE 19:37 UTC Nov 23 (1.5 h). Artefacts: `results/runs/v32_check/`.
+- **Outcome (B0 / v31 / v32):**
+  - Resolved 4 / 4 / **6**. v32 vs B0: 3 vs 1 discordant, p = 0.63; vs v31: 3 vs 1, p = 0.63. Direction only at n = 24.
+  - Mean per task 100 / 182 / 191 s → projection 7.3 / 10.1 / **10.4 h**. Max 497 s (one task hit the 8-min cap).
+  - Explicit submit 23 / 6 / 11; budget exhausted 0 / 7 / 3; overflow 1 / 9 / 8; median tool calls 12.5 / 28 / 28.
+  - Loops stay fixed (3 tasks, 4% of tokens); malformed edits 83% / 0% / 14%.
+- **Predictions:** resolves 6 (pred 3–8) and budget ≤ 3 held; calls ≤ 20, submit ≥ 14, overflow ≤ 4 and mean 110–150 s missed. The short episodes made the student submit more and run out of calls less, but it still explores nearly the full budget, so runtime did not fall.
+- **Rule outcome:** projection > 9 h → close the distillation line for the LB; v26 stays the E4B final.
+- **Calibration note for Shrey's call:** the 120 s overhead in the projection is an estimate. v14 (31B, local mean 231 s at concurrency 1) completed on the LB, which bounds the scorer overhead at ≤ 129 s per task. So v32 is at most (191 + 129) × 120 = 10.7 h, inside the 12 h cap if the private tasks run like new-60. A 4-min cap (`max_time_minutes: 4`) would give 9.6 h with no resolve lost on these 24 (untested change). No LB submission is pending (last: v29, Nov 21), and a timeout costs only that slot: the finals stay v17 + v26 unless v32 completes and scores higher.
+- **Proposed deviation (Shrey's call):** submit v32 to the LB as is (zip `dist/v32_e4b_short/submission.zip`, SHA-256 365c48b1609a8b1b…). Otherwise follow the rule and close the line.
+
 ### Nov 23: T4 (E4B distillation on short teacher episodes) pushed
 
 - **Shrey chose** "Retrain, short episodes" over the rule's epoch-1 check.
