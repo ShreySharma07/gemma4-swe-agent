@@ -671,6 +671,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 24: v32 submitted to the LB (ref 58811831), a deviation from its rule
+
+- **Shrey chose "Submit v32"** over the rule's "close the line" (projection 10.4 h > 9 h). Reasons: no slot used since Nov 21; v14's completed LB run bounds the scorer overhead at ≤ 129 s per task, so v32 is at most about 10.7 h; a timeout costs only this slot, and the finals stay v17 + v26 unless v32 completes and scores higher.
+- **Zip checked before submitting:** `dist/v32_e4b_short/submission.zip`, SHA-256 365c48b1609a8b1b…, 8 files; non-adapter files identical to `submissions/v32_e4b_short`; adapter = T4's final export (sha 500071ce…, r32 α64, PEFT LoRA).
+- **Pre-registered (row v32, LB column):** prediction 0.04–0.12, most likely 0.07; timeout risk about 1 in 4. ≥ 0.08 → v32 becomes the E4B final; 0.05–0.07 → v26 stays; ≤ 0.04 or timeout → v26 stays and the distillation line closes for the LB.
+- **Submitted:** ref 58811831, 04:54:09 UTC Nov 24. Score due around 05:00 UTC Nov 25. No slot left today.
+
 ### Nov 24: v32 check: 6/24 (best E4B), but projection 10.4 h; rule says close the distillation line
 
 - **Run:** `check-l4` v13, v32 (v31 + T4's `e4b_short`) on B0's 24 tasks, concurrency 1, rc 0, RUN_DONE 19:37 UTC Nov 23 (1.5 h). Artefacts: `results/runs/v32_check/`.
