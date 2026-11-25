@@ -678,7 +678,13 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 - **Checks:** compile check `gemma4-validate-submission` v31 ok (stub adapter; model E4B, same tools as v32). The zip `dist/v32r1_e4b_short/submission.zip` (SHA-256 b22f2df5eeef075f…, 8 files) differs from v32's only in `prompts/system.md`; adapter = T4 final (sha 500071ce…).
 - **Pre-registered** as row v32r1: prediction 0.03–0.10, most likely 0.06. No gate; the reading updates the v32 family's mean for the finals rule.
 - **Submitted:** ref 58905591, 19:04:03 UTC Nov 25, after confirming nothing was pending. Score due around 19:00 UTC Nov 26, when slot 2 (`v26r1`) opens.
-- **Slot 2 pre-built (not submitted):** `submissions/v26r1_e4b` = v26 with the same one-word change; compile check v32 ok (model E4B, same tools as v26). Zip `dist/v26r1_e4b/submission.zip` (SHA-256 a86ac13a6dea0e83…) differs from v26 only in `prompts/system.md`. It waits for Shrey's yes and for v32r1 to score.
+- **Slot 2 pre-built (not submitted):** `submissions/v26r1_e4b` = v26 with the same one-word change; compile check v32 ok (model E4B, same tools as v26). Zip `dist/v26r1_e4b/submission.zip` (SHA-256 a86ac13a6dea0e83…) differs from v26 only in `prompts/system.md`. It waits for v32r1 to score.
+- **Shrey: "Auto-submit it"** (slot 2). `tools/autosubmit.sh` started at 19:37 UTC Nov 25. It:
+  - polls every 10 min until ref 58905591 is COMPLETE or ERROR;
+  - submits `dist/v26r1_e4b/submission.zip` only if its SHA-256 still starts a86ac13a6dea0e83 and no submission is pending;
+  - retries every 10 min if the submit is refused (for example before 00:00 UTC).
+  Its guards were dry-run first (scored ref → stops at the pending guard; wrong SHA → refuses; pending ref → keeps waiting). caffeinate holds the Mac awake for 28 h; a closed lid still sleeps it.
+- Pre-registered as row v26r1: prediction 0.04–0.08, most likely 0.06. If it scores exactly 0.06, further v26 repeats count as low-information and the slots go to v32.
 
 ### Nov 25: final-week slot plan drafted (`docs/strategy_20261125_final_week.md`)
 
