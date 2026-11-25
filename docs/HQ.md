@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 25: slot 1, v32r1 submitted (ref 58905591)
+
+- **Shrey:** "Yes, submit v32r1" (final-week plan slot 1).
+- `submissions/v32r1_e4b_short` = v32 with one prompt word changed ("engineer assigned to resolve" → "engineer asked to resolve"), so the file is not byte-identical and counts as a fresh draw. Adapter, sampling, tools and limits are unchanged.
+- **Checks:** compile check `gemma4-validate-submission` v31 ok (stub adapter; model E4B, same tools as v32). The zip `dist/v32r1_e4b_short/submission.zip` (SHA-256 b22f2df5eeef075f…, 8 files) differs from v32's only in `prompts/system.md`; adapter = T4 final (sha 500071ce…).
+- **Pre-registered** as row v32r1: prediction 0.03–0.10, most likely 0.06. No gate; the reading updates the v32 family's mean for the finals rule.
+- **Submitted:** ref 58905591, 19:04:03 UTC Nov 25, after confirming nothing was pending. Score due around 19:00 UTC Nov 26, when slot 2 (`v26r1`) opens.
+
 ### Nov 25: final-week slot plan drafted (`docs/strategy_20261125_final_week.md`)
 
 - **Boards at 18:40 UTC.** Main: top 0.24 (18 teams); us 0.18. Small model (host data Nov 24 23:56, 1,419 teams): top 0.12 (2), 34 at 0.10, 178 at 0.08, 396 at 0.06; us 0.06.
