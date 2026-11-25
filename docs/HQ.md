@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 25: final-week slot plan drafted (`docs/strategy_20261125_final_week.md`)
+
+- **Boards at 18:40 UTC.** Main: top 0.24 (18 teams); us 0.18. Small model (host data Nov 24 23:56, 1,419 teams): top 0.12 (2), 34 at 0.10, 178 at 0.08, 396 at 0.06; us 0.06.
+- **Recommendation (not decided):** one LB reading resolves only gaps of about 5 tasks or more, and no buildable lever has that prior. So the remaining slots go to repeat readings, mostly of v32 (temperature 1.0, so each reading is a fresh draw; better local record; runtime proven). Each repeat gets a one-word change. No new variants, no 31B draws.
+- **Calendar:** slot 1 `v32r1` today before 23:59 UTC; then `v26r1`, `v32r2`, then the family that leads on mean.
+- **Finals rule proposed:** 31B v17. E4B: the family with the higher mean (within 0.01 → v26, unless Shrey picks v32), then that family's best single draw. This works whether or not the private board shares the public run.
+- **Open for Shrey:** approve the calendar and slot 1; auto-submit watcher or manual; the E4B tie-break; read the Evaluation tab.
+
 ### Nov 25: v32 scored 0.06, a tie with v26; v26 stays the E4B final
 
 - **v32_e4b_short: 0.06** (ref 58811831, COMPLETE, no timeout; read 18:40 UTC Nov 25). Prediction 0.04–0.12 (most likely 0.07) held; the timeout did not happen.
