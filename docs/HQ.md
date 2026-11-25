@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 25: v32 scored 0.06, a tie with v26; v26 stays the E4B final
+
+- **v32_e4b_short: 0.06** (ref 58811831, COMPLETE, no timeout; read 18:40 UTC Nov 25). Prediction 0.04–0.12 (most likely 0.07) held; the timeout did not happen.
+- **Rule (row v32, LB):** 0.05–0.07 → tie; **v26 stays the E4B final** (established, faster).
+- The local gain (6/24 vs 4/24, p = 0.63) did not transfer, the same pattern as the 31B line.
+- **Runtime calibration:** v32 completed inside 12 h at a local mean of 191 s per task at concurrency 1. The 9 h bar with the 120 s overhead estimate was conservative; candidates with local means up to about 190 s can go to the LB.
+- Finals as they stand: v17 (31B, 0.18) and v26 (E4B, 0.06).
+
 ### Nov 24: v32 submitted to the LB (ref 58811831), a deviation from its rule
 
 - **Shrey chose "Submit v32"** over the rule's "close the line" (projection 10.4 h > 9 h). Reasons: no slot used since Nov 21; v14's completed LB run bounds the scorer overhead at ≤ 129 s per task, so v32 is at most about 10.7 h; a timeout costs only this slot, and the finals stay v17 + v26 unless v32 completes and scores higher.
