@@ -678,6 +678,7 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 - **Slot 2:** `tools/autosubmit.sh` submitted `v26r1_e4b` at 04:30:23 UTC Nov 27 (ref 58981540) once v32r1 was COMPLETE; the SHA and no-pending guards passed.
 - **Calendar:** scoring took longer than 24 h, so no submission went in on Nov 26 UTC; that slot is lost. Left after v26r1: about four slots (Nov 28, 29, 30, Dec 1), each opening when the previous one scores.
 - **Next (plan slot 3):** `v32r2`, a third v32 reading, needs Shrey's yes. Slots 4–6 then go to the family that leads on mean.
+- **Slot 3 pre-built (not submitted):** `submissions/v32r2_e4b_short` = v32 with a different one-word change ("Aim to understand" → "Try to understand"), so it is not identical to v32 or v32r1. The compile check passes (model E4B, same tools). Zip `dist/v32r2_e4b_short/submission.zip` (SHA-256 cb01ca527d1c2ec1…) differs from both earlier v32 zips only in `prompts/system.md`; adapter = T4 final.
 
 ### Nov 25: slot 1, v32r1 submitted (ref 58905591)
 
