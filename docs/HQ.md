@@ -671,6 +671,14 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 27: v32r1 scored 0.03; the watcher submitted v26r1 (ref 58981540)
+
+- **v32r1_e4b_short: 0.03** (ref 58905591, COMPLETE). It scored between 21:46 UTC Nov 26 and 04:30 UTC Nov 27, about 26–33 h after submit; the watcher log has a gap in that window, probably the Mac sleeping. Prediction 0.03–0.10 held at its bottom edge.
+- **v32 family:** 0.06, 0.03 → mean 0.045 over 2 readings. The 4-task spread is within binomial noise (SD about 2.6 tasks per reading at this level). **v26 family:** 0.06 (1 reading) leads on mean.
+- **Slot 2:** `tools/autosubmit.sh` submitted `v26r1_e4b` at 04:30:23 UTC Nov 27 (ref 58981540) once v32r1 was COMPLETE; the SHA and no-pending guards passed.
+- **Calendar:** scoring took longer than 24 h, so no submission went in on Nov 26 UTC; that slot is lost. Left after v26r1: about four slots (Nov 28, 29, 30, Dec 1), each opening when the previous one scores.
+- **Next (plan slot 3):** `v32r2`, a third v32 reading, needs Shrey's yes. Slots 4–6 then go to the family that leads on mean.
+
 ### Nov 25: slot 1, v32r1 submitted (ref 58905591)
 
 - **Shrey:** "Yes, submit v32r1" (final-week plan slot 1).
@@ -1396,3 +1404,12 @@ The planning notes above and in the training guide are retained as historical co
   - A12v (namespace/attribute/interface checks, decorators, identity controls, kept hybrids and tails): validated-clean 61/128; **43/51 compatible necessary hybrids fail behaviourally (84%), 18/19 tasks, CI 0.63–1.00**; 10/10 tails confirmed by hand.
   - **C7 Supported (validated).** A5 keyword-free shared identifier: 0.65 micro / 0.89 macro.
   - Atul second-read pending.
+
+### Nov 26 — Leaderboard and failure review
+Kaggle API check: public leaders 0.24, best recorded 31B family 0.18, v32r1 pending (58905591). Plain and distilled E4B both scored 0.06 on their first runs. The Nov 24 host snapshot put the small-model lead at 0.12. A12v and A4 point to incorrect behavior in edits even after localization; G2 found no reproducible resolve gain from self-trained adapters. These local diagnostics cannot attribute the private-task gap. Final-week repeats measure candidate performance; no new run launched during this review.
+
+### Nov 26 — V33 reproduction challenger
+Built paired 4-minute control and reproduction variants from v17. Budget across 120 tasks is 8 h before setup and grading. Frozen split, 8 eligible pilot cases, 4 underspecified, 48 evaluation cases on separate repos. First quota check: 14.33 GPU hours available, reset Nov 28 UTC. v32r1 pending. Compiler and solver-only data preparation launched on private Kaggle CPU.
+Compiler v33 rejected copied .DS_Store files. Rebuilt both clean archives and verified both passed compiler v34. Private solver-only inputs finished. Paired pilot v1 launched (shreysharma07/gemma4-lora-gate-v33-f3-pilot). Independent CPU grading is required for any solve comparison.
+
+**V33 decision: stop before held-out evaluation.** Independent grading: challenger 7/12, control 8/12, 0 gains/1 loss, exact McNemar p=1.00; all 24 verified without harness errors. Zero of eight eligible challenger runs had the required inline assertion pair (threshold four); two repeated print probes. Four challenger patches contained reproduction-named files. Keep scored v17 as main finalist and preserve remaining E4B slots. After Dec 2 the first experiment remains the original-wording, repo-held-out gate. Correction training still lacks the required behavioral evidence.
