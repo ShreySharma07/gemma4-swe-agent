@@ -671,6 +671,15 @@ Read-only analysis found no identifiable repository-source edit in any D trace; 
 **New lightweight CPU evidence, not a causal result:** the preserved C NPZ has maximum window length 8,191, excluding the inspected 8,192-token hard clipping conditional on preprocessing provenance. Supervised labels/window range 23–4,726; training averages window means while validation weights supervised tokens. Actual action/phase shares remain unknown without missing rendered examples/tokenizer. [Audit and reproduction](atul_data_training_cpu_audit_20261016.md). These recommendations have not been implemented or behaviorally tested. No GPU job, model load, retraining, notebook push, D/D0 retry, submission or Git push was performed; prior findings and contributor sections are preserved.
 
 
+### Nov 28: v26r1 scored 0.03; the two E4B families are tied at 0.045
+
+- **v26r1_e4b: 0.03** (ref 58981540, COMPLETE, read 08:41 UTC Nov 28). The pre-registered prediction of 0.04–0.08 missed (below range).
+- **Family means:** v26 (0.06, 0.03) = 0.045; v32 (0.06, 0.03) = 0.045. **Tied.** Under the finals rule a tie goes to v26 unless Shrey picks v32; the best single draw in each family is its original (0.06).
+- **Temperature 0.2 did not repeat on E4B:** v26 moved 3 tasks between readings, unlike the 31B v17 family (0.17–0.18 ×4). Further v26 readings are informative too.
+- **Confound:** both r1 variants carry the same word change ("engineer assigned to resolve" → "engineer asked to resolve"), and both fell 3 tasks. Two readings can't separate noise (paired-difference SD about 3.7 tasks) from a real effect of that word. Treat it as a hint only. `v32r2` keeps "assigned" and changes a different word, so it partly tests this.
+- **Slot open now:** nothing is pending and nothing has gone in on Nov 28 UTC. Plan slot 3 (`v32r2`, pre-built, compiled, zip SHA-256 cb01ca527d1c2ec1…) is also what the tie rule picks (v32 on a tie). It still needs Shrey's yes.
+- **Background:** the 28 h caffeinate ended; no watcher is running.
+
 ### Nov 27: v32r1 scored 0.03; the watcher submitted v26r1 (ref 58981540)
 
 - **v32r1_e4b_short: 0.03** (ref 58905591, COMPLETE). It scored between 21:46 UTC Nov 26 and 04:30 UTC Nov 27, about 26–33 h after submit; the watcher log has a gap in that window, probably the Mac sleeping. Prediction 0.03–0.10 held at its bottom edge.
